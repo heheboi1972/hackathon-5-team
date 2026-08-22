@@ -1,6 +1,6 @@
 # 처음 시작하는 사람을 위한 가이드 (GETTING_STARTED.md)
 
-> 목표: 클론부터 첫 업로드까지 **30분**. 막히면 §6부터 보세요.
+> 목표: 클론부터 첫 업로드까지 **30분**. 막히면 §6, 명세서 읽는 법은 §8.
 
 ## 0. 이 프로젝트가 뭔지 3줄
 
@@ -118,15 +118,49 @@ python scripts/smoke_test.py http://localhost:8000
 4. **챗봇은 인용 없으면 답하지 않는다.** 지어내지 않는다
 5. **컴포넌트에서 직접 fetch 금지.** `web/src/api/client.ts` 경유
 
-## 8. 스캐폴딩 (완료됨)
+## 8. 명세서를 보고 구현하는 법 (에이전트를 쓰든 안 쓰든)
 
-스캐폴딩은 2026-08-23 에 끝났어요 (`docs/SCAFFOLD.md` §5 순서 1~10, 커밋 `8052946`). 새로 합류한 사람은 §2부터 시작하면 됩니다.
-참고용 — 당시 했던 것: 계약 파일(`models/api.py` ↔ `types.ts`) 1:1 작성, 라우터 8개 mock 스텁, `postgres/init.sql`, `container.py` 배선, web 초기화, `scripts/smoke_test.py`.
-완료 기준은 `docs/SCAFFOLD.md` §6.
+이 리포의 `docs/`는 사람과 AI 에이전트 **둘 다** 읽으라고 쓴 명세서예요. 어떤 도구를 쓰든 작업 단위는 같습니다.
 
-## 9. Claude Code로 작업할 때
+### 8.1 한 작업의 재료 찾기
 
-- 프로젝트 루트에서 열기. `docs/`가 컨텍스트라 먼저 읽히게 하면 좋아요: "docs/API_SPEC.md 기준으로 routers/upload.py 구현해줘"
-- 계약 파일을 바꾸는 작업은 "API_SPEC도 같이 고쳐줘"를 붙이기
-- 한 번에 하나의 라우터/화면. "전부 다 만들어줘"는 디버깅이 어려워요
-- 막히면 `docker compose logs api --tail 50` 결과를 그대로 붙여넣기
+작업 하나(예: "업로드 API 구현")에 필요한 문서는 보통 이 4개:
+
+| 무엇을 | 어디서 | 예: 업로드 |
+|---|---|---|
+| 왜 만드는지·경계 | `REQUIREMENTS.md` FR 번호 | FR-002 |
+| 입출력 계약 | `API_SPEC.md` 해당 절 + `models/api.py` / `types.ts` | API_SPEC §3, `UploadResponse` |
+| 끝났다고 판정하는 기준 | `TEST_CASES.md` TC 번호 | TC-API-003 |
+| 어느 파일을 만지는지 | `SCAFFOLD.md` §3, 각 파일 첫 줄 `# 역할:` 주석 | `routers/upload.py`, `services/kakao_parser.py` |
+
+각 소스 파일 **첫 줄**에 역할과 참조 절이 적혀 있어요 (`# 역할: FR-002 업로드 … (참조: API_SPEC §3)`). 파일을 열면 어느 문서를 봐야 하는지 바로 보이게 해뒀습니다.
+
+### 8.2 직접 구현할 때
+
+1. 위 표대로 FR → API_SPEC → TC 순서로 읽기. API_SPEC의 **예시 JSON이 곧 정답 출력**
+2. 스텁 파일의 `TODO` 자리에 구현. 응답 모델(`models/api.py`)은 이미 있으니 그대로 반환
+3. `docker compose up` 후 Swagger 또는 `scripts/smoke_test.py`로 확인
+4. TEST_CASES의 해당 TC 조건을 만족하는지 체크하고 PR
+
+### 8.3 에이전트(Claude Code, Codex, Cursor 등)에게 시킬 때
+
+프롬프트에 아래 3가지를 **항상** 넣으세요. 도구는 달라도 원리는 같아요 — 에이전트는 문서를 가리켜줘야 읽습니다.
+
+```
+docs/API_SPEC.md §3 과 docs/TEST_CASES.md TC-API-003 기준으로
+api/app/routers/upload.py 의 TODO 를 구현해줘.
+응답 모델은 api/app/models/api.py 의 UploadResponse 를 그대로 쓰고,
+계약 파일(API_SPEC, models/api.py, types.ts)은 바꾸지 마.
+```
+
+- **범위 하나**: 라우터 하나, 화면 하나. "전부 다 만들어줘"는 디버깅이 어려워요
+- **계약 파일 고정**: 바꿔야 하면 "API_SPEC도 같이 고치고, 바뀐 점을 알려줘"라고 명시
+- **금지 규칙 상기**: 프롬프트·리포트 작업이면 §7의 2~4번(LLM 계산 금지, 금지 표현, 인용 없는 답변 금지)을 프롬프트에 포함
+- **막히면 로그 그대로**: `docker compose logs api --tail 50` 출력을 붙여넣기
+- Claude Code는 루트의 `CLAUDE.md`, Codex는 `AGENTS.md`를 자동으로 읽어요. 둘 다 없으면 위 규칙을 프롬프트에 직접 넣으면 됩니다
+
+### 8.4 문서를 고쳐야 할 때
+
+- 구현하다 명세가 틀렸거나 빠진 걸 발견하면 **코드와 문서를 같은 PR에서** 고치기
+- 계약 파일 3개(`API_SPEC.md`, `models/api.py`, `types.ts`)는 고치기 전에 팀 채널에 먼저
+- TEST_CASES에 없는 동작을 추가했으면 TC 한 줄 추가 — 다음 사람(또는 에이전트)의 완료 기준이 됩니다

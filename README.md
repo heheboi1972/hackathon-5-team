@@ -3,8 +3,7 @@
 커플이 둘 다 동의한 뒤 카톡 대화를 올리면, **판정 없이** 대화 패턴 변화를 주간 리포트로 보여주고 과거 대화를 검색해주는 서비스.
 지표 계산은 **코드**(`metrics.py`)가, 해석·문장은 **LLM**(watsonx)이 담당합니다.
 
-**현재 상태:** 스캐폴딩 완료 (2026-08-23). 계약 파일·라우터 mock 스텁·인프라 배선까지 끝났고, Mock 모드로 `docker compose up` → 스모크 테스트 11/11 PASS.
-다음 작업은 [docs/TASKS.md](docs/TASKS.md) Phase 1부터.
+작업 계획은 [docs/TASKS.md](docs/TASKS.md).
 
 ## 빠른 시작
 
@@ -34,7 +33,7 @@ api/            FastAPI 백엔드
   app/models/api.py   API 계약 (web/src/api/types.ts 와 1:1)
   app/routers/        auth, couples, upload, timeline, reports, chat, review, health
   app/services/       kakao_parser, metrics, ai_service(watsonx/mock), postgres, qdrant
-  app/agents/ tools/ prompts/   LLM 에이전트·툴·프롬프트 (Phase 1 에서 채움)
+  app/agents/ tools/ prompts/   LLM 에이전트·툴·프롬프트
   mock/               Mock 모드 응답 JSON
   tests/fixtures/kakao/   카톡 내보내기 3형식 합성 데이터
 web/            Vite + React 18 + TS + Tailwind + TanStack Query
