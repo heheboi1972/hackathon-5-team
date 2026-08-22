@@ -44,7 +44,7 @@ python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().de
 docker compose up --build
 ```
 
-처음엔 이미지 받느라 3~5분. 이게 보이면 성공:
+처음엔 이미지 받느라 3~5분. (이 PC에 5432/6333/8000 을 쓰는 다른 프로젝트가 있으면 §6 포트 충돌 항목 참고) 이게 보이면 성공:
 ```
 api  | Application startup complete.
 ```
@@ -118,12 +118,11 @@ python scripts/smoke_test.py http://localhost:8000
 4. **챗봇은 인용 없으면 답하지 않는다.** 지어내지 않는다
 5. **컴포넌트에서 직접 fetch 금지.** `web/src/api/client.ts` 경유
 
-## 8. 맨 처음 스캐폴딩 (한 사람만, 한 번)
+## 8. 스캐폴딩 (완료됨)
 
-1. 빈 폴더 `couple-report` 만들고 zip 풀기 → `docs/`, `src/`, `README.md`
-2. VS Code로 열고 Claude Code 실행
-3. `docs/SCAFFOLD.md` §5 지시문 붙여넣기
-4. §6 완료 기준 확인 후 Git push → 나머지는 §2부터
+스캐폴딩은 2026-08-23 에 끝났어요 (`docs/SCAFFOLD.md` §5 순서 1~10, 커밋 `8052946`). 새로 합류한 사람은 §2부터 시작하면 됩니다.
+참고용 — 당시 했던 것: 계약 파일(`models/api.py` ↔ `types.ts`) 1:1 작성, 라우터 8개 mock 스텁, `postgres/init.sql`, `container.py` 배선, web 초기화, `scripts/smoke_test.py`.
+완료 기준은 `docs/SCAFFOLD.md` §6.
 
 ## 9. Claude Code로 작업할 때
 
