@@ -1,0 +1,55 @@
+{
+  "weeks": [
+    {
+      "week_start": "2026-08-03",
+      "in_progress": false,
+      "report_status": "generated",
+      "summary": {
+        "session_count": 16,
+        "message_count": 388,
+        "initiation_ratio": { "a": 0.55, "b": 0.45 },
+        "question_rate": { "a": 0.21, "b": 0.24 },
+        "message_length_median": { "a": 13, "b": 12 },
+        "reply_gap_median_min": { "a": 5, "b": 5 },
+        "resume_delay_median_min": { "a": 90, "b": 120 },
+        "session_length_median": 20
+      },
+      "outlier_count": 1,
+      "events": []
+    },
+    {
+      "week_start": "2026-08-10",
+      "in_progress": false,
+      "report_status": "generated",
+      "summary": {
+        "session_count": 20,
+        "message_count": 455,
+        "initiation_ratio": { "a": 0.58, "b": 0.42 },
+        "question_rate": { "a": 0.2, "b": 0.23 },
+        "message_length_median": { "a": 14, "b": 11 },
+        "reply_gap_median_min": { "a": 4, "b": 6 },
+        "resume_delay_median_min": { "a": 100, "b": 130 },
+        "session_length_median": 24
+      },
+      "outlier_count": 0,
+      "events": []
+    },
+    {
+      "week_start": "2026-08-17",
+      "in_progress": false,
+      "report_status": "generated",
+      "summary": {
+        "session_count": 18,
+        "message_count": 412,
+        "initiation_ratio": { "a": 0.61, "b": 0.39 },
+        "question_rate": { "a": 0.18, "b": 0.22 },
+        "message_length_median": { "a": 14, "b": 11 },
+        "reply_gap_median_min": { "a": 4, "b": 6 },
+        "resume_delay_median_min": { "a": 95, "b": 140 },
+        "session_length_median": 22
+      },
+      "outlier_count": 2,
+      "events": []
+    }
+  ]
+}

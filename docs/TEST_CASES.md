@@ -1,0 +1,310 @@
+# 커플 대화 리포트 — 테스트 케이스 (TEST_CASES.md)
+
+> 상태: v0.1 · 기준: REQUIREMENTS.md, API_SPEC.md
+> **용도: 완료 기준표.** TDD로 쓰지 않는다. 구현 후 §6 우선순위대로 핵심만 확인. 자동화는 파서·지표(순수 함수)만, 나머지는 수동 체크리스트.
+
+## 추적 매트릭스 (TC ↔ FR ↔ US)
+
+| TC | FR | US |
+|---|---|---|
+| TC-PARSE-001~004 | FR-002 | US-002 |
+| TC-METRIC-001~005 | FR-002 | US-002 |
+| TC-API-001~002 | FR-001 | US-001 |
+| TC-API-003~004 | FR-002, FR-003 | US-002, US-003 |
+| TC-API-005 | FR-004 | US-004 |
+| TC-API-006~007 | FR-005 | US-005 |
+| TC-API-008 | FR-006 | US-006 |
+| TC-AGENT-001~005 | FR-004, FR-006 | US-004, US-006 |
+| TC-INT-001~003 | 전체 | 전체 |
+
+---
+
+## 1. 파서 (`kakao_parser.py`) — 픽스처: `tests/fixtures/kakao/*.txt`
+
+### TC-PARSE-001: 형식 감지
+
+| ID | 입력 | 기대 |
+|---|---|---|
+| 001-1 | PC 헤더(`님과 카카오톡 대화`) | `"pc"` |
+| 001-2 | iOS 헤더(`저장한 날짜 : 2026. 8. 22.`) | `"ios"` |
+| 001-3 | Android 첫 줄(`2026년 8월 5일 오후 11:12, 이름 : `) | `"android"` |
+| 001-4 | 빈 파일 / 무관한 텍스트 | `ValueError` → API 422 UNSUPPORTED_FORMAT |
+| 001-5 | zip(내부 txt 1개 + 사진) | txt만 추출해 파싱 |
+| 001-6 | zip(txt 없음) | `ValueError` |
+
+### TC-PARSE-002: PC 형식
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 002-1 | 단일 줄 메시지 | sender, sent_at(KST), body 정확 |
+| 002-2 | 여러 줄 메시지 (내부 LF, 빈 줄 포함) | 한 Message, body에 `\n` 보존 |
+| 002-3 | `오전 12:03` | `00:03` |
+| 002-4 | `오후 12:30` | `12:30` |
+| 002-5 | `오후 11:59` → 다음 구분선 `오전 0:10` | 날짜가 구분선 기준으로 바뀜 |
+| 002-6 | 시스템 메시지(초대/내보냄/삭제됨) | 결과에 미포함 |
+| 002-7 | 제어 문자 `\u001f` 포함 본문 | 제거됨 |
+| 002-8 | 헤더 2줄 | 미포함 |
+
+### TC-PARSE-003: iOS 형식
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 003-1 | BOM 있는 파일 | 정상 파싱 |
+| 003-2 | `2026. 8. 5. 오전 9:10: 시스템` (콜론) | 미포함 |
+| 003-3 | `2026. 8. 5. 오전 10:58, 이름 : 본문` | Message |
+| 003-4 | `이모티콘 ` (뒤 공백) | msg_type=emoticon |
+| 003-5 | **같은 방 PC/iOS 파일 교차** | 메시지 수·시각·유형·본문 전부 일치 (현재 93/93 일치) |
+
+### TC-PARSE-004: 분류·질문 판정
+
+| ID | 본문 | msg_type | is_question | body_len |
+|---|---|---|---|---|
+| 004-1 | `사진` / `사진 3장` | photo | False | 0 |
+| 004-2 | `파일: a.pdf` | file | False | 0 |
+| 004-3 | `삭제된 메시지입니다` | deleted | False | 0 |
+| 004-4 | `뭐해?` | text | True | 3 |
+| 004-5 | `밥 먹었니` | text | True | |
+| 004-6 | `갈까요` / `뭐 먹을까ㅋㅋ` | text | True | |
+| 004-7 | `알았어` / `그래야지` / `보고싶어` | text | **False** | |
+| 004-8 | `오늘 뭐 했어` (물음표 없는 질문) | text | False (의도된 보수적 정의) | |
+| 004-9 | 발화자 3명 이상 | `validate_couple` → ValueError | | |
+
+---
+
+## 2. 지표 (`metrics.py`) — 픽스처: 합성 생성기 `tests/synth.py` (seed 고정)
+
+### TC-METRIC-001: 세션 분할
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 001-1 | 간격 29분 | 같은 세션 |
+| 001-2 | 간격 30분 | 새 세션 |
+| 001-3 | gap_min=15/30/60 | 세션 수 단조 감소 |
+| 001-4 | 사진만으로 시작한 세션 | initiator = 사진 보낸 사람 |
+| 001-5 | 시간순 뒤섞인 입력 | 정렬 후 분할 |
+
+### TC-METRIC-002: 추이형 지표
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 002-1 | A 개시 6, B 개시 4 | initiation_ratio a=0.6 b=0.4 |
+| 002-2 | A text 10개 중 질문 3 | question_rate a=0.3 |
+| 002-3 | photo만 있는 주 | question_rate·length = None, initiation은 계산됨 |
+| 002-4 | 글자수 [3,5,100] | message_length_median=5 (평균 아님) |
+| 002-5 | 4주 미만 | `comparable=false`, baseline/delta=None |
+| 002-6 | 5주차 | baseline = 1~4주 평균, delta = 5주 − baseline, comparable=true |
+| 002-7 | 기준선 주 중 None 있음 | None 제외하고 평균 |
+
+### TC-METRIC-003: 답장 간격 분리
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 003-1 | 세션 내 A→B 2분 | in_session, who=B, 2.0 |
+| 003-2 | A 연속 3개 → B | B의 gap은 A의 **마지막** 메시지 기준 |
+| 003-3 | 세션 끝 A, 다음 세션 B가 시작 (3h) | resume, who=B, 180 |
+| 003-4 | 세션 끝 A, 다음 세션 A가 시작 | gap 없음 (답장 아님) |
+| 003-5 | resume 13시간 | 제외 (REPLY_GAP_MAX_MIN) |
+| 003-6 | 주 경계를 넘는 resume | 손실 허용 (문서화된 한계) |
+
+### TC-METRIC-004: 이상치
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 004-1 | 기준 표본 19개 | 판정 보류, outliers=[] |
+| 004-2 | 지수분포 기준 + 평소 2분, 이번 25분 | in_session high 1건 |
+| 004-3 | 평소 2분, 이번 5분 (3배 미만) | 이상치 아님 |
+| 004-4 | 세션 길이 평소 20, 이번 200 | session_length high |
+| 004-5 | 세션 길이 평소 20, 이번 3 | session_length low |
+| 004-6 | 한 주에 high 6건 | 상위 3건만 (지표·사람당) |
+| 004-7 | 12주 합성 기본 시나리오 | 주당 이상치 ≤ 2 (노이즈 억제 회귀 테스트) |
+
+### TC-METRIC-005: 출력 계약
+
+| ID | 기대 |
+|---|---|
+| 005-1 | `build_weekly_metrics` 출력이 API_SPEC §4.2 `metrics`/`summary` 키와 일치 (JSON Schema 검증) |
+| 005-2 | `week_start`가 모두 월요일 |
+| 005-3 | 주 오름차순, 빈 주 없음 (대화 없는 주는 생략) |
+| 005-4 | 동일 입력 2회 → 동일 출력 (결정론) |
+
+---
+
+## 3. API (pytest + httpx, Postgres testcontainer, Qdrant mock)
+
+### TC-API-001: 커플 연결 흐름
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 001-1 | A invite | 201, code 8자, status=pending |
+| 001-2 | A invite 2회 | 같은 code |
+| 001-3 | B join(유효) | 200, status=awaiting_confirm |
+| 001-4 | A join(자기 코드) | 409 INVITE_SELF |
+| 001-5 | C join(이미 커플 있음) | 409 ALREADY_COUPLED |
+| 001-6 | join(없는 코드) | 404 INVITE_INVALID |
+| 001-7 | A confirm accept=true | 200, status=active |
+| 001-8 | B confirm | 403 |
+| 001-9 | A confirm accept=false | 200, status=pending, user_b=null |
+| 001-10 | confirm(이미 active) | 409 INVITE_STATE |
+| 001-11 | me(커플 없음) | 200, couple_id=null |
+| 001-12 | me(active) | members.a/b, me, data 포함 |
+
+### TC-API-002: 커플 해제
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 002-1 | DELETE by A | 204, messages/sessions/weekly_metrics/reports/notes 0건, Qdrant 포인트 0건 |
+| 002-2 | DELETE by B | 204 (양쪽 가능) |
+| 002-3 | DELETE by C | 403 |
+| 002-4 | 해제 후 GET reports | 404 |
+
+### TC-API-003: 업로드
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 003-1 | active 아님 | 403 COUPLE_NOT_ACTIVE |
+| 003-2 | PC txt + name_map | 202, parsed.format=pc, weeks_computed>0, job_id |
+| 003-3 | iOS zip | 202, format=ios |
+| 003-4 | 무관한 txt | 422 UNSUPPORTED_FORMAT |
+| 003-5 | 단톡방 | 422 NOT_COUPLE_CHAT, detail.senders 길이≥3 |
+| 003-6 | 최초 업로드 name_map 없음 | 422 NAME_MAPPING_REQUIRED, detail.senders |
+| 003-7 | 2회차 업로드 name_map 없음 | 202 (저장된 매핑 사용) |
+| 003-8 | 같은 파일 재업로드 | new_messages=0, weeks_computed 동일, report_jobs.total=0 |
+| 003-9 | 신규 1주 추가된 파일 | new_messages>0, report_jobs.total=1 (변경 주만) |
+| 003-10 | 51MB | 413 |
+| 003-11 | jobs/{id} 진행 | running → done, progress.done == total |
+
+### TC-API-004: 타임라인
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 004-1 | 25주 데이터 | weeks 25개, 월요일, 오름차순 |
+| 004-2 | summary 키 | API_SPEC §4.1 전부 존재 |
+| 004-3 | 이번 주 | in_progress=true |
+| 004-4 | from/to 필터 | 범위 내만 |
+| 004-5 | 리포트 생성 전 | report_status=pending |
+| 004-6 | 다른 커플 | 403 NOT_COUPLE_MEMBER |
+
+### TC-API-005: 리포트 조회
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 005-1 | 생성 완료 주 | 200, status=generated, highlights≥1 |
+| 005-2 | 4주 미만 주 | status=insufficient_baseline, highlights=[], suggestions=[], metrics.*.comparable=false, summary 존재 |
+| 005-3 | pending 주 | status=pending, summary만 |
+| 005-4 | week_start가 화요일 | 400 |
+| 005-5 | 데이터 없는 주 | 404 |
+| 005-6 | 불변: interpretations | 모든 highlight에 ≥2 |
+| 005-7 | 불변: sentiment | ∈ {positive, neutral, notable} |
+| 005-8 | 불변: template_id | 컬렉션 B에 존재 |
+| 005-9 | 불변: 금지어 | REQUIREMENTS FR-004 금지 표현 regex 0건 |
+| 005-10 | regenerate | 202, job 완료 후 generated_at 갱신 |
+
+### TC-API-006: 돌아보기
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 006-1 | session_id 지정 | sessions 1개, metrics.range 해당 세션 |
+| 006-2 | start/end 3일 | 범위 내 세션만 |
+| 006-3 | 15일 | 400 |
+| 006-4 | baseline.weeks | ≤8 |
+| 006-5 | notes 포함 | 범위 겹치는 메모 |
+
+### TC-API-007: 메모
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 007-1 | 생성 | 201, author=호출자 |
+| 007-2 | body 501자 | 400 |
+| 007-3 | end < start | 400 |
+| 007-4 | 작성자 삭제 | 204 |
+| 007-5 | 상대가 삭제 | 403 |
+
+### TC-API-008: 챗봇
+
+| ID | message | 기대 intent | 기대 응답 |
+|---|---|---|---|
+| 008-1 | "우리 언제 제주도 얘기했지?" | fact_query | answer≠null, citations≥1 |
+| 008-2 | "지난달 내가 먼저 말 건 비율?" | metric_query | answer에 숫자 |
+| 008-3 | "3주 전 리포트 뭐였지?" | report_query | answer≠null |
+| 008-4 | "우리 괜찮은 거야?" | advice_request | answer=null, redirect=고정 문구 |
+| 008-5 | "헤어져야 할까?" | advice_request | 동일 |
+| 008-6 | "오늘 날씨 어때" | other | 안내 문구 |
+| 008-7 | 검색 결과 0건 | fact_query | answer="관련 기록을 찾지 못했어요", citations=[] |
+| 008-8 | 501자 | — | 400 |
+| 008-9 | focus_range 지정 | fact_query | citations 대부분 범위 내 |
+| 008-10 | USE_MOCK=true | — | 200, 고정 응답 |
+| 008-11 | watsonx 장애, mock off | — | 503 LLM_UNAVAILABLE |
+
+---
+
+## 4. 에이전트 (Mock LLM로 계약 검증 + 실제 LLM 스모크)
+
+### TC-AGENT-001: 변화 선별
+
+| ID | 입력 | 기대 |
+|---|---|---|
+| 001-1 | comparable=false 지표만 | highlights 후보 0 |
+| 001-2 | delta 큰 지표 5개 | 최대 3개 선별, 근거 수치 포함 |
+| 001-3 | 긍정 이상치 2 + 부정 이상치 2 | 양쪽 모두 포함 |
+| 001-4 | 출력 스키마 | `{highlights:[{metric, who, delta, outlier_ref?}]}` JSON 파싱 성공 |
+
+### TC-AGENT-002: 해석
+
+| ID | 기대 |
+|---|---|
+| 002-1 | interpretations ≥ 2 |
+| 002-2 | "~때문에" 0건 |
+| 002-3 | evidence가 search_conversation 결과 내에서만 |
+| 002-4 | sources가 search_knowledge 결과 내에서만 |
+| 002-5 | 한국어 출력 |
+
+### TC-AGENT-003: 제안
+
+| ID | 기대 |
+|---|---|
+| 003-1 | template_id ∈ get_suggestion_templates 결과 |
+| 003-2 | text가 템플릿 + 수치 치환 (자유 생성 아님: 템플릿 본문 포함 여부) |
+| 003-3 | 개수 1~2 |
+| 003-4 | "~하세요"/"~해야" 0건 |
+
+### TC-AGENT-004: 안전 검수
+
+| ID | 입력 문장 | 기대 |
+|---|---|---|
+| 004-1 | "관계 온도 72점이에요" | rewritten 또는 삭제 |
+| 004-2 | "B가 무심해진 것 같아요" | rewritten |
+| 004-3 | "더 자주 연락하세요" | rewritten |
+| 004-4 | "질문이 30% 줄었어요" | passed |
+| 004-5 | 금지어 없는 전체 리포트 | passed=true, rewritten=[] |
+
+### TC-AGENT-005: 챗봇 Supervisor
+
+| ID | 기대 |
+|---|---|
+| 005-1 | intent 분류 결과가 허용 집합 밖이면 `other`로 재매핑 |
+| 005-2 | advice_request에서 LLM 답변 생성 호출 0회 |
+| 005-3 | citations 0건 시 answer 교체 |
+| 005-4 | execution_trace에 단계별 입출력 기록 |
+
+---
+
+## 5. 통합
+
+### TC-INT-001: 온보딩 → 업로드 → 타임라인
+A 가입 → invite → B 가입 → join → A confirm → A 업로드(name_map) → jobs 완료 → timeline 25주 → reports/{최근} generated
+
+### TC-INT-002: 리포트 소급 + 재업로드
+6개월 파일 업로드 → 전 주차 generated → 1주 추가된 파일 재업로드 → 변경 1주만 재생성, 나머지 generated_at 불변
+
+### TC-INT-003: 돌아보기 → 챗봇 → 메모 (데모 시나리오)
+timeline outlier 마커 → review(session_id) → chat(fact_query, focus_range) citations 범위 내 → chat(advice_request) redirect → notes 생성 → review에 note 포함
+
+---
+
+## 6. 우선순위
+
+**반드시 확인 (발표 전)**: TC-INT-001~003 완주, TC-API-005-6/7/9 (해석 ≥2, sentiment, 금지어 0), TC-API-008-4/5/7 (리다이렉트, 인용 없으면 지어내지 않음), TC-API-002-1 (해제 시 삭제)
+**있으면 좋음**: TC-PARSE-003-5 (PC/iOS 교차 일치), TC-METRIC-004-7 (이상치 노이즈 회귀), TC-API-003-8 (재업로드 중복 0)
+**나머지**: 시간 나면. 문제 생겼을 때 원인 좁히는 용도
+
+**검증 대기 항목과의 관계**: V1(임베딩 품질)·V4(LLM 한국어)는 TC가 아니라 실측. 결과에 따라 TC-AGENT 기대값이 바뀔 수 있음.

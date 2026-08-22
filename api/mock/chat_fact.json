@@ -1,0 +1,8 @@
+{
+  "intent": "fact_query",
+  "answer": "2026년 3월 14일 저녁 대화에서 A가 처음 '자기야'라고 불렀어요.",
+  "citations": [
+    { "session_id": 812, "at": "2026-03-14T19:22:00+09:00", "sender": "a", "snippet": "자기야 뭐해" }
+  ],
+  "redirect": null
+}
