@@ -15,7 +15,7 @@
 | Git | `git --version` | git-scm.com |
 | Docker Desktop | `docker compose version` | docker.com. Windows는 WSL2 백엔드 켜기 |
 | Node 20+ (프론트 할 사람만) | `node -v` | nodejs.org |
-| Python 3.11 (백엔드 로컬 실행할 사람만) | `python --version` | 컨테이너로만 돌리면 불필요 |
+| Python 3.12 (백엔드 로컬 실행할 사람만) | `python --version` | 교육 사전 설치 안내와 동일. 컨테이너로만 돌리면 불필요 |
 | VS Code + Claude Code | — | — |
 
 ## 2. 처음 한 번 (10분)

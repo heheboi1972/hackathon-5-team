@@ -29,7 +29,7 @@ python scripts/smoke_test.py http://localhost:8000   # 업로드→타임라인�
 
 | | |
 |---|---|
-| 백엔드 | Python 3.11 · FastAPI · Pydantic |
+| 백엔드 | Python 3.12 · FastAPI · Pydantic |
 | 프론트엔드 | TypeScript · React 18 · Vite · React Router v6 · Tailwind + shadcn/ui · TanStack Query · react-hook-form + zod · Recharts |
 | 저장소 | PostgreSQL 16 · Qdrant 1.19 |
 | LLM | IBM watsonx.ai (gpt-oss-120b, multilingual-e5-large) — Mock 모드 지원 |

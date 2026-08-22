@@ -94,7 +94,7 @@ LLM 출력은 **Pydantic 검증 실패 시 1회 재요청, 2회 실패 시 해�
 | 영역 | 선택 |
 |---|---|
 | 컨테이너 | Docker, compose(로컬), OpenShift(배포) |
-| 이미지 | api: python:3.11-slim (템플릿) / web: node:20 빌드 → nginx:alpine |
+| 이미지 | api: python:3.12-slim (교육 안내 기준) / web: node:20 빌드 → nginx:alpine |
 | 배포 | Deployment(api, web) · StatefulSet(postgres, qdrant) · Route(edge TLS) · Secret · ConfigMap · CronJob |
 | CI/CD | Tekton (git-clone → buildah → apply → set image), Git push 트리거 |
 | 로그 | 표준 logging JSON → stdout, `trace_id` 포함 |
