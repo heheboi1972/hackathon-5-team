@@ -25,25 +25,17 @@ python scripts/smoke_test.py http://localhost:8000   # 업로드→타임라인�
 
 자세한 30분 가이드와 트러블슈팅은 [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 
-## 디렉토리
+## 기술 스택
 
-```
-api/            FastAPI 백엔드
-  app/config.py       .env 1:1 설정
-  app/models/api.py   API 계약 (web/src/api/types.ts 와 1:1)
-  app/routers/        auth, couples, upload, timeline, reports, chat, review, health
-  app/services/       kakao_parser, metrics, ai_service(watsonx/mock), postgres, qdrant
-  app/agents/ tools/ prompts/   LLM 에이전트·툴·프롬프트
-  mock/               Mock 모드 응답 JSON
-  tests/fixtures/kakao/   카톡 내보내기 3형식 합성 데이터
-web/            Vite + React 18 + TS + Tailwind + TanStack Query
-  src/api/client.ts   모든 fetch 는 여기 경유 (mock 분기 포함)
-postgres/init.sql     스키마 (9 테이블 + jobs)
-scripts/        smoke_test.py, seed_knowledge.py, anonymize_kakao.py
-data/knowledge/ 챗봇 지식 문서
-openshift/      배포 매니페스트 + tekton
-docs/           기획·요구사항·계약·기술 문서
-```
+| | |
+|---|---|
+| 백엔드 | Python 3.11 · FastAPI · Pydantic |
+| 프론트엔드 | TypeScript · React 18 · Vite · React Router v6 · Tailwind + shadcn/ui · TanStack Query · react-hook-form + zod · Recharts |
+| 저장소 | PostgreSQL 16 · Qdrant 1.19 |
+| LLM | IBM watsonx.ai (gpt-oss-120b, multilingual-e5-large) — Mock 모드 지원 |
+| 실행/배포 | Docker Compose (로컬) · OpenShift + Tekton · Instana |
+
+디렉토리 구조와 역할별 편집 범위는 [docs/SCAFFOLD.md](docs/SCAFFOLD.md) §2~3.
 
 ## docs/ (읽는 순서)
 
