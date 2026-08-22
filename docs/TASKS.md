@@ -81,8 +81,8 @@ graph TD
 
 | ID | 작업 | 담당 | 산출물 | 의존 |
 |---|---|---|---|---|
-| 0-1 | 기획서·API_SPEC·REQUIREMENTS·TEST_CASES·TASKS 팀 공유 | 본인 | docs/ | — |
-| 0-2 | `kakao_parser.py`, `metrics.py` repo 커밋 | 본인 | api/app/services/ | — |
+| 0-1 | 기획서·API_SPEC·REQUIREMENTS·TEST_CASES·TASKS 팀 공유 | 해찬 | docs/ | — |
+| 0-2 | `kakao_parser.py`, `metrics.py` repo 커밋 | 해찬 | api/app/services/ | — |
 | 0-3 | 팀 공용 watsonx 프로젝트 생성, 5명 초대, API 키 발급 | 해찬 | .env (Git 제외) | — |
 | 0-4 | Git repo 생성, 템플릿 포크, `.gitignore`에 `.env` | 윤석 | repo | — |
 | 0-5 | Android 카톡 샘플 확보 | 팀원 중 Android | tests/fixtures/kakao/android.txt | — |
@@ -179,7 +179,7 @@ graph TD
 |---|---|---|
 | 5-1 | 데모 리허설 2회 (기획서 §9 시나리오) | 전원 |
 | 5-2 | 슬라이드: 설계 원칙 P-1~5, 아키텍처, 실측 결과(V1~V6), 로드맵 | 형준 |
-| 5-3 | "왜 이렇게 설계했나" Q&A 예상 답변 (판정 배제, 동의 구조, LLM/코드 경계, Orchestrate 미사용 이유) | 형준 + 본인 |
+| 5-3 | "왜 이렇게 설계했나" Q&A 예상 답변 (판정 배제, 동의 구조, LLM/코드 경계, Orchestrate 미사용 이유) | 형준 + 해찬 |
 
 ---
 
