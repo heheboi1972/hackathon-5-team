@@ -28,9 +28,11 @@ class ErrorResponse(BaseModel):
     error: ErrorBody
 
 
-class ABFloat(BaseModel):
-    a: float
-    b: float
+class CoupleMine(BaseModel):
+    """커플 합산 + 요청자 본인 값. 상대 값은 응답에 담지 않는다 (P-3 예외, ISSUE B3).
+    `mine` 은 기본값이 없다(널은 허용, 키는 필수) — 저장형을 투영 없이 넣으면 여기서 터진다"""
+    couple: float | None = None
+    mine: float | None
 
 
 # ---------------------------------------------------------------- 1. 인증 (FR-000)
@@ -191,10 +193,10 @@ class MyTerms(BaseModel):
 class WeekSummary(BaseModel):
     session_count: int
     message_count: int
-    question_rate: ABFloat
-    message_length_median: ABFloat
-    reply_gap_median_min: ABFloat
-    resume_delay_median_min: ABFloat
+    question_rate: CoupleMine
+    message_length_median: CoupleMine
+    reply_gap_median_min: CoupleMine
+    resume_delay_median_min: CoupleMine
     session_length_median: float
     activity: Activity
     sentiment: MyTerms | None = None   # 사전 미구축 시 null
@@ -214,12 +216,14 @@ class TimelineResponse(BaseModel):
 
 
 class MetricComparison(BaseModel):
-    a: float | None = None
-    b: float | None = None
-    baseline_a: float | None = None
-    baseline_b: float | None = None
-    delta_a: float | None = None
-    delta_b: float | None = None
+    """커플 값 + 본인 값. 리포트 문장·하이라이트는 couple 기준 (ISSUE B3).
+    `mine` 필수 — 이유는 `CoupleMine` 참조"""
+    couple: float | None = None
+    mine: float | None
+    baseline_couple: float | None = None
+    baseline_mine: float | None = None
+    delta_couple: float | None = None
+    delta_mine: float | None = None
     comparable: bool = False
 
 
@@ -237,7 +241,6 @@ class Source(BaseModel):
 class Highlight(BaseModel):
     id: str
     metric: str
-    who: Who
     observation: str
     interpretations: list[str] = Field(min_length=2)  # 불변 규칙: 해석 ≥ 2 (API_SPEC §4.2)
     evidence: list[Evidence] = []
@@ -254,7 +257,6 @@ class Suggestion(BaseModel):
 
 class Moment(BaseModel):
     kind: str
-    who: Who
     at: datetime
     session_id: int
     value_min: float | None = None

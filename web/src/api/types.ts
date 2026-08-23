@@ -15,9 +15,10 @@ export interface ApiError {
   error: { code: string; message: string; detail?: Record<string, unknown> };
 }
 
-export interface ABFloat {
-  a: number;
-  b: number;
+/** 커플 합산 + 요청자 본인 값. 상대 값은 응답에 담기지 않는다 (P-3 예외, ISSUE B3) */
+export interface CoupleMine {
+  couple?: number | null;
+  mine?: number | null;
 }
 
 // ---------------------------------------------------------------- 1. 인증 (FR-000)
@@ -136,10 +137,10 @@ export interface MyTerms {
 export interface WeekSummary {
   session_count: number;
   message_count: number;
-  question_rate: ABFloat;
-  message_length_median: ABFloat;
-  reply_gap_median_min: ABFloat;
-  resume_delay_median_min: ABFloat;
+  question_rate: CoupleMine;
+  message_length_median: CoupleMine;
+  reply_gap_median_min: CoupleMine;
+  resume_delay_median_min: CoupleMine;
   session_length_median: number;
   activity: Activity;
   sentiment?: MyTerms | null;   // 사전 미구축 시 null
@@ -158,13 +159,14 @@ export interface TimelineResponse {
   weeks: TimelineWeek[];
 }
 
+/** 리포트 문장·하이라이트는 couple 기준 (ISSUE B3) */
 export interface MetricComparison {
-  a?: number | null;
-  b?: number | null;
-  baseline_a?: number | null;
-  baseline_b?: number | null;
-  delta_a?: number | null;
-  delta_b?: number | null;
+  couple?: number | null;
+  mine?: number | null;
+  baseline_couple?: number | null;
+  baseline_mine?: number | null;
+  delta_couple?: number | null;
+  delta_mine?: number | null;
   comparable: boolean;
 }
 
@@ -182,7 +184,6 @@ export interface Source {
 export interface Highlight {
   id: string;
   metric: string;
-  who: Who;
   observation: string;
   interpretations: string[]; // 불변 규칙: 길이 >= 2
   evidence: Evidence[];
@@ -199,7 +200,6 @@ export interface Suggestion {
 
 export interface Moment {
   kind: string;
-  who: Who;
   at: string;
   session_id: number;
   value_min?: number | null;
@@ -244,6 +244,7 @@ export interface NoteResponse {
 export interface ReviewResponse {
   range: { start: string; end: string };
   sessions: SessionInfo[];
+  // 값은 CoupleMine 형태 (+ range.session_length_median, baseline.weeks 는 스칼라). 타입 고정은 ISSUE D4
   metrics: {
     range: Record<string, unknown>;
     baseline: Record<string, unknown>;

@@ -231,8 +231,9 @@ LLM : prompts/lexicon.md, 100단어/호출 → [{term, canonical, polarity: pos|
 
 ```
 weekly_metrics(week) + notes(week) + events(week)
-  │
-  ▼ select_agent      → SelectOut {candidates:[{metric, who, delta|outlier_ref, reason}]}  ≤3
+  │  metrics.agent_metric_input() → [{metric, direction, magnitude}]  ← 숫자·사람별 값 제거 (ISSUE B3)
+  ▼ select_agent      → SelectOut {candidates:[{metric, direction, delta|outlier_ref, reason}]}  ≤3
+  │                     └ who 없음 — 커플 값만 본다 (ISSUE B3). 후보 축이 (metric × direction) 만 남음
   ▼ interpret_agent   → for each: tools.search_knowledge(metric, direction)
   │                               tools.search_conversation(couple, week range, metric 키워드)
   │                     → InterpretOut {highlights:[{observation, interpretations≥2, evidence, sources}]}
@@ -241,6 +242,8 @@ weekly_metrics(week) + notes(week) + events(week)
   ▼ safety_agent      → banned_patterns.txt regex 사전 검사 → 걸린 문장만 LLM 재작성
   │                     → SafetyOut {passed, rewritten:[{before, after}]}
   ▼ Report(§7.2) 조립 (summary·metrics·moments는 코드가 채움) → Pydantic 검증 → UPSERT
+  │   └ 저장은 사람별(a/b) 그대로. 응답 조립 시점에 services/projection.py 로 {couple, mine} 투영
+  │     (상대 값 미전송, moments 는 who 제거 — P-3 예외, ISSUE B3)
 ```
 
 **검수 2단**: regex가 먼저(결정론, 빠름) → 걸린 것만 LLM. 금지 표현 대부분은 regex로 잡힌다.

@@ -25,7 +25,9 @@ services:
       - qdrant_data:/qdrant/storage
 
   api:
-    build: ./api
+    build:
+      context: .                 # data/knowledge 를 이미지에 담기 위해 루트 (ISSUE A6)
+      dockerfile: api/Dockerfile
     env_file: ./.env
     environment:
       POSTGRES_DSN: postgresql://couple:couple@postgres:5432/couple_report

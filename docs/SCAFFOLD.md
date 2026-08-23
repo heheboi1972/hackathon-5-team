@@ -64,7 +64,8 @@ couple-report/
 │   │   │   ├── metrics.py             (new, 있음) src/metrics.py 이식
 │   │   │   ├── crypto.py              (new) 본문 암호화/복호화 (Fernet, 키는 env)
 │   │   │   ├── auth.py                (new) JWT 발급/검증, 비밀번호 해시
-│   │   │   └── jobs.py                (new) 인메모리 작업 큐 (asyncio) — 리포트 소급 생성
+│   │   │   ├── jobs.py                (new) 인메모리 작업 큐 (asyncio) — 리포트 소급 생성
+│   │   │   └── projection.py          (new) 저장형→응답형 — 라우터는 build_* 만 호출 (ISSUE B3)
 │   │   ├── tools/                     에이전트가 호출하는 함수 (API_SPEC §8)
 │   │   │   ├── search_conversation.py
 │   │   │   ├── get_metrics.py
@@ -87,15 +88,18 @@ couple-report/
 │   │   │   ├── chat_intent.md
 │   │   │   ├── chat_answer.md
 │   │   │   └── banned_patterns.txt    금지 표현 regex (FR-004)
+│   │   ├── deps.py                    (new) 라우터 공용 의존성 — current_member (auth 전까지 A 고정)
 │   │   └── utils/
 │   │       └── json_utils.py
 │   ├── tests/
 │   │   ├── fixtures/kakao/            pc.txt, ios.txt, android.txt (익명화)
 │   │   ├── test_parser.py             TC-PARSE 일부
 │   │   ├── test_metrics.py            TC-METRIC 일부
-│   │   └── test_mock_flow.py          Mock 모드 업로드→리포트→챗봇 1회
+│   │   ├── test_mock_flow.py          Mock 모드 업로드→리포트→챗봇 1회
+│   │   ├── test_projection.py         저장형→응답형 투영 (ISSUE B3)
+│   │   └── test_api_read_paths.py     읽기 3경로 상대 값 미전송 (TC-API-005-13)
 │   └── mock/                          (new) Mock 모드 고정 응답
-│       ├── report_generated.json      API_SPEC §4.2 예시
+│       ├── report_stored.json         저장형(사람별) — 라우터가 projection 으로 투영 (ISSUE B3)
 │       ├── chat_fact.json
 │       └── chat_advice.json
 │

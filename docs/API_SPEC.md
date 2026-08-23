@@ -240,10 +240,10 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
       "report_status": "generated" | "insufficient_baseline" | "pending" | "failed",
       "summary": {
         "session_count": 18, "message_count": 412,
-        "question_rate": { "a": 0.18, "b": 0.22 },
-        "message_length_median": { "a": 14, "b": 11 },
-        "reply_gap_median_min": { "a": 4, "b": 6 },
-        "resume_delay_median_min": { "a": 95, "b": 140 },
+        "question_rate": { "couple": 0.20, "mine": 0.18 },
+        "message_length_median": { "couple": 12, "mine": 14 },
+        "reply_gap_median_min": { "couple": 5, "mine": 4 },
+        "resume_delay_median_min": { "couple": 118, "mine": 95 },
         "session_length_median": 22,
         "activity": { "top_weekday": 2, "top_hour": 21, "by_weekday": [48, 55, 81, 60, 52, 70, 46], "by_hour": [2, 1, 0, "…(24)"] },
         "sentiment": { "pos": [{ "canonical": "좋아", "count": 41 }, { "canonical": "고마워", "count": 12 }], "neg": [{ "canonical": "피곤", "count": 7 }] }
@@ -254,6 +254,8 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   ]
 }
 ```
+- 추이 지표 4개는 **`couple`(커플 합산) + `mine`(요청자 본인)**. 상대 값은 표시를 안 하는 수준이 아니라 **응답에 담지 않는다** (P-3 예외, ISSUE B3). 저장은 사람별로 하고 응답 조립 시점에 투영한다
+- `couple`은 사람별 값의 평균이 아니라 두 사람 메시지를 **합친 뒤** 계산한 값(비율은 풀링, 중앙값은 합친 분포)
 - `activity`: 커플 합산 요일(0=월)·시간대(0~23) 메시지 수. 메시지 없으면 `top_*` null
 - `sentiment` **"내 단어"**: **요청자 본인**의 긍정/부정 단어 상위 3 (`count < 3` 숨김). 상대 데이터는 전송하지 않는다 (P-3 예외). 사전 미구축이면 `null`. 단어 단위 집계라 반어·문맥은 반영 안 됨
 
@@ -271,31 +273,40 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "status": "generated",
   "summary": { "...": "4.1과 동일" },
   "metrics": {
-    "question_rate": { "...": "..." },
-    "message_length_median": { "...": "..." }
+    "question_rate": {
+      "couple": 0.20, "mine": 0.18,
+      "baseline_couple": 0.245, "baseline_mine": 0.25,
+      "delta_couple": -0.045, "delta_mine": -0.07,
+      "comparable": true
+    },
+    "message_length_median": { "...": "동일 형태" },
+    "reply_gap_median_min": { "...": "동일 형태" }
   },
   "highlights": [
     {
-      "id": "h1", "metric": "question_rate", "who": "a",
-      "observation": "지난 4주 대비 A가 묻는 질문이 28% 줄었어요.",
-      "interpretations": ["바쁜 시기였을 수 있어요.", "대화 주제가 일상 공유 쪽으로 바뀌었을 수 있어요."],
+      "id": "h1", "metric": "question_rate",
+      "observation": "지난 4주에 비해 서로에게 묻는 순간이 좀 줄어들었어요.",
+      "interpretations": ["바쁜 시기였을 수도", "대화 주제가 일상 공유 쪽으로 옮겨간 걸 수도"],
       "evidence": [{ "session_id": 1102, "at": "2026-07-22T21:05:00+09:00", "snippet": "오늘 뭐 했어?" }],
       "sources": [{ "doc": "communication_basics.md", "section": "관심 표현으로서의 질문" }],
       "sentiment": "neutral"
     }
   ],
   "suggestions": [
-    { "id": "s1", "linked_highlight": "h1", "template_id": "q_rate_down_01", "text": "궁금하다면 이번 주에 하나 시도해볼 수 있어요: 상대 하루에 대해 질문 하나 더 던져보기." }
+    { "id": "s1", "linked_highlight": "h1", "template_id": "q_rate_down_01", "text": "다음엔 상대 하루에 대해 질문 하나를 더 던져보면 어떨까요." }
   ],
   "moments": [
-    { "kind": "reply_gap_high", "who": "b", "at": "2026-08-19T23:41:00+09:00", "session_id": 1187, "value_min": 184, "baseline_median_min": 5, "text": "화요일 밤, B의 답장이 평소(5분)보다 긴 3시간이었어요." }
+    { "kind": "reply_gap_high", "at": "2026-08-19T23:41:00+09:00", "session_id": 1187, "value_min": 184, "baseline_median_min": 5, "text": "화요일 밤에는 답장이 평소(5분)보다 긴 3시간 걸린 순간이 있었어요." }
   ],
   "safety": { "passed": true, "rewritten": [] }
 }
 ```
 
 **불변 규칙 (서버가 보장)**
-- `interpretations.length >= 2`
+- **상대 값은 응답 어느 곳에도 들어가지 않는다** — `summary`·`metrics` 는 `couple`/`mine` 만, `highlights[]`·`moments[]` 에는 발화자 필드가 없다 (ISSUE B3)
+- `highlights`·`suggestions` 문장은 **`couple` 값만 근거로 삼는다**. `mine` 은 화면 표시용이며 LLM 입력에 들어가지 않는다 (P-1)
+- `interpretations.length >= 2` — 각 항목은 **종결어미 없는 절**(`"바쁜 시기였을 수도"`). 프론트가 `", ".join(...) + " 있어요."` 로 한 문장을 만들어 카드가 **관찰·해석·제안 3문장**이 된다. 2개를 강제하는 건 원인을 단정하지 않기 위해서다 (P-1)
+- `highlights`·`suggestions` 문장에 **숫자가 없다** — 에이전트 입력이 `{direction, magnitude}` 뿐이라 숫자가 나오면 지어낸 값이다 (ISSUE B3). 수치는 타임라인 그래프가 보여준다
 - `sentiment ∈ {positive, neutral, notable}`
 - `suggestions[].template_id`는 지식 dict(`data/knowledge/templates.json`)에 존재
 - `status == "insufficient_baseline"`이면 `highlights`·`suggestions`는 `[]`, `metrics.*.comparable == false`
@@ -323,8 +334,8 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "range": { "start": "...", "end": "..." },
   "sessions": [{ "session_id": 1187, "started_at": "...", "ended_at": "...", "initiator": "a", "msg_count": 34 }],
   "metrics": {
-    "range": { "question_rate": { "a": 0.1, "b": 0.3 }, "message_length_median": { "a": 9, "b": 20 }, "reply_gap_median_min": { "a": 3, "b": 41 }, "session_length_median": 34 },
-    "baseline": { "weeks": 8, "question_rate": { "a": 0.22, "b": 0.24 }, "message_length_median": { "a": 14, "b": 12 }, "reply_gap_median_min": { "a": 4, "b": 6 }, "session_length_median": 22 }
+    "range": { "question_rate": { "couple": 0.2, "mine": 0.1 }, "message_length_median": { "couple": 13, "mine": 9 }, "reply_gap_median_min": { "couple": 12, "mine": 3 }, "session_length_median": 34 },
+    "baseline": { "weeks": 8, "question_rate": { "couple": 0.23, "mine": 0.22 }, "message_length_median": { "couple": 13, "mine": 14 }, "reply_gap_median_min": { "couple": 5, "mine": 4 }, "session_length_median": 22 }
   },
   "notes": [{ "note_id": 7, "author": "a", "body": "시험 끝나고 싸움", "created_at": "..." }]
 }
@@ -389,7 +400,7 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 
 **advice_request**
 ```json
-{ "intent": "advice_request", "answer": null, "citations": [], "redirect": "이 챗봇은 대화 기록을 찾아주는 도구예요. 관계에 대한 관점은 주간 리포트를 참고해 주세요.", "trace_id": "uuid" }
+{ "intent": "advice_request", "answer": null, "citations": [], "redirect": "이 챗봇은 대화 기록을 찾아주는 도구예요. 관계가 어떤지는 저도 판단하지 않아요. 대신 요즘 대화가 어땠는지는 같이 볼 수 있어요.", "trace_id": "uuid" }
 ```
 
 **에러**: 503 LLM_UNAVAILABLE (Mock 모드면 고정 응답 반환)

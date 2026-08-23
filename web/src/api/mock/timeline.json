@@ -5,161 +5,25 @@
       "in_progress": false,
       "report_status": "generated",
       "summary": {
-        "session_count": 16,
+        "session_count": 18,
         "message_count": 388,
         "question_rate": {
-          "a": 0.21,
-          "b": 0.24
+          "couple": 0.23,
+          "mine": 0.21
         },
         "message_length_median": {
-          "a": 13,
-          "b": 12
+          "couple": 13.0,
+          "mine": 15.0
         },
         "reply_gap_median_min": {
-          "a": 5,
-          "b": 5
+          "couple": 4.0,
+          "mine": 3.0
         },
         "resume_delay_median_min": {
-          "a": 90,
-          "b": 120
+          "couple": 105.0,
+          "mine": 88.0
         },
-        "session_length_median": 20,
-        "activity": {
-          "top_weekday": 2,
-          "top_hour": 21,
-          "by_weekday": [
-            42,
-            49,
-            75,
-            54,
-            46,
-            64,
-            40
-          ],
-          "by_hour": [
-            2,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            6,
-            14,
-            18,
-            15,
-            12,
-            20,
-            16,
-            14,
-            17,
-            19,
-            22,
-            28,
-            34,
-            41,
-            46,
-            30,
-            16
-          ]
-        },
-        "sentiment": null
-      },
-      "outlier_count": 1,
-      "events": []
-    },
-    {
-      "week_start": "2026-08-10",
-      "in_progress": false,
-      "report_status": "generated",
-      "summary": {
-        "session_count": 20,
-        "message_count": 455,
-        "question_rate": {
-          "a": 0.2,
-          "b": 0.23
-        },
-        "message_length_median": {
-          "a": 14,
-          "b": 11
-        },
-        "reply_gap_median_min": {
-          "a": 4,
-          "b": 6
-        },
-        "resume_delay_median_min": {
-          "a": 100,
-          "b": 130
-        },
-        "session_length_median": 24,
-        "activity": {
-          "top_weekday": 2,
-          "top_hour": 21,
-          "by_weekday": [
-            45,
-            52,
-            78,
-            57,
-            49,
-            67,
-            43
-          ],
-          "by_hour": [
-            2,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            6,
-            14,
-            18,
-            15,
-            12,
-            20,
-            16,
-            14,
-            17,
-            19,
-            22,
-            28,
-            34,
-            41,
-            46,
-            30,
-            16
-          ]
-        },
-        "sentiment": null
-      },
-      "outlier_count": 0,
-      "events": []
-    },
-    {
-      "week_start": "2026-08-17",
-      "in_progress": false,
-      "report_status": "generated",
-      "summary": {
-        "session_count": 18,
-        "message_count": 412,
-        "question_rate": {
-          "a": 0.18,
-          "b": 0.22
-        },
-        "message_length_median": {
-          "a": 14,
-          "b": 11
-        },
-        "reply_gap_median_min": {
-          "a": 4,
-          "b": 6
-        },
-        "resume_delay_median_min": {
-          "a": 95,
-          "b": 140
-        },
-        "session_length_median": 22,
+        "session_length_median": 22.0,
         "activity": {
           "top_weekday": 2,
           "top_hour": 21,
@@ -208,20 +72,182 @@
             {
               "canonical": "고마워",
               "count": 12
-            },
-            {
-              "canonical": "사랑해",
-              "count": 9
             }
           ],
           "neg": [
             {
               "canonical": "피곤해",
               "count": 7
+            }
+          ]
+        }
+      },
+      "outlier_count": 1,
+      "events": []
+    },
+    {
+      "week_start": "2026-08-10",
+      "in_progress": false,
+      "report_status": "generated",
+      "summary": {
+        "session_count": 18,
+        "message_count": 455,
+        "question_rate": {
+          "couple": 0.21,
+          "mine": 0.19
+        },
+        "message_length_median": {
+          "couple": 12.0,
+          "mine": 14.0
+        },
+        "reply_gap_median_min": {
+          "couple": 5.0,
+          "mine": 4.0
+        },
+        "resume_delay_median_min": {
+          "couple": 112.0,
+          "mine": 92.0
+        },
+        "session_length_median": 22.0,
+        "activity": {
+          "top_weekday": 2,
+          "top_hour": 21,
+          "by_weekday": [
+            48,
+            55,
+            81,
+            60,
+            52,
+            70,
+            46
+          ],
+          "by_hour": [
+            2,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            6,
+            14,
+            18,
+            15,
+            12,
+            20,
+            16,
+            14,
+            17,
+            19,
+            22,
+            28,
+            34,
+            41,
+            46,
+            30,
+            16
+          ]
+        },
+        "sentiment": {
+          "pos": [
+            {
+              "canonical": "좋아",
+              "count": 41
             },
             {
-              "canonical": "짜증",
-              "count": 4
+              "canonical": "고마워",
+              "count": 12
+            }
+          ],
+          "neg": [
+            {
+              "canonical": "피곤해",
+              "count": 7
+            }
+          ]
+        }
+      },
+      "outlier_count": 0,
+      "events": []
+    },
+    {
+      "week_start": "2026-08-17",
+      "in_progress": false,
+      "report_status": "generated",
+      "summary": {
+        "session_count": 18,
+        "message_count": 412,
+        "question_rate": {
+          "couple": 0.2,
+          "mine": 0.18
+        },
+        "message_length_median": {
+          "couple": 12.0,
+          "mine": 14.0
+        },
+        "reply_gap_median_min": {
+          "couple": 5.0,
+          "mine": 4.0
+        },
+        "resume_delay_median_min": {
+          "couple": 118.0,
+          "mine": 95.0
+        },
+        "session_length_median": 22.0,
+        "activity": {
+          "top_weekday": 2,
+          "top_hour": 21,
+          "by_weekday": [
+            48,
+            55,
+            81,
+            60,
+            52,
+            70,
+            46
+          ],
+          "by_hour": [
+            2,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            6,
+            14,
+            18,
+            15,
+            12,
+            20,
+            16,
+            14,
+            17,
+            19,
+            22,
+            28,
+            34,
+            41,
+            46,
+            30,
+            16
+          ]
+        },
+        "sentiment": {
+          "pos": [
+            {
+              "canonical": "좋아",
+              "count": 41
+            },
+            {
+              "canonical": "고마워",
+              "count": 12
+            }
+          ],
+          "neg": [
+            {
+              "canonical": "피곤해",
+              "count": 7
             }
           ]
         }

@@ -5,22 +5,22 @@
     "session_count": 18,
     "message_count": 412,
     "question_rate": {
-      "a": 0.18,
-      "b": 0.22
+      "couple": 0.2,
+      "mine": 0.18
     },
     "message_length_median": {
-      "a": 14,
-      "b": 11
+      "couple": 12.0,
+      "mine": 14.0
     },
     "reply_gap_median_min": {
-      "a": 4,
-      "b": 6
+      "couple": 5.0,
+      "mine": 4.0
     },
     "resume_delay_median_min": {
-      "a": 95,
-      "b": 140
+      "couple": 118.0,
+      "mine": 95.0
     },
-    "session_length_median": 22,
+    "session_length_median": 22.0,
     "activity": {
       "top_weekday": 2,
       "top_hour": 21,
@@ -89,21 +89,30 @@
   },
   "metrics": {
     "question_rate": {
-      "a": 0.18,
-      "b": 0.22,
-      "baseline_a": 0.25,
-      "baseline_b": 0.24,
-      "delta_a": -0.07,
-      "delta_b": -0.02,
+      "couple": 0.2,
+      "mine": 0.18,
+      "baseline_couple": 0.245,
+      "baseline_mine": 0.25,
+      "delta_couple": -0.045,
+      "delta_mine": -0.07,
       "comparable": true
     },
     "message_length_median": {
-      "a": 14,
-      "b": 11,
-      "baseline_a": 13,
-      "baseline_b": 12,
-      "delta_a": 1,
-      "delta_b": -1,
+      "couple": 12.0,
+      "mine": 14.0,
+      "baseline_couple": 12.5,
+      "baseline_mine": 13.0,
+      "delta_couple": -0.5,
+      "delta_mine": 1.0,
+      "comparable": true
+    },
+    "reply_gap_median_min": {
+      "couple": 5.0,
+      "mine": 4.0,
+      "baseline_couple": 4.5,
+      "baseline_mine": 4.0,
+      "delta_couple": 0.5,
+      "delta_mine": 0.0,
       "comparable": true
     }
   },
@@ -111,11 +120,10 @@
     {
       "id": "h1",
       "metric": "question_rate",
-      "who": "a",
-      "observation": "지난 4주 대비 A가 묻는 질문이 28% 줄었어요.",
+      "observation": "지난 4주에 비해 서로에게 묻는 순간이 좀 줄어들었어요.",
       "interpretations": [
-        "바쁜 시기였을 수 있어요.",
-        "대화 주제가 일상 공유 쪽으로 바뀌었을 수 있어요."
+        "바쁜 시기였을 수도",
+        "대화 주제가 일상 공유 쪽으로 옮겨간 걸 수도"
       ],
       "evidence": [
         {
@@ -138,18 +146,17 @@
       "id": "s1",
       "linked_highlight": "h1",
       "template_id": "q_rate_down_01",
-      "text": "궁금하다면 이번 주에 하나 시도해볼 수 있어요: 상대 하루에 대해 질문 하나 더 던져보기."
+      "text": "다음엔 상대 하루에 대해 질문 하나를 더 던져보면 어떨까요."
     }
   ],
   "moments": [
     {
       "kind": "reply_gap_high",
-      "who": "b",
       "at": "2026-08-19T23:41:00+09:00",
       "session_id": 1187,
-      "value_min": 184,
-      "baseline_median_min": 5,
-      "text": "화요일 밤, B의 답장이 평소(5분)보다 긴 3시간이었어요."
+      "value_min": 184.0,
+      "baseline_median_min": 5.0,
+      "text": "화요일 밤에는 답장이 평소(5분)보다 긴 3시간 걸린 순간이 있었어요."
     }
   ],
   "safety": {
