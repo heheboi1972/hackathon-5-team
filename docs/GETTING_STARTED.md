@@ -99,6 +99,9 @@ python scripts/smoke_test.py http://localhost:8000
 | `port is already allocated` | 5432/6333/8000 다른 프로그램이 사용 | `docker-compose.yml`에서 **왼쪽** 포트만 바꾸기 (`15432:5432`) |
 | `/health/ready`가 503, `postgres: false` | DB 아직 뜨는 중 | 10초 기다렸다 재시도. 계속이면 `docker compose logs postgres` |
 | `/health/ready`가 503, `qdrant: false` | 위와 동일 | `docker compose logs qdrant` |
+| 재업로드 시 `null value in column "couple_id" ... not-null constraint` | `init.sql` 이전 버전으로 만들어진 DB (세션 FK, ISSUE C7) | `docker compose down -v && docker compose up --build` — **볼륨·업로드 데이터 삭제됨** |
+| 탈퇴·커플 해제 시 `violates foreign key constraint "..._user_id_fkey"` | 위와 동일 (users FK 에 CASCADE 없음, ISSUE B2) | 위와 동일 |
+| 리포트에 제안·출처가 비어 있음 | `data/knowledge/templates.json` 이 `[]`, `interpretations/` 가 비어 있음 | 윤아 담당 (TASKS 1-7·2-11). 배포 이미지에 `data/` 는 들어갑니다 (ISSUE A6) |
 | 업로드 422 `UNSUPPORTED_FORMAT` | 카톡 내보내기 파일이 아님 | PC: 대화 내보내기 / iOS: **텍스트 메시지만 보내기** / Android: 대화 내용 내보내기 |
 | 업로드 422 `NOT_COUPLE_CHAT` | 단톡방 파일 | 1:1 대화방 파일로 |
 | 업로드 422 `NAME_MAPPING_REQUIRED` | 첫 업로드에 name_map 없음 | 응답 `detail.senders`의 이름 2개를 a/b로 지정 |
@@ -109,6 +112,9 @@ python scripts/smoke_test.py http://localhost:8000
 | Windows에서 `\r\n` 관련 파서 오류 | 에디터가 줄바꿈을 바꿈 | 카톡 파일은 **절대 에디터로 열어 저장하지 말 것**. 원본 그대로 |
 | OpenShift `ImagePullBackOff` | Docker Hub 차단 | 해찬에게. 내부 레지스트리 경유 |
 | OpenShift Postgres/Qdrant `permission denied /data` | SCC | 실습 `trouble_shoot/pvc_error_*.yaml` 참고 |
+
+> **`init.sql` 은 DB 데이터 폴더가 비어 있을 때만 실행됩니다.** 스키마가 바뀌어도 `git pull` 만으로는 반영되지 않아요.
+> 위 두 증상이 그 경우입니다. `down -v` 는 볼륨을 지우므로 올려둔 대화 데이터도 같이 날아갑니다.
 
 ## 7. 지켜야 할 것 5가지
 
