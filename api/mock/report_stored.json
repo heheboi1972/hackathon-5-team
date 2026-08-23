@@ -5,18 +5,22 @@
     "session_count": 18,
     "message_count": 412,
     "question_rate": {
+      "couple": 0.2,
       "a": 0.18,
       "b": 0.22
     },
     "message_length_median": {
+      "couple": 12,
       "a": 14,
       "b": 11
     },
     "reply_gap_median_min": {
+      "couple": 5,
       "a": 4,
       "b": 6
     },
     "resume_delay_median_min": {
+      "couple": 118,
       "a": 95,
       "b": 140
     },
@@ -59,8 +63,48 @@
         30,
         16
       ]
+    }
+  },
+  "metrics": {
+    "question_rate": {
+      "couple": 0.2,
+      "a": 0.18,
+      "b": 0.22,
+      "baseline_couple": 0.245,
+      "baseline_a": 0.25,
+      "baseline_b": 0.24,
+      "delta_couple": -0.045,
+      "delta_a": -0.07,
+      "delta_b": -0.02,
+      "comparable": true
     },
-    "sentiment": {
+    "message_length_median": {
+      "couple": 12,
+      "a": 14,
+      "b": 11,
+      "baseline_couple": 12.5,
+      "baseline_a": 13,
+      "baseline_b": 12,
+      "delta_couple": -0.5,
+      "delta_a": 1,
+      "delta_b": -1,
+      "comparable": true
+    },
+    "reply_gap_median_min": {
+      "couple": 5,
+      "a": 4,
+      "b": 6,
+      "baseline_couple": 4.5,
+      "baseline_a": 4,
+      "baseline_b": 5,
+      "delta_couple": 0.5,
+      "delta_a": 0,
+      "delta_b": 1,
+      "comparable": true
+    }
+  },
+  "weekly_terms": {
+    "a": {
       "pos": [
         {
           "canonical": "좋아",
@@ -85,37 +129,30 @@
           "count": 4
         }
       ]
-    }
-  },
-  "metrics": {
-    "question_rate": {
-      "a": 0.18,
-      "b": 0.22,
-      "baseline_a": 0.25,
-      "baseline_b": 0.24,
-      "delta_a": -0.07,
-      "delta_b": -0.02,
-      "comparable": true
     },
-    "message_length_median": {
-      "a": 14,
-      "b": 11,
-      "baseline_a": 13,
-      "baseline_b": 12,
-      "delta_a": 1,
-      "delta_b": -1,
-      "comparable": true
+    "b": {
+      "pos": [
+        {
+          "canonical": "귀여워",
+          "count": 15
+        }
+      ],
+      "neg": [
+        {
+          "canonical": "바쁘",
+          "count": 5
+        }
+      ]
     }
   },
   "highlights": [
     {
       "id": "h1",
       "metric": "question_rate",
-      "who": "a",
-      "observation": "지난 4주 대비 A가 묻는 질문이 28% 줄었어요.",
+      "observation": "지난 4주에 비해 서로에게 묻는 순간이 좀 줄어들었어요.",
       "interpretations": [
-        "바쁜 시기였을 수 있어요.",
-        "대화 주제가 일상 공유 쪽으로 바뀌었을 수 있어요."
+        "바쁜 시기였을 수도",
+        "대화 주제가 일상 공유 쪽으로 옮겨간 걸 수도"
       ],
       "evidence": [
         {
@@ -138,18 +175,18 @@
       "id": "s1",
       "linked_highlight": "h1",
       "template_id": "q_rate_down_01",
-      "text": "궁금하다면 이번 주에 하나 시도해볼 수 있어요: 상대 하루에 대해 질문 하나 더 던져보기."
+      "text": "다음엔 상대 하루에 대해 질문 하나를 더 던져보면 어떨까요."
     }
   ],
   "moments": [
     {
       "kind": "reply_gap_high",
-      "who": "b",
       "at": "2026-08-19T23:41:00+09:00",
       "session_id": 1187,
       "value_min": 184,
       "baseline_median_min": 5,
-      "text": "화요일 밤, B의 답장이 평소(5분)보다 긴 3시간이었어요."
+      "text": "화요일 밤에는 답장이 평소(5분)보다 긴 3시간 걸린 순간이 있었어요.",
+      "who": "b"
     }
   ],
   "safety": {

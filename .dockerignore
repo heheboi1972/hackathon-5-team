@@ -1,0 +1,14 @@
+# 빌드 컨텍스트가 repo 루트라 이미지에 필요 없는 것을 걸러낸다 (ISSUE A6)
+.git
+.github
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+web/dist
+docs
+openshift
+postgres
+scripts
+.env
+*.md

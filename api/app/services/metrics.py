@@ -146,25 +146,37 @@ def _median(xs: list[float]) -> float | None:
 
 
 def _trend_metrics(rw: RawWeek, a: str, b: str) -> dict:
+    """커플 합산(couple) + 사람별(a/b). 응답에는 couple 과 요청자 것(mine)만 나간다 — ISSUE B3.
+    couple 은 사람별 값의 평균이 아니라 두 사람 메시지를 **합친 뒤** 계산한 값."""
+    both = rw.text_msgs[a] + rw.text_msgs[b]
     return {
         "question_rate": {
+            "couple": _ratio(sum(m.is_question for m in both), len(both)),
             "a": _ratio(sum(m.is_question for m in rw.text_msgs[a]), len(rw.text_msgs[a])),
             "b": _ratio(sum(m.is_question for m in rw.text_msgs[b]), len(rw.text_msgs[b])),
         },
         "message_length_median": {
+            "couple": _median([m.body_len for m in both]),
             "a": _median([m.body_len for m in rw.text_msgs[a]]),
             "b": _median([m.body_len for m in rw.text_msgs[b]]),
         },
+        # A2 로 initiation_ratio 가 빠진 자리. 이상치형으로도 계속 쓰인다(세션 단위 분포)
+        "reply_gap_median_min": _gap_medians(rw, "in_session", a, b),
     }
 
 
+def _gap_medians(rw: RawWeek, kind: str, a: str, b: str) -> dict:
+    """couple = 양방향 전체의 중앙값."""
+    def med(who=None):
+        return _median([g for k, w, _, _, g in rw.reply_gaps if k == kind and (who is None or w == who)])
+    return {"couple": med(), "a": med(a), "b": med(b)}
+
+
 def _summary_extras(rw: RawWeek, a: str, b: str) -> dict:
-    """§7.2 summary 에 들어갈 현황값 중 추이형에 없는 것."""
-    def med(kind, who):
-        return _median([g for k, w, _, _, g in rw.reply_gaps if k == kind and w == who])
+    """§7.2 summary 에 들어갈 현황값 중 추이형에 없는 것.
+    summary = metrics(현재값) + 여기. 따라서 reply_gap 은 승격 후에도 summary 에 그대로 남는다."""
     return {
-        "reply_gap_median_min": {"a": med("in_session", a), "b": med("in_session", b)},
-        "resume_delay_median_min": {"a": med("resume", a), "b": med("resume", b)},
+        "resume_delay_median_min": _gap_medians(rw, "resume", a, b),
         "session_length_median": _median([n for _, _, n in rw.session_lengths]),
         "activity": _activity(rw),
     }
@@ -231,18 +243,57 @@ def top_terms(counts: dict[tuple[str, str, str], int], sender: str, k: int = 3) 
 
 
 def _attach_baseline(weeks: list[dict], key: str, who: str, history: list[dict]) -> None:
-    """history = 직전 BASELINE_WEEKS_TREND 주의 metrics dict 들."""
+    """history = 직전 BASELINE_WEEKS_TREND 주의 metrics dict 들.
+    who ∈ {"couple", "a", "b"}. `comparable` 은 **couple 기준**으로만 정해진다 —
+    리포트 문장·하이라이트가 couple 값만 보기 때문 (ISSUE B3)."""
     cur = weeks[-1]["metrics"][key]
     vals = [h["metrics"][key][who] for h in history if h["metrics"][key][who] is not None]
-    if len(history) < BASELINE_WEEKS_TREND or not vals or cur[who] is None:
+    ok = len(history) >= BASELINE_WEEKS_TREND and bool(vals) and cur[who] is not None
+    if not ok:
         cur[f"baseline_{who}"] = None
         cur[f"delta_{who}"] = None
-        cur["comparable"] = False
-        return
-    base = round(statistics.mean(vals), 3)
-    cur[f"baseline_{who}"] = base
-    cur[f"delta_{who}"] = round(cur[who] - base, 3)
-    cur["comparable"] = True
+    else:
+        base = round(statistics.mean(vals), 3)
+        cur[f"baseline_{who}"] = base
+        cur[f"delta_{who}"] = round(cur[who] - base, 3)
+    if who == "couple":
+        cur["comparable"] = ok
+
+
+# ---------------------------------------------------------------- 에이전트 입력 밴딩 (ISSUE B3)
+# LLM 은 숫자를 보지 않는다. 코드가 delta 를 방향·정도로 바꿔서 넘긴다 (P-2 결정론).
+# "누가 몇 %" 가 프롬프트에 들어갈 길 자체를 없애는 장치 — 수치는 타임라인 그래프가 보여준다.
+
+BAND_STEADY = 0.15    # 기준선 대비 변화율이 이 미만이면 "그대로"
+BAND_SLIGHT = 0.35    # 이 미만이면 "조금", 이상이면 "뚜렷하게"
+
+
+def band(value: float | None, baseline: float | None) -> dict | None:
+    """(couple 값, couple 기준선) → {direction: up|down|steady, magnitude: slight|clear}.
+    비교 불가면 None. magnitude 는 direction != steady 일 때만 의미가 있다."""
+    if value is None or not baseline:
+        return None
+    ratio = abs(value - baseline) / abs(baseline)
+    if ratio < BAND_STEADY:
+        return {"direction": "steady", "magnitude": "slight"}
+    return {
+        "direction": "up" if value > baseline else "down",
+        "magnitude": "slight" if ratio < BAND_SLIGHT else "clear",
+    }
+
+
+def agent_metric_input(metrics: dict) -> list[dict]:
+    """해석·제안 에이전트에 넘길 입력. **숫자도 사람별 값도 넘기지 않는다**.
+    변화가 없는(steady) 지표와 비교 불가 주차는 애초에 후보가 아니라 제외."""
+    out = []
+    for key, m in metrics.items():
+        if not m.get("comparable"):
+            continue
+        b = band(m.get("couple"), m.get("baseline_couple"))
+        if b is None or b["direction"] == "steady":
+            continue
+        out.append({"metric": key, **b})
+    return out
 
 
 # ---------------------------------------------------------------- 이상치 (이상치형)
@@ -357,8 +408,8 @@ def build_weekly_metrics(
         out.append(week)
 
         history = out[-1 - BASELINE_WEEKS_TREND:-1]
-        for key in ("question_rate", "message_length_median"):
-            for who in ("a", "b"):
+        for key in ("question_rate", "message_length_median", "reply_gap_median_min"):
+            for who in ("couple", "a", "b"):
                 _attach_baseline(out, key, who, history)
 
         week["outliers"] = _outliers(rw, raws[-BASELINE_WEEKS_OUTLIER:], name_a, name_b)
@@ -397,8 +448,8 @@ if __name__ == "__main__":
     for w in weeks:
         m = w["metrics"]
         print(f"  {w['week_start']}  sess={w['session_count']:3d} msgs={w['message_count']:4d}  "
-              f"q_a={m['question_rate']['a']} q_b={m['question_rate']['b']}  "
-              f"len_a={m['message_length_median']['a']} len_b={m['message_length_median']['b']}  "
+              f"q={m['question_rate']['couple']} len={m['message_length_median']['couple']} "
+              f"gap={m['reply_gap_median_min']['couple']}  "
               f"comparable={m['question_rate'].get('comparable')}  "
               f"top_wd={w['summary_extras']['activity']['top_weekday']} top_hr={w['summary_extras']['activity']['top_hour']}  "
               f"outliers={len(w['outliers'])}")

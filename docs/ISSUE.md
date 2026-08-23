@@ -52,6 +52,27 @@
 - **영향**: `prompts/lexicon.md`, TC-METRIC-007 고정 케이스
 - **결정**: **철자 변형만 묶음**(`조아`·`좋앙`→`좋아`). 동의어(`고마워`/`감사`/`땡큐`)는 분리 — 커플 고유 표현이 보이는 게 가치 있고, 동의어 묶기는 LLM 판단이 흔들려 재현성을 해침.
 
+### A6. [x] 이미지에 `data/` 가 없다 — 배포 시 지식·템플릿·시드 사전 0개
+- **문제**: `api/Dockerfile` 은 `app` 과 `mock` 만 COPY 한다. `KNOWLEDGE_DIR=data/knowledge` 는 repo 루트라 이미지에 안 들어간다. docker compose 는 `./data:/app/data:ro` 볼륨으로 가려주지만 **OpenShift 에는 그 볼륨이 없다.**
+  - **무증상이라 더 나쁘다**: `load_knowledge` 는 디렉터리가 없어도 예외를 안 내고 빈 값을 돌려준다 → 지식 문서·제안 템플릿·시드 사전이 전부 0개인 채로 앱이 정상 기동하고, 리포트의 `suggestions`·`sources` 가 조용히 빈다. 감성 단어 카드도 시드가 없어 빈다
+- **선택지**
+  - (가) 빌드 컨텍스트를 repo 루트로 (`build: {context: ., dockerfile: api/Dockerfile}`) + `COPY data ./data`. 컨텍스트가 커지지만 경로 문서를 안 건드림
+  - (나) `data/knowledge` 를 `api/data/knowledge` 로 이동. 컨텍스트 그대로, `.env.example`·SCAFFOLD·TRD·knowledge.py 주석의 경로 수정. 윤아 편집 범위 문서도 같이
+  - (다) OpenShift 에서 ConfigMap 으로 주입. 파일이 늘면 관리 부담
+- **영향**: `api/Dockerfile`, `docker-compose.yml`, `openshift/20-api-deployment.yaml`, `.env.example`, `SCAFFOLD` 트리, TASKS 2-10
+- **결정**: **(가) 빌드 컨텍스트를 repo 루트로.** `docker-compose` 의 `build: {context: ., dockerfile: api/Dockerfile}`, Dockerfile 이 `COPY data ./data` 추가. 경로 문서(`KNOWLEDGE_DIR=data/knowledge`)를 안 건드리고 윤아 편집 범위도 그대로라 (나) 보다 파급이 작다. 컨텍스트가 커지는 건 `.dockerignore` 로 처리(`.git`, `node_modules`, `docs`, `openshift`, `web/dist` 등 제외).
+  - compose 의 `./data:/app/data:ro` 볼륨은 **유지** — 개발 중에는 볼륨이 이미지 것을 덮어써 재빌드 없이 지식 문서를 고칠 수 있고, OpenShift 에는 볼륨이 없으니 이미지 안의 것을 쓴다
+  - **검증**: 이미지 빌드 후 컨테이너 안에서 `load_knowledge` 실행 → `seed_lexicon: 61` (수정 전이면 0). `docs`·`templates` 가 0 인 건 파일이 아직 비어서고(TASKS 1-7·2-11), A6 와 무관
+
+### A7. [ ] 챗봇 `metric_query` 의 수치·노출 정책
+- **문제**: B3(지표는 `couple`+`mine` 만)·B4(LLM 문장에 숫자 금지)를 리포트 경로에만 적용했다. 챗봇 `metric_query` 는 공백이다.
+  - `tools.get_metrics` 가 저장형(`a`/`b`)을 주면 B3 가 이 경로로 무너진다
+  - LLM 에 숫자를 그대로 주면 B4 와 어긋난다. 반대로 밴딩만 주면 "얼마나 빨라?" 에 답을 못 한다
+  - `term_count` 는 A3 에서 "커플 합산만, 사람 지목해도 합산 + 안내 문구"까지 정했는데 `metric_query` 만 빠져 있다
+- **선택지**: (가) `term_count` 와 같은 규칙 — 커플 값만, 숫자 허용 / (나) 커플 값 + `mine` 까지 (본인이 물었으니), 숫자 허용 / (다) 리포트와 동일하게 밴딩만
+- **영향**: `tools/get_metrics.py`, `prompts/chat_answer.md`, `agents/chat_supervisor.py`, API_SPEC §6.1·§8, TC-API-008-2
+- **결정**:
+
 ---
 
 ## B. 원칙 충돌 — 팀 동의 필요
@@ -71,6 +92,47 @@
 - **대응안**: `init.sql` 머리 주석 + `REQUIREMENTS` P-5에 예외 명시. 해제 시 CASCADE 삭제 확인(TC-API-002).
 - **영향**: `REQUIREMENTS` §0 P-5, `init.sql`, `TRD` §4.1
 - **결정**: **(가) 예외로 명시.** P-5에 "단어 단위 집계 테이블(`weekly_terms`, `couple_lexicon`)은 평문 저장. 원문 복원 불가, 해제·탈퇴 시 CASCADE 삭제" 1줄. `init.sql` 머리 주석·`TRD` §4.1 복호화 지점 목록에 동일 문구. 단어 암호화(나)는 같은 앱에 키가 있어 실익 없고 집계 쿼리만 막아 기각. API 노출은 B1의 `sentiment.mine`으로 본인 것만 전송. TC-API-002(해제 시 삭제)에 두 테이블 확인 추가.
+
+---
+
+### B3. [x] 지표의 사람별 나란히 노출
+
+- **문제**: B1에서 "사실의 사람별 표시는 허용"으로 P-1을 넓히는 안을 **기각**하고 "내 단어"를 본인에게만 보이는 쪽을 택했고(`P-1 수정 불필요 (비교 프레임 없음)`), A2에서 `initiation_ratio`를 뺀 이유 중 하나도 `a/b 비교 프레임`이었다. 그런데 추이 지표는 여전히 `{a: 0.18, b: 0.22}`로 나란히 나간다 — **단어는 본인 것만, 지표는 둘 다**라는 불일치. 문장에서 비교를 지워도 그래프에 두 선이 나란히 있으면 사용자가 스스로 비교한다.
+  - 기획서 원안이라 아무도 건드리지 않았을 뿐. 리포트 톤 의견(문장에서 개인 지목 금지)을 검토하다 드러났지만, 그 의견 없이도 정리되어야 할 항목
+- **선택지**: (가) 커플 합산만 / (나) 커플 합산 + 내 것(`mine`) / (다) 리포트·타임라인만 합산하고 돌아보기는 a/b 유지
+- **결정**: **(나) `{couple, mine}`.** "내 단어"와 같은 패턴 — 상대 값은 표시를 안 하는 수준이 아니라 **응답에 담지 않는다**. 자기 성찰 가치는 살리고 상대와의 직접 비교는 막는다.
+  1. **저장형 ≠ 응답형.** `weekly_metrics.summary`·`reports.report`는 커플당 한 행이므로 사람별(a/b)로 저장하고, 응답 조립 시점에 `services/projection.py`가 `{couple, mine}`으로 투영. `weekly_terms`(양쪽 저장 → 응답만 필터)와 같은 구조. `summary_hash`는 저장형 기준이라 요청자와 무관 — 규칙 변경 없음. **DB 스키마 변경 없음**(둘 다 JSONB)
+  2. **`couple` 정의**: 사람별 값의 평균이 아니라 **합친 뒤** 계산. `question_rate` = 풀링 비율, `message_length_median` = 합친 분포의 중앙값, `reply_gap`·`resume_delay` = 양방향 전체의 중앙값
+  3. **`comparable`은 couple 기준** 하나. baseline·delta는 `couple`·`a`·`b` 세 축 모두 계산(저장형)
+  4. **이상치 판정 분포는 사람별 유지.** 평소 속도가 다른 두 사람을 합치면 한쪽의 평범한 지연이 안 잡히고 다른 쪽의 평범한 답이 low outlier로 잡힌다. 응답에서 `who`만 제거(`weekly_metrics.outliers`엔 유지)
+  5. **`Highlight.who`·`Moment.who` 응답에서 제거.** 계약을 두 번 깨지 않기 위해 함께 처리
+  6. **LLM 입력 경계**: 에이전트에는 `couple` 값만. `mine`은 코드가 응답에 붙이는 표시용이며 프롬프트에 들어가지 않는다 → LLM이 비교 문장을 만들 재료 자체가 없음. `SelectOut.candidates[].who` 제거 → 후보 축이 (metric × direction)만 남아 C1의 select+interpret 통합과 맞물림
+  7. **역산 불가**: 노출값이 전부 중앙값·풀링 비율이고 응답에 사람별 메시지 수가 없어 `couple`+`mine`으로 상대 값을 되돌릴 수 없다. 근거를 P-3에 명시
+  8. **라우터는 응답 모델을 직접 만들지 않는다.** `projection.build_timeline`·`build_report`·`build_review` 만 호출한다. 투영이 조립 함수 안쪽에 있어야 읽기 경로(타임라인·리포트·돌아보기) 세 곳에서 빠뜨리는 일이 없다. grep 한 번으로 검사 가능: 라우터에 `WeekSummary(`·`TimelineResponse(`·`model_validate` 가 없어야 한다
+  9. **`CoupleMine.mine`·`MetricComparison.mine` 은 필수**(널은 허용, 키는 필수). 8을 우회해 직접 모델을 만들면 `ValidationError: weeks.0.summary.question_rate.mine Field required` 로 즉시 터진다. `extra="forbid"` 는 기각 — `_pick` 이 입력에 따라 키 개수를 달리 내놓아(summary 2개 / metrics 6~7개) 정상 데이터에서 오작동한다
+  - `me`는 `app/deps.py current_member` 의존성에서 온다. auth 미구현(TASKS 2-1) 구간엔 `"a"` 고정이고, 붙일 때 이 파일만 고치면 라우터는 그대로. 테스트는 `dependency_overrides` 로 A/B 교체 — B1의 `sentiment.mine`도 같은 조건이라 새 블로커 아님
+  - **범위 밖(다음 작업)**: `interpretations >= 2` → 1개(2~3문장 구조), "우리" 주어 문장 재작성, 프롬프트·`banned_patterns.txt`·`templates.json` (윤아, TASKS 2-12)
+  - 반영: `metrics.py`(couple 축), `services/projection.py`(신규), `models/api.py`(`ABFloat`→`CoupleMine`, `MetricComparison`, `Highlight.who`·`Moment.who` 삭제), `types.ts`, 라우터 3·목 JSON 3, `API_SPEC` §4.1·4.2·5.1, `REQUIREMENTS` P-3·FR-002·FR-004, `TRD` §5.2, `TEST_CASES` TC-METRIC-002·008·TC-API-005, `tests/test_metrics.py`·`tests/test_projection.py`
+
+---
+
+### B4. [x] 리포트 문장 톤 — "우리는 ~한 편이에요"
+
+- **문제**: 외부 의견 — `"oo님이 더 ~했어요"`(X) → `"우리는 ~한 편이에요"`(O). 누가 잘했다/못했다가 아니라 이 커플 고유의 패턴을 관찰하는 톤. 구조는 관찰 → 해석 → 제안, **2~3문장**. 정량 수치는 백엔드 계산까지만 두고 프롬프트에는 경향만 넘겨 LLM 이 비교 문장을 만들 길을 원천 차단.
+- **B3 이 이미 처리한 것**: 개인 지목(`Highlight.who`·`Moment.who` 삭제), 개인 수치 노출(`mine` 만 전송), "프롬프트에 누가 몇 %를 안 넘긴다"의 절반(`couple` 값으로 제한). 남은 건 문장 쪽.
+- **결정**
+  1. **"2~3문장" vs `interpretations >= 2`** — 계약 유지 + **렌더 병합**. `interpretations[]` 각 항목을 **종결어미 없는 절**로 규정하고(`"바쁜 시기였을 수도"`), `HighlightCard.joinInterpretations` 가 `", ".join + " 있어요."` 로 한 문장을 만든다. 사용자는 관찰·해석·제안 **3문장**을 보고, 코드는 "가능성을 둘 이상 제시했는가"를 계속 검증한다.
+     - `≥2` 는 장식이 아니라 **P-1(단정 금지)의 구현 장치**다. 1개로 줄이면 그 한 문장이 *그* 설명으로 읽히고, 단정 방지가 프롬프트 지시에만 의존하게 된다
+  2. **LLM 에 숫자를 넘기지 않는다.** 코드가 `metrics.band(couple, baseline_couple)` 로 `{direction: up|down|steady, magnitude: slight|clear}` 를 만들어 넘긴다 (결정론, P-2). 임계값 `BAND_STEADY=0.15` · `BAND_SLIGHT=0.35`. `agent_metric_input()` 이 `steady`·비교 불가 지표를 걸러 후보만 넘긴다.
+     - 따라서 **문장에 숫자가 나오면 지어낸 값**이다 → `banned_patterns` 가 `\d+\s*(%|퍼센트|배|점|등급)` 를 잡는다. TC-AGENT-004-4 `"질문이 30% 줄었어요"` 를 `passed` → **`rewritten`** 으로 수정
+     - 수치는 이미 타임라인 그래프가 `couple`/`mine` 추이로 보여준다 — **문장은 정성, 숫자는 그래프**
+  3. **`banned_patterns.txt` 초안 작성** (regex 는 결정론이라 코드·테스트 영역). 인물 지목 / 두 사람 비교 / 수치 / 점수·등급 / 가치 판단 / 원인 단정 / 명령·당위 / 관계 판정 8군.
+     - **기준선 비교는 막지 않는다**: `"지난 4주에 비해"` 는 사람 비교가 아니다. `에 비해`·`보다` 를 통째로 막으면 정상 문장이 걸린다 — 인물 토큰이 앞에 올 때만 잡는다
+     - 검사 시점은 `names.ts` 의 A/B→실명 치환 **전**, 서버. 그래서 인물 규칙은 A/B 토큰 기준
+     - `tests/test_banned_patterns.py` 가 잡아야 할 11문장 / 통과해야 할 8문장(의견이 제시한 톤 예시 그대로)으로 검증
+  4. **프롬프트는 계약만 고정**하고 지시문·톤 예시는 윤아 (TASKS 2-11·2-12). `select.md`·`interpret.md`·`suggest.md`·`safety.md` 에 입출력 스키마와 규칙을 적고 `## 지시문` 은 TODO 로 남김
+  - **검수 대상 경계**: LLM 문장(`observation`·`interpretations`·`suggestions[].text`)만. `moments[].text` 는 코드 생성이고 수치가 근거라 대상 아님
+  - 반영: `metrics.band`·`agent_metric_input`, `prompts/*.md` 4개, `banned_patterns.txt`, `HighlightCard.tsx`·`Report.tsx`, `report_stored.json`, API_SPEC §4.2 불변 규칙, REQUIREMENTS FR-004, TRD §5.2, TC-AGENT-001·002·003·004, `tests/test_banned_patterns.py`
 
 ---
 
@@ -105,6 +167,30 @@
 - 비용: 첫 소급 ~10만 토큰(1회), 이후 주당 ~4천. 판정은 `term_verdict(msg_hash, term, keep)`에 영구 저장(재현성). P-2에 "LLM은 제외 라벨만, 합산은 코드, 라벨은 메시지당 1회 고정" 예외 문구 필요.
 - B1이 "본인에게만 표시"라 전제 조건 아님. 리허설에서 오분류가 거슬리면 투입.
 
+### C7. [x] `messages` 세션 FK 가 세션 삭제 시 터진다 (윤석)
+- `init.sql`: `FOREIGN KEY (couple_id, session_id) REFERENCES sessions(...) ON DELETE SET NULL`. 다중 컬럼 FK 의 `SET NULL` 은 참조 컬럼을 **전부** NULL 로 만드는데 `couple_id` 는 `NOT NULL` → 재업로드로 세션을 재분할하며 기존 행을 지우면 not-null 위반.
+- 할 것: PG15+ 문법 `ON DELETE SET NULL (session_id)` 로 (compose 는 `postgres:16-alpine`). 또는 FK 를 빼고 앱이 정합성 책임.
+- **검증 완료 (2026-08-24)**: `postgres:16-alpine` 에 스키마를 올리고 재현. Postgres 가 만드는 문장이
+  `UPDATE ONLY messages SET couple_id = NULL, session_id = NULL ...` → `null value in column "couple_id" ... violates not-null constraint`.
+- **반영**: `ON DELETE SET NULL (session_id)` 로 수정. 재검증에서 세션 삭제 시 `couple_id` 보존 + `session_id` 만 NULL 확인.
+  같은 DB 에서 B2(커플 해제·사용자 탈퇴 CASCADE)도 함께 확인 — messages·notes·weekly_terms 전부 0.
+- **주의**: `init.sql` 은 `/docker-entrypoint-initdb.d/` 라 **DB 데이터 디렉터리가 비어 있을 때만** 실행된다. 이미 띄워본 사람은 `docker compose down -v` 필요.
+- 파일: `postgres/init.sql`, TC-API-003
+
+### C8. [ ] `messages.session_id` 를 채우는 단계가 흐름에 없다 (윤석)
+- FR-002 는 `5. 메시지 저장 → 6. 세션 분할` 순서인데 `messages.session_id` 에 세션 FK 가 걸려 있다. NULL 로 INSERT 한 뒤 세션 생성 후 UPDATE 하는 단계가 필요한데 문서에도 코드에도 없다.
+- 안 채우면 조용히 NULL 로 남아 `idx_messages_session` 을 쓰는 인용·evidence·돌아보기 조회가 빈 결과를 준다.
+- **문서 반영됨 (2026-08-24)**: FR-002 처리 규칙 6 에 `sessions` upsert → `messages.session_id` UPDATE 단계 명시, TC-API-003-12 추가.
+- **남은 것(윤석)**: 실제 구현. 2-3 에서 `routers/upload.py` 에 UPDATE 단계를 넣는다.
+- 파일: `routers/upload.py`(구현), `REQUIREMENTS` FR-002 ✓, `TEST_CASES` TC-API-003-12 ✓
+
+### C9. [ ] `interpretations` 절 형식에 방어가 없다 (윤석 + 윤아)
+- B4 는 각 항목을 **종결어미 없는 절**로 규정하고 프론트가 `", ".join + " 있어요."` 로 합친다. 프롬프트(윤아)와 렌더(시여)가 두 파일에 걸쳐 맞물려 있는데 **코드가 강제하지 않는다.**
+  - LLM 이 완결 문장을 내면 화면에 `"바빴어요. 있어요."` — 경보 없이 사용자에게 나간다
+  - 현재 테스트는 목 데이터의 마침표만 본다 (`test_banned_patterns.test_interpretations_are_clauses_not_sentences`). 실 LLM 출력은 검증 안 됨
+- 할 것: `Highlight` 에 Pydantic validator — 각 항목이 `.`/`요`/`다` 로 끝나지 않고 길이 상한(40자). 위반 시 리포트 생성 단계에서 터져 화면까지 안 샌다 (LLM 출력 Pydantic 검증 실패 → 1회 재요청, TRD §1)
+- 파일: `models/api.py`, `prompts/interpret.md`, TC-AGENT-002
+
 ---
 
 ## D. 과설계 제거 후보
@@ -128,7 +214,7 @@
 ### D4. [→] `ReviewMetrics.range/baseline: dict[str, Any]` (윤석+시여)
 - 돌아보기 화면(가장 늦게 확정)에 타입이 없어 프론트·백이 각자 추측. Phase 3 전까지 `WeekSummary` 서브셋 모델로 고정.
 - 파일: `models/api.py`, `types.ts`, `API_SPEC` §5.1
-- **담당자 판단 (해찬 결정 아님)**: 시여·윤석이 Phase 3 시작 전 30분 맞추면 됨. 기준은 API_SPEC §5.1 예시 JSON (A2 반영해 `initiation_ratio` 제거된 상태여야 함). 타입으로 박을지는 두 사람이 결정.
+- **담당자 판단 (해찬 결정 아님)**: 시여·윤석이 Phase 3 시작 전 30분 맞추면 됨. 기준은 API_SPEC §5.1 예시 JSON (A2 반영해 `initiation_ratio` 제거, **B3 반영해 `{couple, mine}` 형태**). 값 형태는 B3로 확정됐고 남은 건 타입으로 박을지 여부.
 
 ---
 
@@ -149,8 +235,15 @@
 | 11 | CronJob 제거 (D1) | `openshift/40-*` 삭제, NFR-006, TRD, TASKS 3-11 |
 | 12 | 컬렉션 B 메모리화 (D2) | `services/knowledge.py`, `container.knowledge`, `seed_knowledge.py`·`SEED_KNOWLEDGE_ON_START` 삭제 |
 | 13 | TASKS 그래프·메모 | 빌드 의존성만, 2-0 jobs 인프라, C1~C6·D4 메모를 행 비고에 |
+| 14 | 지표 노출 `{a,b}` → `{couple, mine}` (B3) | `metrics.py` couple 축, `services/projection.py`(신규), `CoupleMine`·`MetricComparison`, `Highlight.who`·`Moment.who` 삭제, 라우터·목·API_SPEC·REQUIREMENTS·TRD §5.2, TC-METRIC-008·`test_projection.py` |
+| 15 | `reply_gap` 추이형 승격 (A2 후속) | `_trend_metrics` 에 `reply_gap_median_min`, `_gap_medians` 분리, 기준선 대상 3개. FR-002 지표 표·FR-004·API_SPEC §4.2·TC-METRIC-002-8 |
+| 16 | 목 저장형/응답형 분리 (B3) | `api/mock/report_stored.json`(저장형) → `routers/reports.build_report` 가 projection 으로 투영. `api/mock/report_generated.json` 삭제, 프론트 목이 투영 결과와 같은지 `test_api_report.py` 가 검사 |
+| 17 | 조립 지점 단일화 (B3) | `projection.build_timeline`·`build_report`·`build_review`, `app/deps.py current_member`(auth 스텁), 라우터 3개가 조립 함수만 호출. `mine` 필수로 우회 차단. `tests/test_api_read_paths.py` 3경로 검사 |
+| 18 | 리포트 문장 톤 (B4) | `metrics.band`·`agent_metric_input`(숫자 대신 방향·정도), `banned_patterns.txt` 초안 + `test_banned_patterns.py`, `interpretations` 절 형식 + `HighlightCard.joinInterpretations` 3문장 병합, 프롬프트 4개 계약부, TC-AGENT-001~004 |
 
 ## 남은 것
 - **A4** 담당 재배분 — 팀 회의 후 TASKS §5~7·§10 수정
+- **A7** 챗봇 `metric_query` 수치 정책 — 챗봇 구현(3-6) 전까지
 - **D3** Instana — 1-V5 후
-- **C1~C6, D4** — TASKS 비고로 이관됨. 담당자가 구현 시 적용. 이 파일에선 추적 안 함
+- **C1~C9, D4** — TASKS 비고로 이관됨. 담당자가 구현 시 적용. 이 파일에선 추적 안 함
+  (C7~C9 는 2026-08-24 스캐폴딩 점검에서 나온 것. **C7 은 수정·검증 완료**, C8 은 문서만 반영·구현은 2-3, C9 만 미착수)

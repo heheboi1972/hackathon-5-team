@@ -17,8 +17,8 @@ CREATE TABLE users (
 -- 상태 전이: pending(코드 발급) → awaiting_confirm(B 입력) → active(A 수락) → dissolved (API_SPEC §2)
 CREATE TABLE couples (
     couple_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_a            UUID NOT NULL REFERENCES users(user_id),
-    user_b            UUID REFERENCES users(user_id),
+    user_a            UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_b            UUID REFERENCES users(user_id) ON DELETE CASCADE,
     status            VARCHAR(20) NOT NULL DEFAULT 'pending'
                       CHECK (status IN ('pending','awaiting_confirm','active','dissolved')),
     invite_code       VARCHAR(8) UNIQUE,             -- 영대문자+숫자 8자
@@ -53,7 +53,8 @@ CREATE TABLE messages (
     is_question BOOLEAN NOT NULL DEFAULT FALSE,
     msg_hash    VARCHAR(64) NOT NULL,                -- 중복 제거용 (sha256)
     UNIQUE (couple_id, msg_hash),
-    FOREIGN KEY (couple_id, session_id) REFERENCES sessions(couple_id, session_id) ON DELETE SET NULL
+    -- SET NULL 은 session_id 만 (PG15+). 컬럼을 안 적으면 couple_id 까지 NULL 로 만들어 not-null 위반 (ISSUE C7)
+    FOREIGN KEY (couple_id, session_id) REFERENCES sessions(couple_id, session_id) ON DELETE SET NULL (session_id)
 );
 CREATE INDEX idx_messages_couple_time ON messages (couple_id, sent_at);
 CREATE INDEX idx_messages_session     ON messages (couple_id, session_id);   -- 인용·evidence·review 조회
@@ -87,7 +88,7 @@ CREATE TABLE reports (
 CREATE TABLE notes (
     note_id     BIGSERIAL PRIMARY KEY,
     couple_id   UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    author      UUID NOT NULL REFERENCES users(user_id),
+    author      UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     range_start TIMESTAMPTZ NOT NULL,
     range_end   TIMESTAMPTZ NOT NULL,
     body        VARCHAR(500) NOT NULL,
@@ -109,7 +110,7 @@ CREATE TABLE events (
 CREATE TABLE pokes (
     poke_id    BIGSERIAL PRIMARY KEY,
     couple_id  UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    from_user  UUID NOT NULL REFERENCES users(user_id),
+    from_user  UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     kind       VARCHAR(30) NOT NULL DEFAULT 'poke',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -8,7 +8,7 @@
 | TC | FR | US |
 |---|---|---|
 | TC-PARSE-001~004 | FR-002 | US-002 |
-| TC-METRIC-001~005 | FR-002 | US-002 |
+| TC-METRIC-001~008 | FR-002 | US-002 |
 | TC-API-001~002 | FR-001 | US-001 |
 | TC-API-003~004 | FR-002, FR-003 | US-002, US-003 |
 | TC-API-005 | FR-004 | US-004 |
@@ -92,12 +92,13 @@
 | ID | 시나리오 | 기대 |
 |---|---|---|
 | 002-1 | (삭제 — initiation_ratio 제거, ISSUE A2) | `metrics` 에 `initiation_ratio` 키 없음 |
-| 002-2 | A text 10개 중 질문 3 | question_rate a=0.3 |
+| 002-2 | A text 10개 중 질문 3 | question_rate a=0.3 (저장형). 응답은 `couple`/`mine` — TC-METRIC-008 |
 | 002-3 | photo만 있는 주 | question_rate·length = None, activity 는 계산됨 |
 | 002-4 | 글자수 [3,5,100] | message_length_median=5 (평균 아님) |
-| 002-5 | 4주 미만 | `comparable=false`, baseline/delta=None |
+| 002-5 | 4주 미만 | `comparable=false`(**couple 기준**), baseline/delta=None |
 | 002-6 | 5주차 | baseline = 1~4주 평균, delta = 5주 − baseline, comparable=true |
 | 002-7 | 기준선 주 중 None 있음 | None 제외하고 평균 |
+| 002-8 | 추이형 지표 집합 | `metrics` 키 = {question_rate, message_length_median, reply_gap_median_min} 3개. `reply_gap_median_min` 은 `summary_extras` 에 중복 저장되지 않음 |
 
 ### TC-METRIC-003: 답장 간격 분리
 
@@ -153,6 +154,20 @@
 
 자동화: `api/tests/test_metrics.py`
 
+
+### TC-METRIC-008: 커플 합산 정의 (`couple` 축, ISSUE B3)
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 008-1 | A 10개 중 질문 3, B 2개 중 질문 2 | `question_rate.couple` = 5/12 = 0.417. 사람별 비율 평균(0.65)이 **아님** |
+| 008-2 | 글자수 A [3,5], B [100] | `message_length_median.couple` = 5 (합친 분포의 중앙값). 사람별 중앙값 평균(52)이 아님 |
+| 008-3 | 세션 내 B가 2분, A가 10분 만에 답 | `reply_gap_median_min.couple` = 6.0 (양방향 전체), `a`=10.0, `b`=2.0 |
+| 008-4 | 4주 미만 | `comparable=false`, `baseline_*`·`delta_*`가 `couple`·`a`·`b` 세 축 모두 None |
+| 008-5 | 투영 (`project_summary`/`project_metrics`) | 요청자 값만 `mine`으로. `a`/`b` 키 부재, `couple`은 두 사람에게 동일 |
+| 008-6 | `strip_who` | `moments`에 `who` 없음. 원본 `weekly_metrics.outliers`는 `who` 유지 (판정은 사람별 분포) |
+
+자동화: `api/tests/test_metrics.py`(008-1~4), `api/tests/test_projection.py`(008-5~6), `api/tests/test_api_read_paths.py`(라우터 통과 응답)
+
 ---
 
 ## 3. API (pytest + httpx, Postgres testcontainer, Qdrant mock)
@@ -198,6 +213,7 @@
 | 003-9 | 신규 1주 추가된 파일 | new_messages>0, report_jobs.total=1 (변경 주만) |
 | 003-10 | 51MB | 413 |
 | 003-11 | jobs/{id} 진행 | running → done, progress.done == total |
+| 003-12 | 업로드 완료 후 | `messages` 중 `session_id IS NULL` 0건 (ISSUE C8) |
 
 ### TC-API-004: 타임라인
 
@@ -224,6 +240,7 @@
 | 005-8 | 불변: template_id | 지식 dict(`data/knowledge/templates.json`)에 존재 |
 | 005-11 | `summary.sentiment` 본인만 | A 토큰으로 조회 → A 의 단어만, B 의 단어 미포함. 사전 미구축 → `null` |
 | 005-12 | `summary.activity` | `top_weekday`·`top_hour` 존재, `by_weekday` 길이 7 |
+| 005-13 | 상대 값 미전송 (B3, 자동화 `tests/test_api_read_paths.py` — 타임라인·리포트·돌아보기 3경로) | A·B 토큰으로 같은 주 조회 → `summary.*.couple`·`metrics.*.couple` 동일, `mine`만 다름. 응답 어디에도 `a`/`b` 키, `highlights[].who`, `moments[].who` 없음 |
 | 005-9 | 불변: 금지어 | REQUIREMENTS FR-004 금지 표현 regex 0건 |
 | 005-10 | regenerate | 202, job 완료 후 generated_at 갱신 |
 
@@ -252,7 +269,7 @@
 | ID | message | 기대 intent | 기대 응답 |
 |---|---|---|---|
 | 008-1 | "우리 언제 제주도 얘기했지?" | fact_query | answer≠null, citations≥1 |
-| 008-2 | "지난달 내가 먼저 말 건 비율?" | metric_query | answer에 숫자 |
+| 008-2 | "지난달 우리 답장 얼마나 빨랐어?" | metric_query | 커플 값 기준 — 발화자별 수치 없음. 수치 노출 범위는 **ISSUE A7** 결정 후 확정 |
 | 008-3 | "3주 전 리포트 뭐였지?" | report_query | answer≠null |
 | 008-4 | "우리 괜찮은 거야?" | advice_request | answer=null, redirect=고정 문구 |
 | 008-5 | "헤어져야 할까?" | advice_request | 동일 |
@@ -261,7 +278,7 @@
 | 008-8 | 501자 | — | 400 |
 | 008-9 | focus_range 지정 | fact_query | citations 대부분 범위 내 |
 | 008-10 | USE_MOCK=true | — | 200, 고정 응답 |
-| 008-11 | watsonx 장애, mock off | — | 503 LLM_UNAVAILABLE |
+| 008-18 | watsonx 장애, mock off | — | 503 LLM_UNAVAILABLE |
 
 ---
 
@@ -272,19 +289,21 @@
 | ID | 입력 | 기대 |
 |---|---|---|
 | 001-1 | comparable=false 지표만 | highlights 후보 0 |
-| 001-2 | delta 큰 지표 5개 | 최대 3개 선별, 근거 수치 포함 |
+| 001-2 | 변화 있는 지표 5개 | 최대 3개 선별. 입력이 `{direction, magnitude}` 뿐이라 수치는 없음 |
 | 001-3 | 긍정 이상치 2 + 부정 이상치 2 | 양쪽 모두 포함 |
-| 001-4 | 출력 스키마 | `{highlights:[{metric, who, delta, outlier_ref?}]}` JSON 파싱 성공 |
+| 001-4 | 출력 스키마 | `{candidates:[{metric, direction, outlier_ref?, reason}]}` JSON 파싱 성공. `who` 없음 (ISSUE B3) |
 
 ### TC-AGENT-002: 해석
 
 | ID | 기대 |
 |---|---|
-| 002-1 | interpretations ≥ 2 |
+| 002-1 | interpretations ≥ 2, 각 항목이 **절**(마침표로 끝나지 않음) — 렌더 시 한 문장으로 병합 |
 | 002-2 | "~때문에" 0건 |
 | 002-3 | evidence가 search_conversation 결과 내에서만 |
 | 002-4 | sources가 search_knowledge 결과 내에서만 |
 | 002-5 | 한국어 출력 |
+| 002-6 | observation·interpretations 에 숫자 0건 (입력에 없으므로 = 환각) |
+| 002-7 | 인물 지목·비교 표현 0건 — `banned_patterns.txt` 통과 |
 
 ### TC-AGENT-003: 제안
 
@@ -294,15 +313,20 @@
 | 003-2 | text가 템플릿 + 수치 치환 (자유 생성 아님: 템플릿 본문 포함 여부) |
 | 003-3 | 개수 1~2 |
 | 003-4 | "~하세요"/"~해야" 0건 |
+| 003-5 | 한 문장 (카드의 세 번째 문장) |
 
 ### TC-AGENT-004: 안전 검수
+
+자동화(regex 단): `api/tests/test_banned_patterns.py`
 
 | ID | 입력 문장 | 기대 |
 |---|---|---|
 | 004-1 | "관계 온도 72점이에요" | rewritten 또는 삭제 |
 | 004-2 | "B가 무심해진 것 같아요" | rewritten |
 | 004-3 | "더 자주 연락하세요" | rewritten |
-| 004-4 | "질문이 30% 줄었어요" | passed |
+| 004-4 | "질문이 30% 줄었어요" | **rewritten** — 문장에 수치를 두지 않는다 (ISSUE B4). "좀 줄어들었어요" 류로 |
+| 004-6 | "A가 묻는 질문이 줄었어요" | rewritten (인물 지목) |
+| 004-7 | "지난 4주에 비해 묻는 순간이 좀 줄어들었어요" | passed — 기준선 비교는 사람 비교가 아님 |
 | 004-5 | 금지어 없는 전체 리포트 | passed=true, rewritten=[] |
 
 ### TC-AGENT-005: 챗봇 Supervisor
@@ -347,7 +371,7 @@ timeline outlier 마커 → review(session_id) → chat(fact_query, focus_range)
 
 ---
 
-**반드시 확인 (발표 전)**: TC-INT-001~003 완주, TC-API-005-6/7/9 (해석 ≥2, sentiment, 금지어 0), TC-API-008-4/5/7 (리다이렉트, 인용 없으면 지어내지 않음), TC-API-002-1 (해제 시 삭제)
+**반드시 확인 (발표 전)**: TC-INT-001~003 완주, TC-API-005-6/7/9/13 (해석 ≥2, sentiment, 금지어 0, 상대 값 미전송), TC-API-008-4/5/7 (리다이렉트, 인용 없으면 지어내지 않음), TC-API-002-1 (해제 시 삭제)
 **있으면 좋음**: TC-PARSE-003-5 (PC/iOS 교차 일치), TC-METRIC-004-7 (이상치 노이즈 회귀), TC-API-003-8 (재업로드 중복 0)
 **나머지**: 시간 나면. 문제 생겼을 때 원인 좁히는 용도
 

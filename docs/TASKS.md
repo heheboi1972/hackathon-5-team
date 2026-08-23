@@ -130,13 +130,13 @@ graph TD
 | 2-1 | auth (signup/login, JWT) | 윤석 | — | 1-1 |
 | 2-2 | couples API (invite/join/confirm/me/delete) | 윤석 | TC-API-001, 002 | 2-1 |
 | 2-3 | upload API 동기 구간 (파싱→중복제거→암호화 저장→세션→지표 upsert(`summary_hash`)→`weekly_terms` 집계(시드 사전)) + `embed_sessions`·`report_backfill` 잡 INSERT. 메모: CPU 구간 `asyncio.to_thread`, INSERT `executemany ON CONFLICT DO NOTHING` / PC·모바일 시각 분 단위 정규화 후 해시 (C5) | 윤석 | TC-API-003 (1~10) | 1-1, 1-2, 2-0 |
-| 2-4 | timeline API (`summary.sentiment` 는 요청자 본인 행만) | 윤석 | TC-API-004, 005-11 | 2-3 |
-| 2-5 | review API + notes API | 시여(백) | TC-API-006, 007 | 2-3 |
+| 2-4 | timeline API (`summary.sentiment`·지표 `mine` 은 요청자 본인 것만 — `deps.current_member`) | 윤석 | TC-API-004, 005-11, 005-13 | 2-1, 2-3 |
+| 2-5 | review API + notes API (지표 `mine` 은 요청자 것만 — `deps.current_member`) | 시여(백) | TC-API-006, 007 | 2-1, 2-3 |
 | 2-6 | watsonx 임베딩 래퍼 (`passage:`/`query:`) + `embed_sessions` 잡 (Qdrant 컬렉션 A, point id `{session_id}:{chunk_idx}`) | 윤아 | — | 1-V1, 0-3, 2-0 |
 | 2-7 | 온보딩 화면 (가입 → 초대 코드 → 수락 대기 → 수락) | 시여 | — | 1-4, 1-5 |
 | 2-8 | 업로드 화면 (드롭 → 이름 매핑 → 진행률) | 시여 | — | 1-4 |
 | 2-9 | 타임라인 화면 (Mock fixture로 먼저) | 시여 | — | 1-4 |
-| 2-10 | agent-api Deployment + Service + Route + Secret/ConfigMap | 해찬 | — | 1-6 |
+| 2-10 | api Deployment + Service + Route + Secret/ConfigMap (서비스명 `couple-report-api`). 메모: 이미지에 `data/` 포함됨(빌드 컨텍스트 = repo 루트, ISSUE A6) — Deployment 에 별도 볼륨 불필요 | 해찬 | — | 1-6 |
 | 2-13 | Instana agent 존재 확인 (DaemonSet) + `INSTANA_AGENT_HOST` 값 확보 | 해찬 | — | 1-V5 |
 | 2-11 | 제안 템플릿 풀 20~30개 작성 (지표 5 × 방향; `initiation_*` 없음) | 윤아 | — | — |
 | 2-12 | 에이전트 4개 instructions 초안 + 검수 규칙표 | 윤아 | — | 0-6 |
@@ -154,7 +154,7 @@ graph TD
 | 3-2 | 지식 문서·템플릿 작성 완료 (`data/knowledge`, 적재 없음 — 메모리 로드) | 윤아 | — | 2-11, 1-7 |
 | 3-3 | 에이전트 1~4 구현 (**4개 병렬 가능** — I/O 모델은 2-12에서 확정. Mock LLM로 흐름 연결 → 실 LLM). 메모: 코드가 이상치·delta 상위 3 선별하면 select 호출 제거 가능 (C1, 윤석·윤아 합의) | 윤석 + 윤아 | TC-AGENT-001~004 (수동 확인) | 2-12, 3-1 |
 | 3-4 | 리포트 플로우 Supervisor (execution_trace). 메모: 기준선 부족 주는 LLM 없이 즉시 `insufficient_baseline` | 윤석 | — | 3-3 |
-| 3-5 | 리포트 워커 (`report_backfill`: 최신 주부터, `Semaphore(3)` 주차 병렬, `summary_hash` 변경 주차만) + reports API | 윤석 | TC-API-005 | 2-0, 3-4 |
+| 3-5 | 리포트 워커 (`report_backfill`: 최신 주부터, `Semaphore(3)` 주차 병렬, `summary_hash` 변경 주차만) + reports API (`deps.current_member` 로 `mine` 투영) | 윤석 | TC-API-005 | 2-0, 2-1, 3-4 |
 | 3-1b | 단어 횟수 검색 (`services/term_search.py` 저장소 연결 + `tools/count_term.py` + `term_count_cache` 무효화). **LLM 무관** — 감성 사전·build_lexicon 과 독립 | 윤석 | TC-API-008-11~17 | 2-3 |
 | 3-6 | 챗봇 Supervisor + chat API. 메모: advice/other 는 regex 사전 분기, 나머지는 검색 먼저 후 1회 호출 (C4). 횟수 질문 → other (A3) | 윤아(프롬프트) + 윤석 | TC-AGENT-005, TC-API-008 | 3-1 |
 | 3-7 | 실 LLM 전환 + `reasoning_effort: low` + 토큰 설정 | 윤아 | 스모크 | 3-3, 3-6 |
