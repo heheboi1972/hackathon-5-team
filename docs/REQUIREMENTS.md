@@ -61,7 +61,7 @@
 
 **처리 규칙**
 1. 형식 감지 (PC / iOS / Android). 실패 → UNSUPPORTED_FORMAT
-2. 파싱 → `{sender, sent_at, body, msg_type, is_question, body_len, tokens}` (파서 사양: 기획서 §15. `tokens`는 단어 집계용, 저장 안 함)
+2. 파싱 → `{sender, sent_at, body, msg_type, is_question, body_len, tokens}` (파서 사양: `services/kakao_parser.py` 와 TC-PARSE-001~004. 기획서에는 §15 가 없고 **M3 미결 항목**으로만 잡혀 있었다. `tokens`는 단어 집계용, 저장 안 함)
 3. 발화자 ≠ 2명 → NOT_COUPLE_CHAT
 4. 카톡 이름 → A/B 매핑. 최초 업로드는 `name_map` 필수 (NAME_MAPPING_REQUIRED)
 5. `sha256(sender|sent_at|body)`로 중복 제거, 신규만 저장. 본문은 암호화 (P-5)

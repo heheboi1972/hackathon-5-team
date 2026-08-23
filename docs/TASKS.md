@@ -161,7 +161,7 @@ graph TD
 | 3-8 | 리포트 화면 (summary / highlights / suggestions / moments + **"활발한 시간" 카드 + "내 단어" 카드**) | 시여 | — | 2-9 |
 | 3-9 | 돌아보기 화면 (구간 선택 → 지표 vs 기준선 → 메모). 메모: `ReviewMetrics.range/baseline` 형태는 API_SPEC §5.1 예시 기준으로 시여·윤석이 Phase 3 전에 30분 맞춤 (D4) | 시여 | — | 2-5 |
 | 3-10 | 챗봇 패널 (인용 카드, 리다이렉트 표시) | 시여 | — | 3-6 |
-| 3-11 | Tekton 파이프라인 연결 | 해찬 | — | 2-10 |
+| 3-11 | Tekton 파이프라인 연결. 메모: 빌드 태스크 `CONTEXT=.` / `DOCKERFILE=api/Dockerfile` — `data/knowledge` 때문에 루트가 컨텍스트다 (ISSUE A6). `CONTEXT=api` 로 두면 COPY 4줄이 전부 실패 | 해찬 | — | 2-10 |
 | 3-12 | Qdrant `couple_id` 삭제 → couples DELETE에 연결 | 윤석 | TC-API-002-1 | 2-6 |
 
 **Phase 3 완료 기준**: 업로드 → 전 주차 리포트 generated → 챗봇 사실 질문 인용 답변
