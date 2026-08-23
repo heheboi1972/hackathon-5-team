@@ -32,7 +32,8 @@ couple-report/
 │   └── SCAFFOLD.md                    이 문서
 ├── .env.example                       (new) 템플릿에 없음 — §4 참조
 ├── .gitignore                         .env, __pycache__, node_modules, .venv
-├── docker-compose.yml                 postgres / qdrant / api / (web)
+├── docker-compose.yml                 postgres / qdrant / api / (web). 빌드 컨텍스트는 루트 (ISSUE A6)
+├── .dockerignore                      (new) 컨텍스트가 루트라 .git·node_modules·docs 등 제외
 │
 ├── api/                               FastAPI 백엔드 (템플릿 api/ 기반)
 │   ├── Dockerfile
@@ -158,7 +159,7 @@ couple-report/
 | 윤석 (AI) | `api/app/{routers,services,tools,agents,models}` | prompts/, web/, openshift/ |
 | 윤아 (Prompt) | `api/app/prompts/*`, `data/knowledge/*`, `services/ai_service.py`의 모델 파라미터 | routers, web |
 | 시여 (Front/Back) | `web/*`, `api/app/routers/review.py` | agents, prompts |
-| 해찬 (SRE) | `openshift/*`, `docker-compose.yml`, `Dockerfile`, `.env.example` | app 코드 |
+| 해찬 (SRE) | `openshift/*`, `docker-compose.yml`, `Dockerfile`, `.dockerignore`, `.env.example` | app 코드 |
 | 형준 (PM) | `docs/*`, `api/mock/*`(데모 응답), `scripts/smoke_test.py` | 코드 |
 
 충돌 방지 규칙: 계약 파일(`models/api.py`, `web/src/api/types.ts`, `docs/API_SPEC.md`)은 **변경 전 팀 채널에 알림**.
