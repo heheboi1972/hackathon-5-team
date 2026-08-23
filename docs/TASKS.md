@@ -150,11 +150,12 @@ graph TD
 | ID | 작업 | 담당 | TC | 의존 |
 |---|---|---|---|---|
 | 3-1 | 툴: search_conversation, get_metrics, get_report, search_knowledge(dict), get_suggestion_templates(dict) | 윤석 | — | 2-6, 2-4 |
-| 3-1a | `build_lexicon` 잡 (`services/lexicon.py`): 빈도 상위 단어+예시 → LLM 분류·canonical → `couple_lexicon` append → `weekly_terms` 재집계. 이후 `count_term` 툴 + 챗봇 `term_count` intent. 옵션(C6): 표시 후보 문맥 검증 | 윤석 + 윤아(프롬프트) | TC-METRIC-007 | 1-8, 2-3 |
+| 3-1a | `build_lexicon` 잡 (`services/lexicon.py`): 빈도 상위 단어+예시 → LLM 분류·canonical → `couple_lexicon` append → `weekly_terms` 재집계. 옵션(C6): 표시 후보 문맥 검증 | 윤석 + 윤아(프롬프트) | TC-METRIC-007 | 1-8, 2-3 |
 | 3-2 | 지식 문서·템플릿 작성 완료 (`data/knowledge`, 적재 없음 — 메모리 로드) | 윤아 | — | 2-11, 1-7 |
 | 3-3 | 에이전트 1~4 구현 (**4개 병렬 가능** — I/O 모델은 2-12에서 확정. Mock LLM로 흐름 연결 → 실 LLM). 메모: 코드가 이상치·delta 상위 3 선별하면 select 호출 제거 가능 (C1, 윤석·윤아 합의) | 윤석 + 윤아 | TC-AGENT-001~004 (수동 확인) | 2-12, 3-1 |
 | 3-4 | 리포트 플로우 Supervisor (execution_trace). 메모: 기준선 부족 주는 LLM 없이 즉시 `insufficient_baseline` | 윤석 | — | 3-3 |
 | 3-5 | 리포트 워커 (`report_backfill`: 최신 주부터, `Semaphore(3)` 주차 병렬, `summary_hash` 변경 주차만) + reports API | 윤석 | TC-API-005 | 2-0, 3-4 |
+| 3-1b | 단어 횟수 검색 (`services/term_search.py` 저장소 연결 + `tools/count_term.py` + `term_count_cache` 무효화). **LLM 무관** — 감성 사전·build_lexicon 과 독립 | 윤석 | TC-API-008-11~17 | 2-3 |
 | 3-6 | 챗봇 Supervisor + chat API. 메모: advice/other 는 regex 사전 분기, 나머지는 검색 먼저 후 1회 호출 (C4). 횟수 질문 → other (A3) | 윤아(프롬프트) + 윤석 | TC-AGENT-005, TC-API-008 | 3-1 |
 | 3-7 | 실 LLM 전환 + `reasoning_effort: low` + 토큰 설정 | 윤아 | 스모크 | 3-3, 3-6 |
 | 3-8 | 리포트 화면 (summary / highlights / suggestions / moments + **"활발한 시간" 카드 + "내 단어" 카드**) | 시여 | — | 2-9 |

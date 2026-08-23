@@ -147,9 +147,12 @@ CREATE TABLE jobs (
 );
 ```
 
-**암호화**: `body_enc = Fernet(key).encrypt(body.encode())`. 복호화는 (a) 리포트 evidence 발췌 (b) 챗봇 인용 snippet (c) Qdrant 적재 시 임베딩 입력 — 세 곳만. 지표 계산은 `body_len`·`is_question`(저장 시 계산)으로 복호화 없이.
+**암호화**: `body_enc = Fernet(key).encrypt(body.encode())`. 복호화는 (a) 리포트 evidence 발췌 (b) 챗봇 인용 snippet (c) Qdrant 적재 시 임베딩 입력 (d) 챗봇 단어 횟수 카운트(`term_count`) — 네 곳만. 지표 계산은 `body_len`·`is_question`(저장 시 계산)으로 복호화 없이.
+(d)는 캐시 미스일 때만 `asyncio.to_thread` 로 해당 커플 본문을 메모리에서 풀어 토큰을 세고 **즉시 폐기**한다. 평문 본문을 디스크에 쓰지 않으며 남는 것은 `term_count_cache` 의 `{단어, 주, 횟수}` 뿐이다.
 
 **P-5 예외 — 단어 집계 평문**: `couple_lexicon(couple_id, term, canonical, polarity, source)`·`weekly_terms(couple_id, week_start, sender, canonical, polarity, count)`는 평문. 업로드 파싱 시점(평문 보유 유일 시점)에 `Message.tokens`로 집계. 원문 복원 불가, 해제 시 CASCADE. API 응답은 요청자 본인 행만 (`summary.sentiment`).
+
+**단어 횟수 캐시**: `term_count_cache(couple_id, term, week_start, count)` — 사용자가 실제로 물어본 단어만 채워진다. **`sender` 컬럼이 없어** 발화자별 집계가 구조적으로 불가능하다(P-3 예외 보호). 업로드 동기 구간 끝에서 해당 커플 캐시를 통째로 DELETE.
 
 **세션 ID**: `sessions.session_id` = 첫 메시지 `sent_at` epoch 초, PK `(couple_id, session_id)`. 재업로드로 재분할해도 같은 세션은 같은 ID → `reports.report.moments[].session_id`·`notes`·Qdrant point id `{session_id}:{chunk_idx}` 참조 유지. `weekly_metrics.summary_hash`(sha256 of summary)로 "변경 주차"를 정의.
 
@@ -247,6 +250,9 @@ weekly_metrics(week) + notes(week) + events(week)
 ```
 message + focus_range + history
   │
+  ▼ regex 선분기 (LLM 0회)
+  ├─ term_count     → "X 몇 번/몇 회/얼마나 자주" → 단어 추출 → tools.count_term
+  │                     → 템플릿 답변(커플 합산, citations 없음). 사람 지목이면 안내 문구 덧붙임
   ▼ intent (LLM, 출력 {intent}) → 허용 집합 밖이면 "other"로 재매핑 (템플릿 패턴)
   ├─ advice_request → 고정 문구 반환 (LLM 호출 없음)
   ├─ other          → 안내 문구

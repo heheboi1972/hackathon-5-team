@@ -12,7 +12,7 @@ CoupleStatus = Literal["pending", "awaiting_confirm", "active", "dissolved"]
 ReportStatus = Literal["generated", "insufficient_baseline", "pending", "failed"]
 JobStatus = Literal["queued", "running", "done", "failed"]
 JobKind = Literal["embed_sessions", "build_lexicon", "report_backfill", "report_single"]
-Intent = Literal["fact_query", "metric_query", "report_query", "advice_request", "other"]
+Intent = Literal["fact_query", "metric_query", "report_query", "term_count", "advice_request", "other"]
 Sentiment = Literal["positive", "neutral", "notable"]
 
 

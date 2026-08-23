@@ -1,6 +1,7 @@
 -- 역할: DB 초기 스키마 — users/couples/messages/sessions/weekly_metrics/reports/notes/events/pokes + jobs + couple_lexicon/weekly_terms (참조: PRD §6.1, TRD §4.1)
 -- 본문은 body_enc(Fernet)로만 저장. 지표 계산은 body_len/is_question 으로 복호화 없이 (TRD §4.1)
--- P-5 예외: couple_lexicon / weekly_terms 는 단어 단위 집계를 평문 저장. 원문 복원 불가, 커플 해제 시 CASCADE 삭제.
+-- P-5 예외: couple_lexicon / weekly_terms / term_count_cache 는 단어 단위 집계를 평문 저장.
+--           원문 복원 불가, 커플 해제 시 CASCADE 삭제. term_count_cache 는 사용자가 실제로 물어본 단어만 남는다.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
 
@@ -133,6 +134,18 @@ CREATE TABLE weekly_terms (
     polarity   VARCHAR(3) NOT NULL CHECK (polarity IN ('pos','neg')),
     count      INTEGER NOT NULL,
     PRIMARY KEY (couple_id, week_start, sender, canonical)
+);
+
+-- 챗봇 단어 횟수 검색 캐시 (FR-006 term_count). 질문이 들어온 단어만 채워진다.
+-- sender 컬럼을 두지 않는다 = 발화자별 집계가 구조적으로 불가능 (P-3 예외 "내 단어는 본인만" 보호).
+-- 값은 요청 시 본문을 메모리에서 복호화해 세고 즉시 폐기한 결과이며, 평문 본문은 디스크에 쓰지 않는다.
+CREATE TABLE term_count_cache (
+    couple_id   UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
+    term        VARCHAR(50) NOT NULL,        -- tokenize() 로 정규화된 질의어
+    week_start  DATE NOT NULL,
+    count       INTEGER NOT NULL,            -- 커플 합산
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (couple_id, term, week_start)
 );
 
 -- ---------------------------------------------------------------- 작업 큐 (TRD §4.1)

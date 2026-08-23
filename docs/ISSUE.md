@@ -31,13 +31,14 @@
 - **결정**: **완전 제거.** 시간 간격으로 "대화 시작"을 정의하는 것 자체가 부적합. 지표·계약·테스트·템플릿 풀에서 `initiation_ratio` 삭제. `Session.initiator`는 돌아보기 세션 목록 표시용(사실 표시)으로만 남김. 리포트 후보 지표는 5개 + 신규(감성 단어, 요일·시간대). → E 플랜 실행 시 함께 반영.
 
 ### A3. [x] 챗봇 횟수 질문 처리 ("사랑해 몇 번 썼어?")
-- **문제**: 현재 `fact_query` → 벡터 유사도 상위 8개만 보고 답함 → 틀린 숫자를 자신 있게 말할 위험. 규칙 7(인용 없으면 폐기)은 잘못 센 답을 못 막음.
-- **선택지**
-  - (i) 최소: intent 프롬프트에 "횟수·빈도 질문은 `other`" → "아직 세어드릴 수 없어요"
-  - (ii) A1 사전이 생기면 `count_term(couple_id, term, start?, end?)` 툴 + `term_count` intent 추가 → 정확한 수 + 주별 추이
-  - (iii) (i) 먼저, (ii)는 Phase 3 여유 시
-- **영향**: `prompts/chat_intent.md`, `TRD` §5.3, `API_SPEC` §6.1 규칙·§8 툴 표, `tools/`
-- **결정**: **(iii).** 지금: intent 프롬프트에 "횟수·빈도 질문은 `other`" + 안내 문구 "횟수는 아직 세어드릴 수 없어요" (윤아, 비용 0) → 틀린 숫자 차단. A1 구현 시점에 `term_count` intent + `count_term(couple_id, term, start?, end?)` 툴(`couple_lexicon` canonical 조회 + `weekly_terms` SUM, 주별 추이 포함)로 교체. API_SPEC §6.1 규칙·§8 툴 표는 A1과 같은 커밋에서.
+- **문제**: 벡터 검색 상위 8개만 보고 답해 틀린 숫자를 말할 위험. 더 근본적으로, 처음 계획한 `count_term`도 감성 사전 등재어만 셀 수 있었고(“치킨”·“엄마”는 영원히 0건) `build_lexicon`(LLM) 뒤에 묶여 있었다 — 세는 데 LLM은 필요 없다.
+- **결정**: **단어 세기를 감성 분석에서 완전히 분리.** `term_count` intent + `count_term` 툴 신설, LLM 0회(regex 선분기).
+  - 저장: 미리 전체 단어를 평문 저장하지 않는다. 질문이 오면 그때 본문을 메모리에서 복호화해 세고 폐기, 결과 `{단어, 주, 횟수}`만 `term_count_cache`에 캐시. 업로드 시 해당 커플 캐시 DELETE
+  - 노출: **커플 합산만.** 발화자별 횟수는 표시하지 않는 수준이 아니라 **계산·저장하지 않는다** — `term_count_cache`에 `sender` 컬럼이 없어 구조적으로 불가 (B1 "내 단어는 본인만"이 우회로 무너지는 것 차단). 사람을 지목해 물어도 합산 + 안내 문구
+  - 인용 없음(P-4 예외): 인용 카드가 발화자를 드러내므로 숫자·주별 추이를 근거로 삼는다
+  - 매칭: 완전일치 · 접두일치(사랑→사랑해) · 같은 canonical(조아→좋아)
+  - 복호화 지점이 3곳 → 4곳으로 늘어난 것을 TRD §4.1에 명시
+  - → 반영됨: `term_count_cache`, `services/term_search.py`, `tools/count_term.py`, `prompts/chat_intent.md`, `agents/chat_supervisor.py`, Intent 계약, API_SPEC §6.1·§8, REQUIREMENTS FR-006·P-3·P-5, TRD §4.1·§5.3, TC-API-008-11~17, TASKS 3-1b, `tests/test_term_search.py`
 
 ### A4. [ ] 담당 재배분
 - **문제**: 윤석 17.5건(34%), Phase 2 `2-1→2-2`, `2-3→2-4` 직렬 + Phase 3 Supervisor 2개·큐까지 크리티컬 패스 전부 집중.
