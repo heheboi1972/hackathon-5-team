@@ -64,6 +64,10 @@
 
 API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/couples/me`의 `members`로 매핑한다. 리포트·챗봇 본문도 `"a"`/`"b"` 대신 `display_name`을 치환해 렌더하는 건 프론트 책임.
 
+### 세션 식별
+
+`session_id` = 세션 첫 메시지 시각의 **epoch 초** (결정론). 재업로드로 세션을 다시 나눠도 같은 세션은 같은 ID라서 리포트 발췌·메모·챗봇 인용·Qdrant 포인트 참조가 유지된다.
+
 ---
 
 ## 1. 인증
@@ -155,10 +159,12 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "me": "a",
   "kakao_names": { "a": "김형준", "b": "윤아♥" },
   "started_at": "2026-03-01",
-  "data": { "first_week": "2026-03-02", "last_week": "2026-08-17", "weeks_available": 25, "message_count": 18342 }
+  "data": { "first_week": "2026-03-02", "last_week": "2026-08-17", "weeks_available": 25, "message_count": 18342 },
+  "active_job": { "job_id": "uuid", "kind": "report_backfill", "done": 12, "total": 25 }
 }
 ```
 커플 없으면 200 `{ "couple_id": null, "status": null }` (404 아님 — 온보딩 분기용).
+`active_job`: `queued|running` 인 최신 잡 1건, 없으면 `null` — 새로고침 후 진행률 UI 복구용 (프론트는 이게 있을 때만 `GET /jobs/{id}` 폴링).
 
 ### 2.5 DELETE /api/couples/{couple_id}
 
@@ -186,14 +192,16 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 4. 발화자 ≠ 2명 → 422 NOT_COUPLE_CHAT (`detail.senders`에 발견된 이름 목록)
 5. `name_map` 없고 `couples.kakao_name_*`도 없으면 422 NAME_MAPPING_REQUIRED (`detail.senders` 포함 → 프론트가 매핑 UI 표시)
 6. 메시지 해시로 중복 제거, 신규만 insert
-7. **동기**: 세션 분할 → 전 주차 지표 계산 → `weekly_metrics` upsert
-8. **비동기**: 신규·변경 주차 리포트 생성 작업 큐 → `job_id` 반환
-9. Qdrant 적재(컬렉션 A)는 비동기 작업에 포함
+7. **동기**: 세션 분할 → 전 주차 지표 계산 → `weekly_metrics` upsert (`summary_hash` = sha256(summary JSON)) → `weekly_terms` 집계(시드 사전 + `couple_lexicon`)
+8. **비동기 (리포트)**: `summary_hash`가 바뀐 주차만 리포트 재생성 큐(`report_backfill`) → `job_id` 반환. 리포트에 저장된 baseline은 **생성 시점 스냅샷** — 하류 주차는 자동 재생성하지 않음 (필요 시 §4.3 regenerate)
+9. **비동기 (임베딩)**: Qdrant 적재는 별도 `embed_sessions` 잡(`embed_job.job_id`)으로 리포트 잡보다 **먼저** 실행. 신규·변경 세션만 upsert (point id `{session_id}:{chunk_idx}`, 멱등) → 챗봇은 리포트 완성 전에도 동작
+10. **비동기 (사전, Phase 3)**: `build_lexicon` 잡 — 커플 빈도 상위 단어 중 미분류분을 LLM 이 분류(철자 변형 canonical·pos/neg/neutral/exclude) → `couple_lexicon` append → 영향 주차 `weekly_terms` 재집계
 
 **Response 202**
 ```json
 {
   "job_id": "uuid",
+  "embed_job": { "job_id": "uuid" },
   "parsed": { "format": "ios", "message_count": 18342, "new_messages": 412, "session_count": 1203, "range": { "from": "2026-03-02", "to": "2026-08-21" } },
   "weeks_computed": 25,
   "report_jobs": { "total": 25, "pending": 25 }
@@ -209,7 +217,7 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 
 **Response 200**
 ```json
-{ "job_id": "uuid", "status": "running" | "done" | "failed", "progress": { "total": 25, "done": 12, "failed": 0 }, "current_week": "2026-05-18" }
+{ "job_id": "uuid", "kind": "embed_sessions" | "build_lexicon" | "report_backfill" | "report_single", "status": "running" | "done" | "failed", "progress": { "total": 25, "done": 12, "failed": 0 }, "current_week": "2026-05-18" }
 ```
 
 ---
@@ -232,12 +240,13 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
       "report_status": "generated" | "insufficient_baseline" | "pending" | "failed",
       "summary": {
         "session_count": 18, "message_count": 412,
-        "initiation_ratio": { "a": 0.61, "b": 0.39 },
         "question_rate": { "a": 0.18, "b": 0.22 },
         "message_length_median": { "a": 14, "b": 11 },
         "reply_gap_median_min": { "a": 4, "b": 6 },
         "resume_delay_median_min": { "a": 95, "b": 140 },
-        "session_length_median": 22
+        "session_length_median": 22,
+        "activity": { "top_weekday": 2, "top_hour": 21, "by_weekday": [48, 55, 81, 60, 52, 70, 46], "by_hour": [2, 1, 0, "…(24)"] },
+        "sentiment": { "pos": [{ "canonical": "좋아", "count": 41 }, { "canonical": "고마워", "count": 12 }], "neg": [{ "canonical": "피곤", "count": 7 }] }
       },
       "outlier_count": 2,
       "events": []
@@ -245,6 +254,8 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   ]
 }
 ```
+- `activity`: 커플 합산 요일(0=월)·시간대(0~23) 메시지 수. 메시지 없으면 `top_*` null
+- `sentiment` **"내 단어"**: **요청자 본인**의 긍정/부정 단어 상위 3 (`count < 3` 숨김). 상대 데이터는 전송하지 않는다 (P-3 예외). 사전 미구축이면 `null`. 단어 단위 집계라 반어·문맥은 반영 안 됨
 
 ### 4.2 GET /api/couples/{couple_id}/reports/{week_start}
 
@@ -260,7 +271,6 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "status": "generated",
   "summary": { "...": "4.1과 동일" },
   "metrics": {
-    "initiation_ratio": { "a": 0.61, "b": 0.39, "baseline_a": 0.50, "baseline_b": 0.50, "delta_a": 0.11, "delta_b": -0.11, "comparable": true },
     "question_rate": { "...": "..." },
     "message_length_median": { "...": "..." }
   },
@@ -287,7 +297,7 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 **불변 규칙 (서버가 보장)**
 - `interpretations.length >= 2`
 - `sentiment ∈ {positive, neutral, notable}`
-- `suggestions[].template_id`는 컬렉션 B에 존재
+- `suggestions[].template_id`는 지식 dict(`data/knowledge/templates.json`)에 존재
 - `status == "insufficient_baseline"`이면 `highlights`·`suggestions`는 `[]`, `metrics.*.comparable == false`
 
 ### 4.3 POST /api/couples/{couple_id}/reports/{week_start}/regenerate
@@ -313,8 +323,8 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "range": { "start": "...", "end": "..." },
   "sessions": [{ "session_id": 1187, "started_at": "...", "ended_at": "...", "initiator": "a", "msg_count": 34 }],
   "metrics": {
-    "range": { "initiation_ratio": { "a": 0.8 }, "question_rate": { "a": 0.1, "b": 0.3 }, "message_length_median": { "a": 9, "b": 20 }, "reply_gap_median_min": { "a": 3, "b": 41 }, "session_length_median": 34 },
-    "baseline": { "weeks": 8, "initiation_ratio": { "a": 0.5 }, "question_rate": { "a": 0.22, "b": 0.24 }, "message_length_median": { "a": 14, "b": 12 }, "reply_gap_median_min": { "a": 4, "b": 6 }, "session_length_median": 22 }
+    "range": { "question_rate": { "a": 0.1, "b": 0.3 }, "message_length_median": { "a": 9, "b": 20 }, "reply_gap_median_min": { "a": 3, "b": 41 }, "session_length_median": 34 },
+    "baseline": { "weeks": 8, "question_rate": { "a": 0.22, "b": 0.24 }, "message_length_median": { "a": 14, "b": 12 }, "reply_gap_median_min": { "a": 4, "b": 6 }, "session_length_median": 22 }
   },
   "notes": [{ "note_id": 7, "author": "a", "body": "시험 끝나고 싸움", "created_at": "..." }]
 }
@@ -352,7 +362,7 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 3. `metric_query` → `get_metrics` 툴 → 수치 답변
 4. `report_query` → `get_report` 툴 → 과거 리포트 내용 답변
 5. `advice_request` → 검색 없이 **고정 리다이렉트 문구**, `answer: null`
-6. `other` → "대화 기록·지표·리포트에 대해 물어봐 주세요"
+6. `other` → "대화 기록·지표·리포트에 대해 물어봐 주세요". **횟수·빈도 질문("사랑해 몇 번 썼어?")도 `other`** — 현재 구조로는 정확히 셀 수 없어 "횟수는 아직 세어드릴 수 없어요"로 안내 (Phase 3 `count_term` 툴 후 `term_count` intent 로 교체)
 7. 답변에 인용이 하나도 없으면 서버가 `answer`를 버리고 `"관련 기록을 찾지 못했어요"`로 대체 (근거 없는 말 금지)
 
 **Response 200**
@@ -389,8 +399,9 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 | `search_conversation` | `(couple_id, query, start?, end?, k=8) → [{session_id, at, sender, snippet, score}]` | 컬렉션 A 벡터 검색 + 메타 필터 |
 | `get_metrics` | `(couple_id, week_start? \| range?) → summary + metrics` | Postgres 조회 |
 | `get_report` | `(couple_id, week_start) → report` | Postgres 조회 |
-| `search_knowledge` | `(query, metric?, direction?, doc_type?, k=5) → [{doc, section, text, source}]` | 컬렉션 B |
-| `get_suggestion_templates` | `(metric, direction) → [{template_id, text}]` | 컬렉션 B `doc_type=suggestion_template` |
+| `search_knowledge` | `(metric, direction, k=5) → [{doc, section, text, source}]` | 지식 dict (`data/knowledge/interpretations`, 메모리) |
+| `get_suggestion_templates` | `(metric, direction) → [{template_id, text}]` | 지식 dict (`data/knowledge/templates.json`, 메모리) |
+| `count_term` (Phase 3) | `(couple_id, term, start?, end?) → {count, by_week: [{week_start, count}]}` | `couple_lexicon` canonical → `weekly_terms` SUM. `build_lexicon` 잡 이후 |
 
 ---
 

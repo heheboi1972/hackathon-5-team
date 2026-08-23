@@ -46,7 +46,7 @@ class Session:
     session_id: int
     started_at: datetime
     ended_at: datetime
-    initiator: str
+    initiator: str             # 표시용 (돌아보기 세션 목록). 지표 아님 — ISSUE A2
     messages: list[Message]
 
     @property
@@ -55,22 +55,24 @@ class Session:
 
 
 def split_sessions(msgs: list[Message], gap_min: int = SESSION_GAP_MIN) -> list[Session]:
-    """시간순 정렬 후 간격 >= gap_min 이면 세션을 끊는다. 모든 msg_type 포함 (사진도 말 거는 것)."""
+    """시간순 정렬 후 간격 >= gap_min 이면 세션을 끊는다. 모든 msg_type 포함.
+    session_id = 첫 메시지 sent_at 의 epoch 초 (결정론). 재업로드로 다시 나눠도 같은 세션은 같은 ID."""
     msgs = sorted(msgs, key=lambda m: m.sent_at)
     sessions: list[Session] = []
     cur: list[Message] = []
     gap = timedelta(minutes=gap_min)
     for m in msgs:
         if cur and (m.sent_at - cur[-1].sent_at) >= gap:
-            sessions.append(_close(len(sessions) + 1, cur))
+            sessions.append(_close(cur))
             cur = []
         cur.append(m)
     if cur:
-        sessions.append(_close(len(sessions) + 1, cur))
+        sessions.append(_close(cur))
     return sessions
 
 
-def _close(sid: int, msgs: list[Message]) -> Session:
+def _close(msgs: list[Message]) -> Session:
+    sid = int(msgs[0].sent_at.timestamp())
     return Session(sid, msgs[0].sent_at, msgs[-1].sent_at, msgs[0].sender, msgs)
 
 
@@ -97,8 +99,9 @@ class RawWeek:
     week_start: date
     sessions: list[Session]
     # 추이형 원시값
-    initiations: dict[str, int]            # who -> 개시 횟수
     text_msgs: dict[str, list[Message]]    # who -> text 메시지
+    by_weekday: list[int]                  # 0=월 … 6=일, 전체 메시지 수
+    by_hour: list[int]                     # 0~23
     # 이상치형 원시값
     reply_gaps: list[tuple[str, str, int, datetime, float]]   # (kind, who, session_id, at, gap_min)
                                                                  # kind: in_session | resume
@@ -106,15 +109,17 @@ class RawWeek:
 
 
 def _observe(week_start: date, sessions: list[Session], a: str, b: str) -> RawWeek:
-    init = {a: 0, b: 0}
     text = {a: [], b: []}
+    by_wd = [0] * 7
+    by_hr = [0] * 24
     gaps: list[tuple[str, int, datetime, float]] = []
     lens: list[tuple[int, datetime, int]] = []
     prev: Message | None = None   # 세션 경계를 넘어 유지
     for s in sessions:
-        init[s.initiator] += 1
         lens.append((s.session_id, s.started_at, s.msg_count))
         for i, m in enumerate(s.messages):
+            by_wd[m.sent_at.weekday()] += 1
+            by_hr[m.sent_at.hour] += 1
             if m.msg_type == "text":
                 text[m.sender].append(m)
             # 답장 간격: 발화자가 바뀐 첫 메시지까지. 두 종류를 분리해 각자 기준선을 갖게 한다.
@@ -126,7 +131,7 @@ def _observe(week_start: date, sessions: list[Session], a: str, b: str) -> RawWe
                 if kind == "in_session" or gap <= REPLY_GAP_MAX_MIN:
                     gaps.append((kind, m.sender, s.session_id, m.sent_at, gap))
             prev = m
-    return RawWeek(week_start, sessions, init, text, gaps, lens)
+    return RawWeek(week_start, sessions, text, by_wd, by_hr, gaps, lens)
 
 
 # ---------------------------------------------------------------- 주간 지표
@@ -141,12 +146,7 @@ def _median(xs: list[float]) -> float | None:
 
 
 def _trend_metrics(rw: RawWeek, a: str, b: str) -> dict:
-    total_init = rw.initiations[a] + rw.initiations[b]
     return {
-        "initiation_ratio": {
-            "a": _ratio(rw.initiations[a], total_init),
-            "b": _ratio(rw.initiations[b], total_init),
-        },
         "question_rate": {
             "a": _ratio(sum(m.is_question for m in rw.text_msgs[a]), len(rw.text_msgs[a])),
             "b": _ratio(sum(m.is_question for m in rw.text_msgs[b]), len(rw.text_msgs[b])),
@@ -166,7 +166,65 @@ def _summary_extras(rw: RawWeek, a: str, b: str) -> dict:
         "reply_gap_median_min": {"a": med("in_session", a), "b": med("in_session", b)},
         "resume_delay_median_min": {"a": med("resume", a), "b": med("resume", b)},
         "session_length_median": _median([n for _, _, n in rw.session_lengths]),
+        "activity": _activity(rw),
     }
+
+
+def _activity(rw: RawWeek) -> dict:
+    """활발한 요일·시간대 (커플 합산, 복호화·LLM 없음). 메시지가 없으면 top 은 None."""
+    has = sum(rw.by_weekday) > 0
+    return {
+        "top_weekday": max(range(7), key=lambda i: rw.by_weekday[i]) if has else None,
+        "top_hour": max(range(24), key=lambda i: rw.by_hour[i]) if has else None,
+        "by_weekday": list(rw.by_weekday),
+        "by_hour": list(rw.by_hour),
+    }
+
+
+# ---------------------------------------------------------------- 감성 단어 "내 단어" (FR-002 sentiment)
+# 사전(couple_lexicon)은 코드 밖에서 온다: {term: (canonical, polarity)}. 여기서는 세기만 한다 (P-2).
+# 부정어가 앞 2토큰 안에 있거나 뒤에 "지 않/지 마" 가 붙으면 해당 등장은 제외 (뒤집지 않음).
+
+_NEGATORS = {"안", "못", "별로", "전혀"}
+_NEG_SUFFIX = ("지않", "지마", "지않아", "지마라")
+TERM_MIN_COUNT = 3   # 이 미만은 카드에 표시하지 않음
+
+
+def count_terms(msgs: list[Message], lexicon: dict[str, tuple[str, str]]) -> dict[tuple[str, str, str], int]:
+    """
+    → {(sender, canonical, polarity): count}.  polarity 는 pos|neg 만 (neutral·exclude 는 세지 않음).
+    msgs 는 한 주치. sender 는 원본 이름 그대로 (호출자가 a/b 매핑).
+    """
+    out: dict[tuple[str, str, str], int] = defaultdict(int)
+    for m in msgs:
+        if m.msg_type != "text" or not m.tokens:
+            continue
+        toks = m.tokens
+        for i, t in enumerate(toks):
+            hit = lexicon.get(t)
+            if not hit:
+                continue
+            canonical, pol = hit
+            if pol not in ("pos", "neg"):
+                continue
+            if any(x in _NEGATORS for x in toks[max(0, i - 2):i]):
+                continue
+            nxt = "".join(toks[i + 1:i + 3])
+            if nxt.startswith(_NEG_SUFFIX):
+                continue
+            out[(m.sender, canonical, pol)] += 1
+    return dict(out)
+
+
+def top_terms(counts: dict[tuple[str, str, str], int], sender: str, k: int = 3) -> dict:
+    """한 사람의 pos/neg 상위 k. TERM_MIN_COUNT 미만 제외. → {"pos": [{canonical, count}], "neg": [...]}"""
+    res = {"pos": [], "neg": []}
+    for (who, canonical, pol), c in counts.items():
+        if who == sender and c >= TERM_MIN_COUNT:
+            res[pol].append({"canonical": canonical, "count": c})
+    for pol in res:
+        res[pol] = sorted(res[pol], key=lambda x: (-x["count"], x["canonical"]))[:k]
+    return res
 
 
 # ---------------------------------------------------------------- 기준선 비교 (추이형)
@@ -299,7 +357,7 @@ def build_weekly_metrics(
         out.append(week)
 
         history = out[-1 - BASELINE_WEEKS_TREND:-1]
-        for key in ("initiation_ratio", "question_rate", "message_length_median"):
+        for key in ("question_rate", "message_length_median"):
             for who in ("a", "b"):
                 _attach_baseline(out, key, who, history)
 
@@ -339,8 +397,10 @@ if __name__ == "__main__":
     for w in weeks:
         m = w["metrics"]
         print(f"  {w['week_start']}  sess={w['session_count']:3d} msgs={w['message_count']:4d}  "
-              f"init_a={m['initiation_ratio']['a']}  q_a={m['question_rate']['a']} q_b={m['question_rate']['b']}  "
+              f"q_a={m['question_rate']['a']} q_b={m['question_rate']['b']}  "
               f"len_a={m['message_length_median']['a']} len_b={m['message_length_median']['b']}  "
-              f"comparable={m['initiation_ratio'].get('comparable')}  outliers={len(w['outliers'])}")
+              f"comparable={m['question_rate'].get('comparable')}  "
+              f"top_wd={w['summary_extras']['activity']['top_weekday']} top_hr={w['summary_extras']['activity']['top_hour']}  "
+              f"outliers={len(w['outliers'])}")
     if "--json" in sys.argv:
         print(json.dumps(weeks[-1], ensure_ascii=False, indent=2))

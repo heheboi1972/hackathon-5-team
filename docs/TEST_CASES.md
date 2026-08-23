@@ -62,12 +62,16 @@
 | 004-1 | `사진` / `사진 3장` | photo | False | 0 |
 | 004-2 | `파일: a.pdf` | file | False | 0 |
 | 004-3 | `삭제된 메시지입니다` | deleted | False | 0 |
-| 004-4 | `뭐해?` | text | True | 3 |
-| 004-5 | `밥 먹었니` | text | True | |
-| 004-6 | `갈까요` / `뭐 먹을까ㅋㅋ` | text | True | |
-| 004-7 | `알았어` / `그래야지` / `보고싶어` | text | **False** | |
-| 004-8 | `오늘 뭐 했어` (물음표 없는 질문) | text | False (의도된 보수적 정의) | |
-| 004-9 | 발화자 3명 이상 | `validate_couple` → ValueError | | |
+| 004-4 | `뭐해?` / `뭐해?ㅋㅋ` | text | True | 3 / 5 |
+| 004-5 | `밥 먹었니` / `갈까ㅋㅋ` / `뭐 먹을까요` | text | True | |
+| 004-6 | `뭐해` / `어디야ㅋㅋ` / `언제 와` / `몇 시야` / `왜` (의문사 + 구어 어미·단독) | text | True | |
+| 004-7 | `알았어` / `그래야지` / `보고싶어` / `진짜 미쳤다` | text | **False** | |
+| 004-8 | `아니` / `집에 가요` / `할까 말까` (강한 어미 오탐 제외) | text | **False** | |
+| 004-9 | `언제 와!` (느낌표 끝) | text | False | |
+| 004-10 | `괜찮아` (질문/평서 동형, 물음표 없음) | text | False (한계로 문서화) | |
+| 004-11 | 발화자 3명 이상 | `validate_couple` → ValueError | | |
+
+자동화: `api/tests/test_parser.py`
 
 ---
 
@@ -87,9 +91,9 @@
 
 | ID | 시나리오 | 기대 |
 |---|---|---|
-| 002-1 | A 개시 6, B 개시 4 | initiation_ratio a=0.6 b=0.4 |
+| 002-1 | (삭제 — initiation_ratio 제거, ISSUE A2) | `metrics` 에 `initiation_ratio` 키 없음 |
 | 002-2 | A text 10개 중 질문 3 | question_rate a=0.3 |
-| 002-3 | photo만 있는 주 | question_rate·length = None, initiation은 계산됨 |
+| 002-3 | photo만 있는 주 | question_rate·length = None, activity 는 계산됨 |
 | 002-4 | 글자수 [3,5,100] | message_length_median=5 (평균 아님) |
 | 002-5 | 4주 미만 | `comparable=false`, baseline/delta=None |
 | 002-6 | 5주차 | baseline = 1~4주 평균, delta = 5주 − baseline, comparable=true |
@@ -126,6 +130,28 @@
 | 005-2 | `week_start`가 모두 월요일 |
 | 005-3 | 주 오름차순, 빈 주 없음 (대화 없는 주는 생략) |
 | 005-4 | 동일 입력 2회 → 동일 출력 (결정론) |
+| 005-5 | `session_id` = 첫 메시지 epoch 초. 입력 순서를 바꿔도 동일 (재업로드 참조 유지) |
+
+### TC-METRIC-006: 활발한 요일·시간대 (`activity`)
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 006-1 | 수 21시 2건, 목 09시 1건 | `top_weekday=2`, `top_hour=21`, `by_weekday` 합 3, `by_hour[21]=2` |
+| 006-2 | 메시지 없는 주 (생략되므로 발생 안 함) | — |
+| 006-3 | 커플 합산 | a/b 구분 없음, `by_weekday` 길이 7·`by_hour` 길이 24 |
+
+### TC-METRIC-007: 감성 단어 "내 단어" (`tokenize`, `count_terms`, `top_terms`)
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| 007-1 | `좋아아아아 ㅋㅋㅋ` | tokens `["좋아"]` (반복 축약, 자모 제거) |
+| 007-2 | `오늘 짜증이 나네` | `["오늘","짜증","나네"]` (조사 제거) |
+| 007-3 | `https://x.y 진짜!!! 피곤해요 12시` | `["진짜","피곤해","12시"]` |
+| 007-4 | 사전 `{좋아,조아→좋아(pos), 짜증(neg), 응(neutral)}`, A: `좋아`, `조아조아`, `안 좋아`, `좋아하지 않아` | A `좋아` pos = **2** (부정어·"지않" 제외, canonical 합산) |
+| 007-5 | B: `짜증이 나`, `응` | B `짜증` neg = 1, neutral 은 세지 않음 |
+| 007-6 | counts A:좋아 5·고마워 2, B:짜증 4 | `top_terms(A)` = pos `[좋아 5]`, neg `[]` (count<3 숨김); `top_terms(B)` neg `[짜증 4]` |
+
+자동화: `api/tests/test_metrics.py`
 
 ---
 
@@ -152,7 +178,7 @@
 
 | ID | 시나리오 | 기대 |
 |---|---|---|
-| 002-1 | DELETE by A | 204, messages/sessions/weekly_metrics/reports/notes 0건, Qdrant 포인트 0건 |
+| 002-1 | DELETE by A | 204, messages/sessions/weekly_metrics/reports/notes/**weekly_terms/couple_lexicon** 0건, Qdrant 포인트 0건 |
 | 002-2 | DELETE by B | 204 (양쪽 가능) |
 | 002-3 | DELETE by C | 403 |
 | 002-4 | 해제 후 GET reports | 404 |
@@ -195,7 +221,9 @@
 | 005-5 | 데이터 없는 주 | 404 |
 | 005-6 | 불변: interpretations | 모든 highlight에 ≥2 |
 | 005-7 | 불변: sentiment | ∈ {positive, neutral, notable} |
-| 005-8 | 불변: template_id | 컬렉션 B에 존재 |
+| 005-8 | 불변: template_id | 지식 dict(`data/knowledge/templates.json`)에 존재 |
+| 005-11 | `summary.sentiment` 본인만 | A 토큰으로 조회 → A 의 단어만, B 의 단어 미포함. 사전 미구축 → `null` |
+| 005-12 | `summary.activity` | `top_weekday`·`top_hour` 존재, `by_weekday` 길이 7 |
 | 005-9 | 불변: 금지어 | REQUIREMENTS FR-004 금지 표현 regex 0건 |
 | 005-10 | regenerate | 202, job 완료 후 generated_at 갱신 |
 

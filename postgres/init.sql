@@ -1,5 +1,6 @@
--- 역할: DB 초기 스키마 — users/couples/messages/sessions/weekly_metrics/reports/notes/events/pokes + jobs (참조: PRD §6.1, TRD §4.1)
+-- 역할: DB 초기 스키마 — users/couples/messages/sessions/weekly_metrics/reports/notes/events/pokes + jobs + couple_lexicon/weekly_terms (참조: PRD §6.1, TRD §4.1)
 -- 본문은 body_enc(Fernet)로만 저장. 지표 계산은 body_len/is_question 으로 복호화 없이 (TRD §4.1)
+-- P-5 예외: couple_lexicon / weekly_terms 는 단어 단위 집계를 평문 저장. 원문 복원 불가, 커플 해제 시 CASCADE 삭제.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
 
@@ -28,35 +29,42 @@ CREATE TABLE couples (
 );
 
 -- ---------------------------------------------------------------- 대화 원본·세션
+-- session_id = started_at 의 epoch 초 (결정론). 재업로드로 세션을 다시 나눠도 같은 세션은 같은 ID → 리포트 발췌·Qdrant·메모 참조 유지
 CREATE TABLE sessions (
-    session_id BIGSERIAL PRIMARY KEY,
     couple_id  UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
+    session_id BIGINT NOT NULL,
     started_at TIMESTAMPTZ NOT NULL,
     ended_at   TIMESTAMPTZ NOT NULL,
-    initiator  CHAR(1) NOT NULL CHECK (initiator IN ('a','b')),
-    msg_count  INTEGER NOT NULL DEFAULT 0
+    initiator  CHAR(1) NOT NULL CHECK (initiator IN ('a','b')),   -- 표시용 (지표 아님)
+    msg_count  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (couple_id, session_id)
 );
 CREATE INDEX idx_sessions_couple_time ON sessions (couple_id, started_at);
 
 CREATE TABLE messages (
     message_id  BIGSERIAL PRIMARY KEY,
     couple_id   UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    session_id  BIGINT REFERENCES sessions(session_id) ON DELETE SET NULL,
+    session_id  BIGINT,
     sender      CHAR(1) NOT NULL CHECK (sender IN ('a','b')),
     sent_at     TIMESTAMPTZ NOT NULL,
     body_enc    BYTEA NOT NULL,                      -- Fernet 암호화 본문
     body_len    INTEGER NOT NULL,                    -- 저장 시 계산 (복호화 없이 지표)
     is_question BOOLEAN NOT NULL DEFAULT FALSE,
     msg_hash    VARCHAR(64) NOT NULL,                -- 중복 제거용 (sha256)
-    UNIQUE (couple_id, msg_hash)
+    UNIQUE (couple_id, msg_hash),
+    FOREIGN KEY (couple_id, session_id) REFERENCES sessions(couple_id, session_id) ON DELETE SET NULL
 );
 CREATE INDEX idx_messages_couple_time ON messages (couple_id, sent_at);
+CREATE INDEX idx_messages_session     ON messages (couple_id, session_id);   -- 인용·evidence·review 조회
+CREATE INDEX idx_couples_user_a ON couples (user_a);                           -- GET /couples/me 가드
+CREATE INDEX idx_couples_user_b ON couples (user_b);
 
 -- ---------------------------------------------------------------- 지표·리포트
 CREATE TABLE weekly_metrics (
     couple_id  UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
     week_start DATE NOT NULL,                        -- 월요일
     summary    JSONB NOT NULL,                       -- API_SPEC §4.1 summary
+    summary_hash VARCHAR(64) NOT NULL,               -- sha256(summary). 바뀐 주차만 리포트 재생성 (API_SPEC §3.1 규칙 8)
     outliers   JSONB NOT NULL DEFAULT '[]',          -- moments 후보
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (couple_id, week_start)
@@ -105,11 +113,33 @@ CREATE TABLE pokes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ---------------------------------------------------------------- 감성 단어 "내 단어" (FR-002 sentiment, P-5 예외)
+-- append-only: 한 번 분류된 term 은 재분류하지 않음 (재현성). seed 는 공용 시드 사전, llm 은 build_lexicon 잡
+CREATE TABLE couple_lexicon (
+    couple_id UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
+    term      VARCHAR(50) NOT NULL,
+    canonical VARCHAR(50) NOT NULL,                  -- 철자 변형만 묶음 (조아→좋아). 동의어는 분리
+    polarity  VARCHAR(8)  NOT NULL CHECK (polarity IN ('pos','neg','neutral','exclude')),
+    source    VARCHAR(8)  NOT NULL DEFAULT 'llm' CHECK (source IN ('seed','llm')),
+    PRIMARY KEY (couple_id, term)
+);
+
+-- 주차·사람별 집계 (평문). 양쪽 저장하되 API 응답은 요청자 본인 것만 (P-3 예외)
+CREATE TABLE weekly_terms (
+    couple_id  UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
+    week_start DATE NOT NULL,
+    sender     CHAR(1) NOT NULL CHECK (sender IN ('a','b')),
+    canonical  VARCHAR(50) NOT NULL,
+    polarity   VARCHAR(3) NOT NULL CHECK (polarity IN ('pos','neg')),
+    count      INTEGER NOT NULL,
+    PRIMARY KEY (couple_id, week_start, sender, canonical)
+);
+
 -- ---------------------------------------------------------------- 작업 큐 (TRD §4.1)
 CREATE TABLE jobs (
     job_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     couple_id    UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    kind         VARCHAR(30) NOT NULL,          -- report_backfill | report_single
+    kind         VARCHAR(30) NOT NULL,          -- embed_sessions | build_lexicon | report_backfill | report_single
     status       VARCHAR(20) NOT NULL DEFAULT 'queued'
                  CHECK (status IN ('queued','running','done','failed')),
     total        INTEGER NOT NULL DEFAULT 0,

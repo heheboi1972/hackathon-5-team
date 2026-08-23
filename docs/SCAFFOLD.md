@@ -55,6 +55,8 @@ couple-report/
 │   │   │   ├── domain.py              DB 행 dataclass (Couple, Message, Session, WeeklyMetric, Report, Note)
 │   │   │   └── report.py              (new) §7.2 리포트 JSON 스키마 (에이전트 간 계약)
 │   │   ├── services/
+│   │   │   ├── knowledge.py               (new) data/knowledge 로더 → container.knowledge (지식·템플릿·시드 사전)
+│   │   │   ├── lexicon.py                 (new, Phase 3) build_lexicon 잡 — 커플 단어 LLM 분류
 │   │   │   ├── ai_service.py          Mock/watsonx, embed(passage:/query:), generate(reasoning_effort=low)
 │   │   │   ├── postgres_service.py    연결 풀 + repo 함수들 (couples, messages, metrics, reports, notes)
 │   │   │   ├── qdrant_service.py      컬렉션 A/B 관리, upsert, search(couple_id 필터), delete_by_couple
@@ -98,15 +100,15 @@ couple-report/
 │       └── chat_advice.json
 │
 ├── data/
-│   └── knowledge/                     (new) 컬렉션 B 원본 — **윤아가 여기만 편집**
-│       ├── interpretations/*.md       소통 지식 문서 (frontmatter: metric, direction, source)
-│       └── templates.json             제안 템플릿 풀 [{template_id, metric, direction, text}]
+│   └── knowledge/                     (new) 지식·템플릿·감성 시드 — 앱 시작 시 메모리 로드 (Qdrant 아님) — **윤아가 여기만 편집**
+│       ├── interpretations/*.md       소통 지식 문서 (머리: metric, direction, source)
+│       ├── templates.json             제안 템플릿 풀 [{template_id, metric, direction, text}]
+│       └── sentiment_seed.json        공용 감성 시드 사전 {pos:[...], neg:[...]} — couple_lexicon 초기값
 │
 ├── postgres/
 │   └── init.sql                       기획서 §6.1 (users/couples/messages/sessions/weekly_metrics/reports/notes/events/pokes)
 │
 ├── scripts/
-│   ├── seed_knowledge.py              (new) data/knowledge → 컬렉션 B 적재
 │   ├── smoke_test.py                  업로드→타임라인→리포트→챗봇 1회 (TC-INT-001 축약)
 │   └── anonymize_kakao.py             (new) 실 카톡 파일 이름·본문 익명화 (fixture 생성용)
 │
@@ -142,7 +144,6 @@ couple-report/
     ├── 21-api-route.yaml              실습 08
     ├── 30-web-deployment.yaml
     ├── 31-web-route.yaml
-    ├── 40-report-cronjob.yaml         주 1회 리포트
     └── tekton/                        CI/CD 실습 복사, git-url·image만 치환
 ```
 
@@ -179,14 +180,13 @@ WATSONX_MAX_TOKENS=2000
 POSTGRES_DSN=postgresql://couple:couple@postgres:5432/couple_report
 QDRANT_URL=http://qdrant:6333
 QDRANT_COLLECTION_CONV=couple_sessions
-QDRANT_COLLECTION_KNOWLEDGE=knowledge
 
 # ---- 앱 ----
 JWT_SECRET=change-me
 ENCRYPTION_KEY=                  # python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"
 SESSION_GAP_MIN=30
 ALLOWED_ORIGINS=http://localhost:5173
-SEED_KNOWLEDGE_ON_START=true
+KNOWLEDGE_DIR=data/knowledge     # 지식·템플릿·감성 시드 (메모리 로드)
 
 # ---- 관측성 (Instana, 로컬은 비움) ----
 AUTOWRAPT_BOOTSTRAP=                 # OpenShift에서 instana

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .config import Settings
 from .services.ai_service import AIService, build_ai_service
+from .services.knowledge import Knowledge, load_knowledge
 from .services.postgres_service import PostgresService
 from .services.qdrant_service import QdrantService
 
@@ -19,6 +21,7 @@ class Container:
     ai: AIService
     postgres: PostgresService
     qdrant: QdrantService
+    knowledge: Knowledge                 # 지식 문서·템플릿·감성 시드 사전 (메모리, ISSUE D2)
     postgres_up: bool = False
     qdrant_up: bool = False
     # TODO(윤석): agents = {select, interpret, suggest, safety}, report_supervisor, chat_supervisor
@@ -38,8 +41,9 @@ class Container:
 async def build_container(settings: Settings) -> Container:
     ai = build_ai_service(settings)
     pg = PostgresService(settings.postgres_dsn)
-    qd = QdrantService(settings.qdrant_url, settings.qdrant_collection_conv, settings.qdrant_collection_knowledge)
-    c = Container(settings=settings, ai=ai, postgres=pg, qdrant=qd)
+    qd = QdrantService(settings.qdrant_url, settings.qdrant_collection_conv)
+    knowledge = load_knowledge(Path(settings.knowledge_dir))
+    c = Container(settings=settings, ai=ai, postgres=pg, qdrant=qd, knowledge=knowledge)
 
     # 저장소가 아직 안 떴어도 앱은 뜬다 — /health/ready 가 503으로 알려줌
     try:

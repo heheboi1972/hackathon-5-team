@@ -8,9 +8,9 @@
 |---|---|
 | P-1 | **판정하지 않는다.** 점수·등급·좋다/나쁘다·"~해야 한다"·원인 단정·한쪽 비난·이별/지속 권유 금지 |
 | P-2 | **지표는 결정론적.** 지표 계산·이상치 판정은 코드. LLM은 해석·문장 생성만 |
-| P-3 | **양쪽 동의가 구조.** 상호 수락 후 활성화. 리포트는 양쪽 동일 공개 |
+| P-3 | **양쪽 동의가 구조.** 상호 수락 후 활성화. 리포트는 양쪽 동일 공개. 예외: 자기 성찰 섹션("내 단어")은 본인에게만 표시 |
 | P-4 | **근거 없는 말은 하지 않는다.** 해석은 출처, 챗봇은 원문 인용 필수 |
-| P-5 | **원본은 암호화 저장, LLM엔 최소 전달.** 해제·탈퇴 시 즉시 삭제 |
+| P-5 | **원본은 암호화 저장, LLM엔 최소 전달.** 해제·탈퇴 시 즉시 삭제. 예외: 단어 단위 집계 테이블(`weekly_terms`, `couple_lexicon`)은 평문 — 원문 복원 불가, 해제 시 CASCADE 삭제 |
 
 ---
 
@@ -61,24 +61,25 @@
 
 **처리 규칙**
 1. 형식 감지 (PC / iOS / Android). 실패 → UNSUPPORTED_FORMAT
-2. 파싱 → `{sender, sent_at, body, msg_type, is_question, body_len}` (파서 사양: 기획서 §15)
+2. 파싱 → `{sender, sent_at, body, msg_type, is_question, body_len, tokens}` (파서 사양: 기획서 §15. `tokens`는 단어 집계용, 저장 안 함)
 3. 발화자 ≠ 2명 → NOT_COUPLE_CHAT
 4. 카톡 이름 → A/B 매핑. 최초 업로드는 `name_map` 필수 (NAME_MAPPING_REQUIRED)
 5. `sha256(sender|sent_at|body)`로 중복 제거, 신규만 저장. 본문은 암호화 (P-5)
-6. **동기**: 세션 분할(간격 ≥ `SESSION_GAP_MIN`) → 전 주차 지표 계산 → `weekly_metrics` upsert
-7. **비동기**: 신규·변경 주차의 리포트 생성 + Qdrant 적재. `job_id` 반환, 진행률 조회 가능
-8. 재업로드 시 변경된 주차만 리포트 재생성
+6. **동기**: 세션 분할(간격 ≥ `SESSION_GAP_MIN`, `session_id` = 시작 시각 epoch 초) → 전 주차 지표 계산 → `weekly_metrics` upsert(`summary_hash`) → `weekly_terms` 집계(시드 사전 + `couple_lexicon`)
+7. **비동기**: (a) `embed_sessions` — 신규·변경 세션 Qdrant 적재, 먼저 실행 (b) `report_backfill` — 리포트 생성 (c) `build_lexicon`(Phase 3) — 커플 단어 LLM 분류. 각각 `job_id`, 진행률 조회 가능
+8. 재업로드 시 `summary_hash`가 바뀐 주차만 리포트 재생성. 리포트의 baseline은 생성 시점 스냅샷(하류 주차 자동 재생성 없음)
 
 **지표 정의** (기획서 §3, `metrics.py`)
 
 | 지표 | 종류 | 정의 |
 |---|---|---|
-| initiation_ratio | 추이 | 세션 첫 메시지 발화자 비율 |
-| question_rate | 추이 | text 메시지 중 `?` 또는 강한 의문 어미(니·냐·까·까요·나요·가요·을까)로 끝나는 비율 |
+| question_rate | 추이 | text 메시지 중 질문 비율. 질문 = (1) `?`로 끝남(뒤 ㅋ/ㅎ/~ 허용) (2) 의문사(뭐·언제·어디·누구·왜·어떻게·몇·얼마…) + 구어 어미(어/아/야/지/요/해/와…) 또는 의문사 단독 (3) 강한 어미(니·냐·까·까요·나요·을까, "아니"·"할까 말까" 제외). `!`로 끝나면 비질문. 형태소 분석 없음 — "괜찮아" 류 동형은 물음표 없으면 평서문 |
 | message_length_median | 추이 | text 메시지 글자 수 중앙값 |
 | reply_gap | 이상치 | 세션 내 상대 메시지 → 내 첫 답장 |
 | resume_delay | 이상치 | 세션 경계에서 상대가 답하며 재개하기까지 (≤12h) |
 | session_length | 이상치 | 세션당 메시지 수 |
+| activity | 집계 | 요일(0=월)×7·시간대×24 메시지 수(커플 합산) + `top_weekday`·`top_hour` |
+| sentiment ("내 단어") | 집계 | 사전(`couple_lexicon`) 매칭 단어를 사람별·주별로 센 긍정/부정 상위 3 (`count<3` 숨김). 앞 2토큰 부정어(안/못/별로/전혀)·뒤 "지 않/지 마"는 제외. 철자 변형은 canonical로 합산, 동의어 분리. **본인 것만 응답** (P-3 예외). 단어 단위라 반어·문맥은 반영 안 됨 |
 
 - 추이형 기준선: 직전 4주 평균. 4주 미만 `comparable=false`
 - 이상치: 직전 8주 분포, log-IQR×1.5 밖 **그리고** 기준선 중앙값의 3배 이상/⅓ 이하. 표본 20 미만 보류. 지표·사람당 주 3건
@@ -158,6 +159,9 @@
 ### FR-007 (로드맵): 기념일 리마인더 · FR-008 (로드맵): 콕 찌르기 Lv.2 · FR-009 (로드맵): 2층 AI 지표
 
 MVP 제외. 스키마 자리만 (`events`, `pokes`).
+- 주 1회 자동 리포트(CronJob): 주기적 데이터 유입(카톡 연동 등)이 생기면. 지금은 업로드가 잡을 큐에 넣으므로 불필요
+- 챗봇 `term_count` intent + `count_term` 툴: `build_lexicon` 잡 이후 (Phase 3)
+- 감성 단어 문맥 검증(표시 후보 등장 건마다 LLM keep/drop, `term_verdict` 캐시): 리허설에서 오분류가 거슬리면
 
 ---
 
@@ -170,7 +174,7 @@ MVP 제외. 스키마 자리만 (`events`, `pokes`).
 | NFR-003 | Mock 모드 | `USE_MOCK=true`면 watsonx 없이 전 흐름 동작 (데모 백업) |
 | NFR-004 | 데이터 보호 | 본문 암호화 저장. Qdrant payload에 본문 미저장. 해제 시 즉시 삭제. API 키는 Secret |
 | NFR-005 | 관측성 | 리포트·챗봇 응답에 `execution_trace`/`trace_id`. 에이전트 단계별 입출력 기록 |
-| NFR-006 | 배포 | OpenShift (Deployment/StatefulSet/Route/Secret/CronJob), Tekton 빌드 |
+| NFR-006 | 배포 | OpenShift (Deployment/StatefulSet/Route/Secret), Tekton 빌드 |
 | NFR-007 | 한국어 | 모든 사용자 노출 문구 한국어. LLM 출력 한국어 강제 |
 | NFR-008 | 확장 | 지표 추가 = 함수 1 + JSON 필드 1. 에이전트 프롬프트 수정 불필요 |
 

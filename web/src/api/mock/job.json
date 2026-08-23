@@ -1,6 +1,11 @@
 {
   "job_id": "00000000-0000-0000-0000-0000000000aa",
+  "kind": "report_backfill",
   "status": "done",
-  "progress": { "total": 25, "done": 25, "failed": 0 },
+  "progress": {
+    "total": 25,
+    "done": 25,
+    "failed": 0
+  },
   "current_week": "2026-08-17"
 }

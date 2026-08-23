@@ -1,12 +1,21 @@
 {
   "job_id": "00000000-0000-0000-0000-0000000000aa",
+  "embed_job": {
+    "job_id": "00000000-0000-0000-0000-0000000000ee"
+  },
   "parsed": {
     "format": "ios",
     "message_count": 18342,
     "new_messages": 412,
     "session_count": 1203,
-    "range": { "from": "2026-03-02", "to": "2026-08-21" }
+    "range": {
+      "from": "2026-03-02",
+      "to": "2026-08-21"
+    }
   },
   "weeks_computed": 25,
-  "report_jobs": { "total": 25, "pending": 25 }
+  "report_jobs": {
+    "total": 25,
+    "pending": 25
+  }
 }

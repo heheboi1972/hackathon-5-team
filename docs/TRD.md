@@ -13,9 +13,9 @@ graph LR
   R -->|/| W[web<br/>nginx + React 정적]
   R -->|/api, /health| A[api<br/>FastAPI]
   A --> P[(PostgreSQL<br/>원본·지표·리포트·메모·jobs)]
-  A --> Q[(Qdrant<br/>컬렉션 A: 대화 세션<br/>컬렉션 B: 지식·템플릿)]
+  A --> Q[(Qdrant<br/>컬렉션 A: 대화 세션)]
+  A -.->|앱 시작 시 메모리 로드| K[data/knowledge<br/>지식·템플릿·감성 시드]
   A -->|임베딩 e5<br/>생성 gpt-oss| X[watsonx.ai]
-  C[CronJob 주 1회] -->|POST /internal/weekly| A
   T[Tekton] -->|buildah| I[내부 이미지 레지스트리]
   I --> A
   I --> W
@@ -25,8 +25,10 @@ graph LR
 
 | 경로 | 동기/비동기 | LLM | 설명 |
 |---|---|---|---|
-| 업로드 → 지표 | 동기 | ✗ | 파싱 → 중복 제거 → 암호화 저장 → 세션 → 전 주차 지표 upsert. 18k 메시지 < 10s |
-| 리포트 생성 | **비동기** (jobs) | ✓ 4단계 | 주차별 선별→해석→제안→검수. Qdrant 적재도 여기서 |
+| 업로드 → 지표 | 동기 | ✗ | 파싱 → 중복 제거 → 암호화 저장 → 세션 → 전 주차 지표 upsert → `weekly_terms` 집계(시드 사전). 18k 메시지 < 10s. CPU 구간은 `asyncio.to_thread` |
+| 임베딩 적재 | **비동기** (`embed_sessions`) | 임베딩만 | 신규·변경 세션 Qdrant upsert. 리포트 잡보다 먼저 — 챗봇이 리포트 완성 전에도 동작 |
+| 리포트 생성 | **비동기** (`report_backfill`) | ✓ 3~4단계 | `summary_hash` 바뀐 주차만. 최신 주부터, 주차 병렬(Semaphore 3), 기준선 부족 주는 LLM 없이 즉시 `insufficient_baseline` |
+| 커플 사전 (Phase 3) | **비동기** (`build_lexicon`) | ✓ 1회 | 빈도 상위 ~500 단어 + 예시 → 분류·canonical → `couple_lexicon` append → 영향 주차 `weekly_terms` 재집계 |
 | 타임라인·리포트·돌아보기 조회 | 동기 | ✗ | Postgres 읽기만 |
 | 챗봇 | 동기 | ✓ 1~2회 | intent 분류 → 툴 → 답변. < 8s |
 
@@ -95,7 +97,7 @@ LLM 출력은 **Pydantic 검증 실패 시 1회 재요청, 2회 실패 시 해�
 |---|---|
 | 컨테이너 | Docker, compose(로컬), OpenShift(배포) |
 | 이미지 | api: python:3.12-slim (교육 안내 기준) / web: node:20 빌드 → nginx:alpine |
-| 배포 | Deployment(api, web) · StatefulSet(postgres, qdrant) · Route(edge TLS) · Secret · ConfigMap · CronJob |
+| 배포 | Deployment(api, web) · StatefulSet(postgres, qdrant) · Route(edge TLS) · Secret · ConfigMap |
 | CI/CD | Tekton (git-clone → buildah → apply → set image), Git push 트리거 |
 | 로그 | 표준 logging JSON → stdout, `trace_id` 포함 |
 | 관측성 | **Instana** (Python 자동 계측 + OpenTelemetry 스팬) — §9.1 |
@@ -132,7 +134,7 @@ models/api    tools/  ←  agents/  ←  prompts/
 CREATE TABLE jobs (
     job_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     couple_id    UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    kind         VARCHAR(30) NOT NULL,          -- report_backfill | report_single
+    kind         VARCHAR(30) NOT NULL,          -- embed_sessions | build_lexicon | report_backfill | report_single
     status       VARCHAR(20) NOT NULL DEFAULT 'queued'
                  CHECK (status IN ('queued','running','done','failed')),
     total        INTEGER NOT NULL DEFAULT 0,
@@ -147,30 +149,41 @@ CREATE TABLE jobs (
 
 **암호화**: `body_enc = Fernet(key).encrypt(body.encode())`. 복호화는 (a) 리포트 evidence 발췌 (b) 챗봇 인용 snippet (c) Qdrant 적재 시 임베딩 입력 — 세 곳만. 지표 계산은 `body_len`·`is_question`(저장 시 계산)으로 복호화 없이.
 
+**P-5 예외 — 단어 집계 평문**: `couple_lexicon(couple_id, term, canonical, polarity, source)`·`weekly_terms(couple_id, week_start, sender, canonical, polarity, count)`는 평문. 업로드 파싱 시점(평문 보유 유일 시점)에 `Message.tokens`로 집계. 원문 복원 불가, 해제 시 CASCADE. API 응답은 요청자 본인 행만 (`summary.sentiment`).
+
+**세션 ID**: `sessions.session_id` = 첫 메시지 `sent_at` epoch 초, PK `(couple_id, session_id)`. 재업로드로 재분할해도 같은 세션은 같은 ID → `reports.report.moments[].session_id`·`notes`·Qdrant point id `{session_id}:{chunk_idx}` 참조 유지. `weekly_metrics.summary_hash`(sha256 of summary)로 "변경 주차"를 정의.
+
 **삭제**: `DELETE couples` → CASCADE + `qdrant.delete(filter couple_id)` 를 같은 트랜잭션 핸들러에서.
 
 ### 4.2 Qdrant
 
 | 컬렉션 | 벡터 | 포인트 단위 | payload | 필터 |
 |---|---|---|---|---|
-| `couple_sessions` | e5 1024 cosine | 세션 (≤30 msg, 초과 시 분할) | `couple_id, session_id, chunk_idx, started_at(epoch), ended_at, participants, msg_count` — **본문 없음** | `couple_id` 필수, `started_at` 범위 |
-| `knowledge` | e5 1024 cosine | 문서 섹션 / 템플릿 1개 | `doc_type(interpretation\|suggestion_template), metric, direction, source, text, template_id?` | `doc_type, metric, direction` |
+| `couple_sessions` | e5 1024 cosine (mock 384) | 세션 (≤30 msg, 초과 시 분할). point id `{session_id}:{chunk_idx}` (멱등 upsert) | `couple_id, session_id, chunk_idx, started_at(epoch), ended_at, participants, msg_count` — **본문 없음** | `couple_id` 필수, `started_at` 범위 |
+
+앱 시작 시 컬렉션 벡터 차원이 설정(mock 384 / e5 1024)과 다르면 **재생성** — mock→watsonx 전환 시 데이터는 버려진다(의도).
+
+**지식·템플릿(구 컬렉션 B)은 Qdrant 에 두지 않는다**: `(metric, direction)` 조합이 ~10개라 벡터 검색이 무의미. `data/knowledge/interpretations/*.md`·`templates.json`·`sentiment_seed.json`을 `container.knowledge`(메모리 dict)로 로드. `search_knowledge(metric, direction)`·`get_suggestion_templates(metric, direction)`는 dict 조회.
 
 임베딩 입력: 세션 청크는 `"passage: " + "\n".join(f"{sender}: {body}")`, 질문은 `"query: " + text`.
 
 ### 4.3 작업 큐
 
 ```
-POST /upload ──► jobs INSERT(queued, total=N) ──► asyncio.Queue.put(job_id)
+POST /upload ──► jobs INSERT ×2: embed_sessions(queued), report_backfill(queued, total=변경 주차 수)
                                                         │
-worker (앱 시작 시 1개) ◄───────────────────────────────┘
-  for week in weeks:
+worker (앱 시작 시 create_task, while True + try/except) ◄┘
+  SELECT … WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1   (2초 폴링, DB 가 큐)
+  embed_sessions : 신규·변경 세션 임베딩 → Qdrant upsert
+  build_lexicon  : (Phase 3) 미분류 단어 LLM 분류 → couple_lexicon append → weekly_terms 재집계
+  report_backfill: weeks 를 최신 주부터, Semaphore(3) 로 병렬
+     기준선 부족 → reports.status=insufficient_baseline (LLM 없음)
      report_supervisor.run(week) → reports UPSERT → jobs.done += 1
      실패 시 reports.status=failed, jobs.failed += 1, 계속
   jobs.status = done
 ```
 
-앱 재시작 시 `queued/running` 잡을 다시 큐에 넣는다(간단 복구). 워커 1개라 동시성 문제 없음.
+앱 재시작 시 `running → queued` 리셋(1줄). DB 가 큐라 `asyncio.Queue` 불필요, 워커가 예외로 죽어도 다음 루프에서 이어감. `replicas > 1` 도 Redis 없이 가능.
 
 ---
 
@@ -198,6 +211,18 @@ class Agent:
 ```
 
 Mock 모드: `ai.generate`가 `mock/<name>.json`을 반환.
+
+**select 통합 검토(C1)**: 코드가 이상치·delta 상위 3개를 선별하면 select_agent 호출이 사라져 주당 LLM 2회. 구현 시 윤석·윤아 합의.
+
+### 5.1a 커플 사전 (`services/lexicon.py`, Phase 3)
+
+```
+코드: Message.tokens 빈도 집계 → 상위 ~500 중 couple_lexicon 에 없는 term
+      + 각 term 최초 등장 3건의 앞뒤 2~3토큰 예시 (결정론)
+LLM : prompts/lexicon.md, 100단어/호출 → [{term, canonical, polarity: pos|neg|neutral|exclude}]
+코드: couple_lexicon append-only (재분류 없음) → 영향 주차 weekly_terms 재집계 (count_terms)
+```
+시드 사전(`sentiment_seed.json`)은 커플 첫 업로드 시 `source='seed'`로 삽입되어 LLM 실패·지연 시에도 기본 단어는 센다. `count_terms`는 앞 2토큰 부정어·뒤 "지 않/지 마" 등장을 제외(뒤집지 않음).
 
 ### 5.2 리포트 플로우
 
@@ -298,10 +323,9 @@ API는 `"a"/"b"`만 준다. `lib/names.ts`의 `who(x)`가 `me`면 "나", 아니�
 | 20 | api Deployment(replicas 1, `envFrom` Secret+ConfigMap, readiness `/health/ready`) + Service | 실습 06·07 |
 | 21 | Route edge TLS, path `/api` `/health` → api | 실습 08 |
 | 30/31 | web Deployment + Service + Route `/` | 실습 06~08 |
-| 40 | CronJob `0 3 * * 1` → `curl -X POST api/internal/weekly -H "X-Internal-Key"` | 신규 |
 | tekton/ | Pipeline(git-clone → buildah api → buildah web → apply → set image) + Trigger | 실습 CI/CD |
 
-`replicas: 1` 고정 — 인프로세스 작업 큐 때문. 늘리려면 큐를 Redis로 (로드맵).
+`replicas: 1` 로 시작. DB 큐(`SKIP LOCKED`)라 늘려도 동작하지만 watsonx 동시 호출 수만 주의.
 
 ### 8.2 환경별 설정
 
@@ -319,7 +343,7 @@ API는 `"a"/"b"`만 준다. `lib/names.ts`의 `who(x)`가 `me`면 "나", 아니�
 | NFR | 구현 |
 |---|---|
 | 001 성능 | 지표 계산은 순수 Python, 18k 메시지 ~2s. 리포트 조회는 JSONB 단일 행 |
-| 002 비동기 | §4.3 |
+| 002 비동기 | §4.3 (DB 큐, embed → report 순) |
 | 003 Mock | `AI_PROVIDER=mock` → ai_service·agents 전부 고정 응답 |
 | 004 데이터 보호 | §7 |
 | 005 관측성 | `reports.execution_trace` JSONB + `trace_id` + Instana 트레이스 (§9.1) |

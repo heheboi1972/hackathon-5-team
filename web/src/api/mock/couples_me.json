@@ -2,16 +2,26 @@
   "couple_id": "00000000-0000-0000-0000-000000000001",
   "status": "active",
   "members": {
-    "a": { "user_id": "00000000-0000-0000-0000-00000000000a", "display_name": "형준" },
-    "b": { "user_id": "00000000-0000-0000-0000-00000000000b", "display_name": "윤아" }
+    "a": {
+      "user_id": "00000000-0000-0000-0000-00000000000a",
+      "display_name": "형준"
+    },
+    "b": {
+      "user_id": "00000000-0000-0000-0000-00000000000b",
+      "display_name": "윤아"
+    }
   },
   "me": "a",
-  "kakao_names": { "a": "김형준", "b": "윤아♥" },
+  "kakao_names": {
+    "a": "김형준",
+    "b": "윤아♥"
+  },
   "started_at": "2026-03-01",
   "data": {
     "first_week": "2026-03-02",
     "last_week": "2026-08-17",
     "weeks_available": 25,
     "message_count": 18342
-  }
+  },
+  "active_job": null
 }

@@ -25,14 +25,13 @@ class Settings(BaseSettings):
     postgres_dsn: str = "postgresql://couple:couple@postgres:5432/couple_report"
     qdrant_url: str = "http://qdrant:6333"
     qdrant_collection_conv: str = "couple_sessions"
-    qdrant_collection_knowledge: str = "knowledge"
 
     # ---- 앱 ----
     jwt_secret: str = "change-me"
     encryption_key: str = ""
     session_gap_min: int = 30
     allowed_origins: str = "http://localhost:5173"
-    seed_knowledge_on_start: bool = True
+    knowledge_dir: str = "data/knowledge"        # 지식 문서·템플릿·감성 시드 (메모리 로드)
 
     # ---- 관측성 (Instana) ----
     autowrapt_bootstrap: str = ""

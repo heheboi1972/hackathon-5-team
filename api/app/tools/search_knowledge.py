@@ -1,1 +1,1 @@
-# 역할: 지식(컬렉션 B) 검색 툴 — 에이전트 호출용, OTel 스팬 포함 예정 (참조: API_SPEC §8, TRD §9.1)  # TODO: 구현
+# 역할: 지식 문서 조회 툴 — container.knowledge.search(metric, direction) 메모리 dict (참조: API_SPEC §8, ISSUE D2)  # TODO: 구현

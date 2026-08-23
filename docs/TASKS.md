@@ -18,49 +18,53 @@
 
 ```mermaid
 graph TD
-  %% X --> Y : Y가 X에 의존
+  %% X --> Y : Y를 만들려면 X가 먼저 있어야 함 (빌드 의존성만. 런타임 순서는 TRD §5.2)
   P[파서 kakao_parser] --> M[지표 metrics]
-  M --> UP[POST upload]
-  P --> UP
-  DB[DB 스키마 + 마이그레이션] --> UP
-  DB --> AUTH[auth + couples API]
+  DB[DB 스키마 init.sql] --> AUTH[auth + couples API]
+  DB --> JOBS[jobs 인프라: 테이블·상태 전이·GET jobs·워커 루프]
+  AUTH --> UP[POST upload]
+  M --> UP
+  JOBS --> UP
   UP --> TL[GET timeline]
   UP --> RV[GET review]
-  M --> RV
 
-  QD[Qdrant 적재 서비스] --> SC[툴 search_conversation]
-  EMB[watsonx 임베딩 래퍼] --> QD
-  KB[컬렉션 B 문서 + 템플릿 풀] --> SK[툴 search_knowledge / templates]
+  EMB[watsonx 임베딩 래퍼] --> QD[embed_sessions 잡: Qdrant 적재]
+  JOBS --> QD
+  QD --> SC[툴 search_conversation]
+  KB[data/knowledge 문서·템플릿·시드 사전] --> SK[툴 search_knowledge / templates]
 
-  M --> A1[에이전트 1 선별]
-  A1 --> A2[에이전트 2 해석]
-  SC --> A2
-  SK --> A2
-  A2 --> A3[에이전트 3 제안]
-  SK --> A3
-  A3 --> A4[에이전트 4 검수]
-  A4 --> RP[리포트 플로우 + GET reports]
-  RP --> JOB[작업 큐 + GET jobs]
+  CONTRACT[에이전트 I/O 모델 + instructions] --> A1[에이전트 선별]
+  CONTRACT --> A2[에이전트 해석]
+  CONTRACT --> A3[에이전트 제안]
+  CONTRACT --> A4[에이전트 검수]
+  A1 --> RPW[리포트 워커 + Supervisor + GET reports]
+  A2 --> RPW
+  A3 --> RPW
+  A4 --> RPW
+  SC --> RPW
+  SK --> RPW
+  JOBS --> RPW
+  LEX[build_lexicon 잡 Phase 3] -.-> RPW
 
   SC --> CH[챗봇 Supervisor + POST chat]
   TL --> CH
-  RP --> CH
 
   AUTH --> FE1[온보딩 화면]
   UP --> FE2[업로드 화면]
   TL --> FE3[타임라인]
-  RP --> FE4[리포트 화면]
+  RPW --> FE4[리포트 화면]
   RV --> FE5[돌아보기]
   CH --> FE6[챗봇 패널]
-  FE5 --> FE6
 
-  DB --> OS1[OpenShift Postgres/Qdrant StatefulSet]
-  OS1 --> OS2[agent-api Deployment + Route + Secret]
-  OS2 --> OS3[CronJob + Tekton]
+  API[앱 코드 1벌 + Dockerfile] --> OS2[api Deployment + Route + Secret]
+  OS1[OpenShift Postgres/Qdrant StatefulSet] --> OS2
+  OS2 --> OS3[Tekton]
 ```
 
 **병렬 가능 묶음** (서로 의존 없음):
-- 파서·지표 테스트 / DB 스키마 / 컬렉션 B 문서 / OpenShift StatefulSet / 프론트 공통 UI·Mock 기반 화면
+- 파서·지표 테스트 / DB 스키마 / 지식 문서·템플릿·시드 사전 / 임베딩 래퍼 / OpenShift StatefulSet / 프론트 공통 UI·Mock 기반 화면
+- 에이전트 4개는 I/O 모델(2-12)만 확정되면 **동시에** 구현 가능 — 런타임 순서(선별→해석→제안→검수)는 빌드 순서가 아님
+- jobs 인프라(2-0)는 upload 보다 먼저. 리포트 워커는 그 위에 얹음
 
 ---
 
@@ -113,7 +117,8 @@ graph TD
 | 1-4 | 프론트 프로젝트 세팅 + `api/client.ts` + Mock 응답 fixture (API_SPEC 예시 JSON 그대로) | 시여 | — | 0-6 |
 | 1-5 | 공통 UI: Button, Card, Modal, Badge(a/b 색) | 시여 | — | — |
 | 1-6 | OpenShift: Postgres·Qdrant StatefulSet + PVC | 해찬 | — | 1-V5 |
-| 1-7 | 컬렉션 B 문서 출처 목록 확정 + 10개 수집 | 윤아 | — | — |
+| 1-7 | 지식 문서 출처 목록 확정 + 10개 수집 (`data/knowledge/interpretations`) | 윤아 | — | — |
+| 1-8 | 감성 시드 사전 검수·보강 (`sentiment_seed.json`) + `prompts/lexicon.md` 초안 | 윤아 | TC-METRIC-007 | — |
 
 ---
 
@@ -121,18 +126,19 @@ graph TD
 
 | ID | 작업 | 담당 | TC | 의존 |
 |---|---|---|---|---|
+| 2-0 | jobs 인프라: 테이블·상태 전이·`GET /jobs/{id}`·워커 루프 (DB 큐 `SKIP LOCKED`, `while True`+try/except, 재시작 시 running→queued) | 윤석 | TC-API-003-11 | 1-1 |
 | 2-1 | auth (signup/login, JWT) | 윤석 | — | 1-1 |
 | 2-2 | couples API (invite/join/confirm/me/delete) | 윤석 | TC-API-001, 002 | 2-1 |
-| 2-3 | upload API 동기 구간 (파싱→중복제거→암호화 저장→세션→지표 upsert) | 윤석 | TC-API-003 (1~10) | 1-1, 1-2 |
-| 2-4 | timeline API | 윤석 | TC-API-004 | 2-3 |
+| 2-3 | upload API 동기 구간 (파싱→중복제거→암호화 저장→세션→지표 upsert(`summary_hash`)→`weekly_terms` 집계(시드 사전)) + `embed_sessions`·`report_backfill` 잡 INSERT. 메모: CPU 구간 `asyncio.to_thread`, INSERT `executemany ON CONFLICT DO NOTHING` / PC·모바일 시각 분 단위 정규화 후 해시 (C5) | 윤석 | TC-API-003 (1~10) | 1-1, 1-2, 2-0 |
+| 2-4 | timeline API (`summary.sentiment` 는 요청자 본인 행만) | 윤석 | TC-API-004, 005-11 | 2-3 |
 | 2-5 | review API + notes API | 시여(백) | TC-API-006, 007 | 2-3 |
-| 2-6 | watsonx 임베딩 래퍼 (`passage:`/`query:`) + Qdrant 컬렉션 A 적재 서비스 | 윤아 | — | 1-V1, 0-3 |
+| 2-6 | watsonx 임베딩 래퍼 (`passage:`/`query:`) + `embed_sessions` 잡 (Qdrant 컬렉션 A, point id `{session_id}:{chunk_idx}`) | 윤아 | — | 1-V1, 0-3, 2-0 |
 | 2-7 | 온보딩 화면 (가입 → 초대 코드 → 수락 대기 → 수락) | 시여 | — | 1-4, 1-5 |
 | 2-8 | 업로드 화면 (드롭 → 이름 매핑 → 진행률) | 시여 | — | 1-4 |
 | 2-9 | 타임라인 화면 (Mock fixture로 먼저) | 시여 | — | 1-4 |
 | 2-10 | agent-api Deployment + Service + Route + Secret/ConfigMap | 해찬 | — | 1-6 |
 | 2-13 | Instana agent 존재 확인 (DaemonSet) + `INSTANA_AGENT_HOST` 값 확보 | 해찬 | — | 1-V5 |
-| 2-11 | 제안 템플릿 풀 20~30개 작성 (지표 6 × 방향) | 윤아 | — | — |
+| 2-11 | 제안 템플릿 풀 20~30개 작성 (지표 5 × 방향; `initiation_*` 없음) | 윤아 | — | — |
 | 2-12 | 에이전트 4개 instructions 초안 + 검수 규칙표 | 윤아 | — | 0-6 |
 
 **Phase 2 완료 기준**: 실제 커플 파일 업로드 → 타임라인 그래프가 실 데이터로 뜸 (리포트 카드는 pending)
@@ -143,17 +149,18 @@ graph TD
 
 | ID | 작업 | 담당 | TC | 의존 |
 |---|---|---|---|---|
-| 3-1 | 툴: search_conversation, get_metrics, get_report, search_knowledge, get_suggestion_templates | 윤석 | — | 2-6, 2-4 |
-| 3-2 | 컬렉션 B 적재 (문서 + 템플릿) | 윤아 | — | 2-11, 1-7 |
-| 3-3 | 에이전트 1~4 구현 (Mock LLM로 흐름 연결 → 실 LLM) | 윤석 + 윤아 | TC-AGENT-001~004 (수동 확인) | 2-12, 3-1 |
-| 3-4 | 리포트 플로우 Supervisor (순차 고정, execution_trace) | 윤석 | — | 3-3 |
-| 3-5 | 작업 큐 (주차별 리포트 생성, 진행률) + jobs API + reports API | 윤석 | TC-API-005, 003-11 | 3-4 |
-| 3-6 | 챗봇 Supervisor (intent 분류 → 툴 → 인용 강제 → advice 리다이렉트) + chat API | 윤아(프롬프트) + 윤석 | TC-AGENT-005, TC-API-008 | 3-1 |
+| 3-1 | 툴: search_conversation, get_metrics, get_report, search_knowledge(dict), get_suggestion_templates(dict) | 윤석 | — | 2-6, 2-4 |
+| 3-1a | `build_lexicon` 잡 (`services/lexicon.py`): 빈도 상위 단어+예시 → LLM 분류·canonical → `couple_lexicon` append → `weekly_terms` 재집계. 이후 `count_term` 툴 + 챗봇 `term_count` intent. 옵션(C6): 표시 후보 문맥 검증 | 윤석 + 윤아(프롬프트) | TC-METRIC-007 | 1-8, 2-3 |
+| 3-2 | 지식 문서·템플릿 작성 완료 (`data/knowledge`, 적재 없음 — 메모리 로드) | 윤아 | — | 2-11, 1-7 |
+| 3-3 | 에이전트 1~4 구현 (**4개 병렬 가능** — I/O 모델은 2-12에서 확정. Mock LLM로 흐름 연결 → 실 LLM). 메모: 코드가 이상치·delta 상위 3 선별하면 select 호출 제거 가능 (C1, 윤석·윤아 합의) | 윤석 + 윤아 | TC-AGENT-001~004 (수동 확인) | 2-12, 3-1 |
+| 3-4 | 리포트 플로우 Supervisor (execution_trace). 메모: 기준선 부족 주는 LLM 없이 즉시 `insufficient_baseline` | 윤석 | — | 3-3 |
+| 3-5 | 리포트 워커 (`report_backfill`: 최신 주부터, `Semaphore(3)` 주차 병렬, `summary_hash` 변경 주차만) + reports API | 윤석 | TC-API-005 | 2-0, 3-4 |
+| 3-6 | 챗봇 Supervisor + chat API. 메모: advice/other 는 regex 사전 분기, 나머지는 검색 먼저 후 1회 호출 (C4). 횟수 질문 → other (A3) | 윤아(프롬프트) + 윤석 | TC-AGENT-005, TC-API-008 | 3-1 |
 | 3-7 | 실 LLM 전환 + `reasoning_effort: low` + 토큰 설정 | 윤아 | 스모크 | 3-3, 3-6 |
-| 3-8 | 리포트 화면 (summary / highlights / suggestions / moments) | 시여 | — | 2-9 |
-| 3-9 | 돌아보기 화면 (구간 선택 → 지표 vs 기준선 → 메모) | 시여 | — | 2-5 |
+| 3-8 | 리포트 화면 (summary / highlights / suggestions / moments + **"활발한 시간" 카드 + "내 단어" 카드**) | 시여 | — | 2-9 |
+| 3-9 | 돌아보기 화면 (구간 선택 → 지표 vs 기준선 → 메모). 메모: `ReviewMetrics.range/baseline` 형태는 API_SPEC §5.1 예시 기준으로 시여·윤석이 Phase 3 전에 30분 맞춤 (D4) | 시여 | — | 2-5 |
 | 3-10 | 챗봇 패널 (인용 카드, 리다이렉트 표시) | 시여 | — | 3-6 |
-| 3-11 | CronJob (주 1회) + Tekton 파이프라인 연결 | 해찬 | — | 2-10 |
+| 3-11 | Tekton 파이프라인 연결 | 해찬 | — | 2-10 |
 | 3-12 | Qdrant `couple_id` 삭제 → couples DELETE에 연결 | 윤석 | TC-API-002-1 | 2-6 |
 
 **Phase 3 완료 기준**: 업로드 → 전 주차 리포트 generated → 챗봇 사실 질문 인용 답변
@@ -199,8 +206,8 @@ graph TD
 | 담당 | Day 1 오전 | Day 1 오후 |
 |---|---|---|
 | 형준 (PM) | V3 커플 3쌍 대조 · API_SPEC 확정 | 데모 데이터 섭외 · 팀 블로커 정리 |
-| 윤아 (Prompt) | V1 임베딩 · V4 LLM 한국어 · 컬렉션 B 출처 | 임베딩 래퍼 + 적재 · 템플릿 풀 · instructions |
-| 윤석 (AI) | V2 · V6 · 템플릿 포크 · DB · 파서/지표 테스트 | auth · couples · upload · timeline |
+| 윤아 (Prompt) | V1 임베딩 · V4 LLM 한국어 · 지식 문서 출처 · 시드 사전 검수 | 임베딩 래퍼 + embed 잡 · 템플릿 풀 · instructions |
+| 윤석 (AI) | V2 · V6 · DB · 파서/지표 테스트 | jobs 인프라 · auth · couples · upload · timeline |
 | 시여 (Front/Back) | 프론트 세팅 · Mock fixture · 공통 UI | 온보딩 · 업로드 · 타임라인 · review/notes API |
 | 해찬 (SRE) | V5 · StatefulSet | Deployment · Route · Secret |
 

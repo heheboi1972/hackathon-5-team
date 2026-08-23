@@ -11,6 +11,7 @@ Who = Literal["a", "b"]
 CoupleStatus = Literal["pending", "awaiting_confirm", "active", "dissolved"]
 ReportStatus = Literal["generated", "insufficient_baseline", "pending", "failed"]
 JobStatus = Literal["queued", "running", "done", "failed"]
+JobKind = Literal["embed_sessions", "build_lexicon", "report_backfill", "report_single"]
 Intent = Literal["fact_query", "metric_query", "report_query", "advice_request", "other"]
 Sentiment = Literal["positive", "neutral", "notable"]
 
@@ -99,6 +100,14 @@ class CoupleData(BaseModel):
     message_count: int
 
 
+class ActiveJob(BaseModel):
+    """진행 중인 잡 (새로고침 후 진행률 복구용). 없으면 null"""
+    job_id: str
+    kind: JobKind
+    done: int
+    total: int
+
+
 class CoupleMeResponse(BaseModel):
     couple_id: str | None = None
     status: CoupleStatus | None = None
@@ -107,6 +116,7 @@ class CoupleMeResponse(BaseModel):
     kakao_names: dict[Who, str] | None = None
     started_at: date | None = None
     data: CoupleData | None = None
+    active_job: ActiveJob | None = None
 
 
 # ---------------------------------------------------------------- 3. 업로드 (FR-002)
@@ -131,8 +141,13 @@ class ReportJobsInfo(BaseModel):
     pending: int
 
 
-class UploadResponse(BaseModel):
+class JobRef(BaseModel):
     job_id: str
+
+
+class UploadResponse(BaseModel):
+    job_id: str                      # 리포트 잡 (report_backfill)
+    embed_job: JobRef                # 임베딩 잡 (embed_sessions) — 리포트 잡보다 먼저 실행
     parsed: ParsedInfo
     weeks_computed: int
     report_jobs: ReportJobsInfo
@@ -146,6 +161,7 @@ class JobProgress(BaseModel):
 
 class JobResponse(BaseModel):
     job_id: str
+    kind: JobKind
     status: JobStatus
     progress: JobProgress
     current_week: date | None = None
@@ -153,15 +169,35 @@ class JobResponse(BaseModel):
 
 # ---------------------------------------------------------------- 4. 타임라인·리포트 (FR-003, FR-004)
 
+class Activity(BaseModel):
+    """활발한 요일·시간대 (커플 합산). 메시지 없으면 top_* null"""
+    top_weekday: int | None = None   # 0=월 … 6=일
+    top_hour: int | None = None      # 0~23
+    by_weekday: list[int]            # 길이 7
+    by_hour: list[int]               # 길이 24
+
+
+class TermCount(BaseModel):
+    canonical: str
+    count: int
+
+
+class MyTerms(BaseModel):
+    """'내 단어' — 요청자 본인의 pos/neg 상위 3 (count<3 숨김). 상대 데이터는 전송하지 않음 (P-3 예외)"""
+    pos: list[TermCount] = []
+    neg: list[TermCount] = []
+
+
 class WeekSummary(BaseModel):
     session_count: int
     message_count: int
-    initiation_ratio: ABFloat
     question_rate: ABFloat
     message_length_median: ABFloat
     reply_gap_median_min: ABFloat
     resume_delay_median_min: ABFloat
     session_length_median: float
+    activity: Activity
+    sentiment: MyTerms | None = None   # 사전 미구축 시 null
 
 
 class TimelineWeek(BaseModel):

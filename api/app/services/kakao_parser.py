@@ -13,7 +13,7 @@ from __future__ import annotations
 import io
 import re
 import zipfile
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
 
@@ -32,6 +32,7 @@ class Message:
     msg_type: str
     is_question: bool
     body_len: int
+    tokens: list[str] = field(default_factory=list)   # 단어 집계용 (text 만). 저장하지 않음
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -52,10 +53,21 @@ _PLACEHOLDERS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^삭제된 메시지입니다\.?$"), "deleted"),
 ]
 
-# 질문 판정 (§3 지표 2): '?' 로 끝나거나 *강한* 의문 어미로 끝남.
-# '어/야/지/죠' 는 평서문("알았어", "그래야지")에도 쓰여 물음표 없이는 구분 불가 → 제외.
-# 보수적 정의: 놓치는 질문은 있어도 평서문을 질문으로 세지는 않는다.
-_QUESTION_ENDINGS = re.compile(r"(니|냐|까|까요|나요|가요|ㄹ까|을까|을까요)[\s~ㅋㅎ]*$")
+# 질문 판정 (REQUIREMENTS FR-002 question_rate). 네 규칙:
+#  (1) 물음표가 끝에 (뒤에 공백·~·ㅋ·ㅎ·.·! 허용)  → "뭐해?ㅋㅋ"
+#  (2) 의문사 + 구어 어미로 끝남, 또는 의문사 단독   → "뭐해", "어디야", "언제 와", "왜"
+#  (3) 강한 의문 어미로 끝남 (오탐 제외: "아니", "할까 말까")
+#  (4) 느낌표로 끝나면 비질문 ("언제 와!" 는 감탄)
+# 한계: 형태소 분석 없음. "괜찮아" 처럼 질문/평서 동형은 물음표 없으면 평서문.
+_TRAIL = r"[\s~ㅋㅎ]*$"
+_Q_MARK = re.compile(r"[?？][\s~ㅋㅎ.!]*$")
+_Q_WORDS = r"(뭐|뭘|무슨|무엇|언제|어디|누구|누가|왜|어떻게|어떡|어때|얼마|몇|어느|어떤)"
+_Q_WORD_RE = re.compile(_Q_WORDS)
+_Q_WORD_ALONE = re.compile(r"^" + _Q_WORDS + r"[야요]?" + _TRAIL)
+_Q_COLLOQ_END = re.compile(r"(어|아|야|지|죠|요|나|니|까|데|래|게|해|돼|와|가|줘|네|나요|ㄹ까)" + _TRAIL)
+_Q_STRONG_END = re.compile(r"(?<!아)(니)" + _TRAIL + r"|(냐|까|까요|나요|ㄹ까|을까|을까요)" + _TRAIL)
+_Q_HESITATE = re.compile(r"까\s*말까" + _TRAIL)
+_EXCLAIM_END = re.compile(r"![\s~ㅋㅎ]*$")
 
 # 본문에서 제거할 제어문자 (링크 미리보기 흔적 등)
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -70,9 +82,43 @@ def classify(body: str) -> str:
 
 def is_question(body: str) -> bool:
     b = body.rstrip()
-    if b.endswith("?") or b.endswith("？"):
+    if _Q_MARK.search(b):                       # (1)
         return True
-    return bool(_QUESTION_ENDINGS.search(b))
+    if _EXCLAIM_END.search(b):                  # (4)
+        return False
+    if _Q_HESITATE.search(b):                   # "할까 말까" 는 독백
+        return False
+    if _Q_WORD_RE.search(b) and (_Q_COLLOQ_END.search(b) or _Q_WORD_ALONE.match(b)):   # (2)
+        return True
+    return bool(_Q_STRONG_END.search(b))        # (3)
+
+
+# ---------------------------------------------------------------- 토크나이즈 (단어 집계용, FR-002 sentiment)
+# 목적: 감성 사전 매칭에 쓸 단어 목록. 형태소 분석 없이 규칙만.
+#  - 반복 축약: "좋아아아" → "좋아", "조아조아" → "조아". "ㅋㅋㅋㅋ"/"ㅎㅎ"/"ㅠㅠ" 는 통째로 제거
+#  - 문장부호·숫자·URL 제거
+#  - 흔한 조사 제거: 이/가/을/를/은/는/도/만/에/로/의/요 (2글자 이상 어절에서만)
+_URL_RE = re.compile(r"https?://\S+")
+_REPEAT_RE = re.compile(r"(.)\1{2,}")
+_REPEAT2_RE = re.compile(r"(..)\1+")                          # "조아조아" → "조아"                         # 같은 글자 3회 이상 → 1회
+_JAMO_RE = re.compile(r"[ㄱ-ㅎㅏ-ㅣ]+")                          # 자모만 있는 덩어리 (ㅋㅋ ㅠㅠ)
+_PUNCT_RE = re.compile(r"[^\w가-힣\s]")
+_PARTICLE_RE = re.compile(r"(이|가|을|를|은|는|도|만|에|로|의|요)$")
+
+
+def tokenize(body: str) -> list[str]:
+    b = _URL_RE.sub(" ", body)
+    b = _JAMO_RE.sub(" ", b)
+    b = _PUNCT_RE.sub(" ", b)
+    out: list[str] = []
+    for w in b.split():
+        w = _REPEAT_RE.sub(r"\1", w)
+        w = _REPEAT2_RE.sub(r"\1", w)
+        if len(w) >= 2:
+            w = _PARTICLE_RE.sub("", w)
+        if len(w) >= 1 and not w.isdigit():
+            out.append(w)
+    return out
 
 
 def _clean(body: str) -> str:
@@ -95,6 +141,7 @@ def _make(sender: str, when: datetime, body: str) -> Message:
         msg_type=mtype,
         is_question=(mtype == "text" and is_question(body)),
         body_len=len(body) if mtype == "text" else 0,
+        tokens=tokenize(body) if mtype == "text" else [],
     )
 
 

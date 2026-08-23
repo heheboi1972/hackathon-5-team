@@ -40,7 +40,6 @@ async def review(
         ],
         metrics=ReviewMetrics(
             range={
-                "initiation_ratio": {"a": 0.8},
                 "question_rate": {"a": 0.1, "b": 0.3},
                 "message_length_median": {"a": 9, "b": 20},
                 "reply_gap_median_min": {"a": 3, "b": 41},
@@ -48,7 +47,6 @@ async def review(
             },
             baseline={
                 "weeks": 8,
-                "initiation_ratio": {"a": 0.5},
                 "question_rate": {"a": 0.22, "b": 0.24},
                 "message_length_median": {"a": 14, "b": 12},
                 "reply_gap_median_min": {"a": 4, "b": 6},

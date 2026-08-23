@@ -4,17 +4,108 @@
   "summary": {
     "session_count": 18,
     "message_count": 412,
-    "initiation_ratio": { "a": 0.61, "b": 0.39 },
-    "question_rate": { "a": 0.18, "b": 0.22 },
-    "message_length_median": { "a": 14, "b": 11 },
-    "reply_gap_median_min": { "a": 4, "b": 6 },
-    "resume_delay_median_min": { "a": 95, "b": 140 },
-    "session_length_median": 22
+    "question_rate": {
+      "a": 0.18,
+      "b": 0.22
+    },
+    "message_length_median": {
+      "a": 14,
+      "b": 11
+    },
+    "reply_gap_median_min": {
+      "a": 4,
+      "b": 6
+    },
+    "resume_delay_median_min": {
+      "a": 95,
+      "b": 140
+    },
+    "session_length_median": 22,
+    "activity": {
+      "top_weekday": 2,
+      "top_hour": 21,
+      "by_weekday": [
+        48,
+        55,
+        81,
+        60,
+        52,
+        70,
+        46
+      ],
+      "by_hour": [
+        2,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        6,
+        14,
+        18,
+        15,
+        12,
+        20,
+        16,
+        14,
+        17,
+        19,
+        22,
+        28,
+        34,
+        41,
+        46,
+        30,
+        16
+      ]
+    },
+    "sentiment": {
+      "pos": [
+        {
+          "canonical": "좋아",
+          "count": 41
+        },
+        {
+          "canonical": "고마워",
+          "count": 12
+        },
+        {
+          "canonical": "사랑해",
+          "count": 9
+        }
+      ],
+      "neg": [
+        {
+          "canonical": "피곤해",
+          "count": 7
+        },
+        {
+          "canonical": "짜증",
+          "count": 4
+        }
+      ]
+    }
   },
   "metrics": {
-    "initiation_ratio": { "a": 0.61, "b": 0.39, "baseline_a": 0.5, "baseline_b": 0.5, "delta_a": 0.11, "delta_b": -0.11, "comparable": true },
-    "question_rate": { "a": 0.18, "b": 0.22, "baseline_a": 0.25, "baseline_b": 0.24, "delta_a": -0.07, "delta_b": -0.02, "comparable": true },
-    "message_length_median": { "a": 14, "b": 11, "baseline_a": 13, "baseline_b": 12, "delta_a": 1, "delta_b": -1, "comparable": true }
+    "question_rate": {
+      "a": 0.18,
+      "b": 0.22,
+      "baseline_a": 0.25,
+      "baseline_b": 0.24,
+      "delta_a": -0.07,
+      "delta_b": -0.02,
+      "comparable": true
+    },
+    "message_length_median": {
+      "a": 14,
+      "b": 11,
+      "baseline_a": 13,
+      "baseline_b": 12,
+      "delta_a": 1,
+      "delta_b": -1,
+      "comparable": true
+    }
   },
   "highlights": [
     {
@@ -27,10 +118,17 @@
         "대화 주제가 일상 공유 쪽으로 바뀌었을 수 있어요."
       ],
       "evidence": [
-        { "session_id": 1102, "at": "2026-07-22T21:05:00+09:00", "snippet": "오늘 뭐 했어?" }
+        {
+          "session_id": 1102,
+          "at": "2026-07-22T21:05:00+09:00",
+          "snippet": "오늘 뭐 했어?"
+        }
       ],
       "sources": [
-        { "doc": "communication_basics.md", "section": "관심 표현으로서의 질문" }
+        {
+          "doc": "communication_basics.md",
+          "section": "관심 표현으로서의 질문"
+        }
       ],
       "sentiment": "neutral"
     }
@@ -54,5 +152,8 @@
       "text": "화요일 밤, B의 답장이 평소(5분)보다 긴 3시간이었어요."
     }
   ],
-  "safety": { "passed": true, "rewritten": [] }
+  "safety": {
+    "passed": true,
+    "rewritten": []
+  }
 }

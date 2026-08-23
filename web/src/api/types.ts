@@ -5,6 +5,7 @@ export type Who = "a" | "b";
 export type CoupleStatus = "pending" | "awaiting_confirm" | "active" | "dissolved";
 export type ReportStatus = "generated" | "insufficient_baseline" | "pending" | "failed";
 export type JobStatus = "queued" | "running" | "done" | "failed";
+export type JobKind = "embed_sessions" | "build_lexicon" | "report_backfill" | "report_single";
 export type Intent = "fact_query" | "metric_query" | "report_query" | "advice_request" | "other";
 export type Sentiment = "positive" | "neutral" | "notable";
 
@@ -83,12 +84,15 @@ export interface CoupleMeResponse {
     weeks_available: number;
     message_count: number;
   } | null;
+  /** 진행 중인 잡 (새로고침 후 진행률 복구용). 없으면 null */
+  active_job?: { job_id: string; kind: JobKind; done: number; total: number } | null;
 }
 
 // ---------------------------------------------------------------- 3. 업로드 (FR-002)
 
 export interface UploadResponse {
-  job_id: string;
+  job_id: string;                    // 리포트 잡 (report_backfill)
+  embed_job: { job_id: string };     // 임베딩 잡 (embed_sessions) — 리포트 잡보다 먼저 실행
   parsed: {
     format: "pc" | "ios" | "android";
     message_count: number;
@@ -102,6 +106,7 @@ export interface UploadResponse {
 
 export interface JobResponse {
   job_id: string;
+  kind: JobKind;
   status: JobStatus;
   progress: { total: number; done: number; failed: number };
   current_week?: string | null;
@@ -109,15 +114,35 @@ export interface JobResponse {
 
 // ---------------------------------------------------------------- 4. 타임라인·리포트 (FR-003, FR-004)
 
+/** 활발한 요일·시간대 (커플 합산). 메시지 없으면 top_* null */
+export interface Activity {
+  top_weekday: number | null;   // 0=월 … 6=일
+  top_hour: number | null;      // 0~23
+  by_weekday: number[];         // 길이 7
+  by_hour: number[];            // 길이 24
+}
+
+export interface TermCount {
+  canonical: string;
+  count: number;
+}
+
+/** "내 단어" — 요청자 본인의 pos/neg 상위 3 (count<3 숨김). 상대 데이터는 오지 않음 (P-3 예외) */
+export interface MyTerms {
+  pos: TermCount[];
+  neg: TermCount[];
+}
+
 export interface WeekSummary {
   session_count: number;
   message_count: number;
-  initiation_ratio: ABFloat;
   question_rate: ABFloat;
   message_length_median: ABFloat;
   reply_gap_median_min: ABFloat;
   resume_delay_median_min: ABFloat;
   session_length_median: number;
+  activity: Activity;
+  sentiment?: MyTerms | null;   // 사전 미구축 시 null
 }
 
 export interface TimelineWeek {

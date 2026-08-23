@@ -59,6 +59,7 @@ async def me() -> CoupleMeResponse:
         me="a",
         kakao_names={"a": "김형준", "b": "윤아♥"},
         started_at=date(2026, 3, 1),
+        active_job=None,   # TODO(윤석): jobs 에서 status IN (queued, running) 최신 1건 (API_SPEC §2.4)
         data=CoupleData(
             first_week=date(2026, 3, 2),
             last_week=date(2026, 8, 17),

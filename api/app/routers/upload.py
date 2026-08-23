@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, Form, UploadFile, status
 from ..models.api import (
     DateRange,
     JobProgress,
+    JobRef,
     JobResponse,
     ParsedInfo,
     ReportJobsInfo,
@@ -39,6 +40,7 @@ async def upload(
         ),
         weeks_computed=25,
         report_jobs=ReportJobsInfo(total=25, pending=25),
+        embed_job=JobRef(job_id=str(uuid.uuid4())),   # embed_sessions 잡 — 리포트 잡보다 먼저 (API_SPEC §3.1 규칙 9)
     )
 
 
@@ -47,6 +49,7 @@ async def get_job(job_id: str) -> JobResponse:
     # 스텁: 항상 완료 상태 — 프론트 폴링 종료 조건 확인용
     return JobResponse(
         job_id=job_id,
+        kind="report_backfill",
         status="done",
         progress=JobProgress(total=25, done=25, failed=0),
         current_week=date(2026, 8, 17),
