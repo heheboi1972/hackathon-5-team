@@ -6,7 +6,14 @@ from __future__ import annotations
 import logging
 
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import Distance, VectorParams
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    FilterSelector,
+    MatchValue,
+    VectorParams,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +31,12 @@ class QdrantService:
             current = info.config.params.vectors.size  # 단일 벡터 설정 기준
             if current == vector_size:
                 return
-            logger.warning("qdrant 컬렉션 %s 차원 불일치 (%d → %d): 재생성. 기존 포인트 삭제됨", name, current, vector_size)
+            logger.warning(
+                "qdrant 컬렉션 %s 차원 불일치 (%d → %d): 재생성. 기존 포인트 삭제됨",
+                name,
+                current,
+                vector_size,
+            )
             await self.client.delete_collection(name)
         await self.client.create_collection(
             collection_name=name,
@@ -43,8 +55,23 @@ class QdrantService:
     async def close(self) -> None:
         await self.client.close()
 
+    async def delete_by_couple(self, couple_id: str) -> None:
+        """커플 해제 시 해당 payload의 모든 벡터를 동기 삭제한다."""
+        await self.client.delete(
+            collection_name=self.collection_conv,
+            points_selector=FilterSelector(
+                filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="couple_id", match=MatchValue(value=str(couple_id))
+                        )
+                    ]
+                )
+            ),
+            wait=True,
+        )
+
     # ------------------------------------------------------------ TODO(윤석)
     # point id = f"{session_id}:{chunk_idx}" (결정론 → 재업로드 시 멱등 upsert). payload 에 본문 없음.
     # async def upsert_sessions(self, couple_id, points): ...
     # async def search_conversation(self, couple_id, vector, k=8, start=None, end=None): ...
-    # async def delete_by_couple(self, couple_id): ...               # 커플 해제 시 동기 삭제

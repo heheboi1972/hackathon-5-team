@@ -3,7 +3,6 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 # .env 는 실행 위치와 무관하게 저장소 루트에서 찾는다.
 # 상대경로 ".env" 만 두면 `cd api && uvicorn app.main:app` 처럼 띄웠을 때 파일을 못 찾고,
 # pydantic-settings 는 에러 없이 기본값(빈 문자열)으로 떨어져 키가 조용히 사라진다.
@@ -41,10 +40,11 @@ class Settings(BaseSettings):
 
     # ---- 앱 ----
     jwt_secret: str = "change-me"
+    jwt_expire_minutes: int = 60 * 24 * 7
     encryption_key: str = ""
     session_gap_min: int = 30
     allowed_origins: str = "http://localhost:5173"
-    knowledge_dir: str = "data/knowledge"        # 지식 문서·템플릿·감성 시드 (메모리 로드)
+    knowledge_dir: str = "data/knowledge"  # 지식 문서·템플릿·감성 시드 (메모리 로드)
 
     # ---- 관측성 (Instana) ----
     autowrapt_bootstrap: str = ""

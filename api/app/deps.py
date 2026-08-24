@@ -1,17 +1,61 @@
-# 역할: 라우터 공용 의존성 (참조: API_SPEC 공통 규칙)
-# 스캐폴딩: auth(TASKS 2-1) 전까지 요청자를 A 로 고정. 붙일 때 이 파일만 고치면 라우터는 그대로.
+"""라우터 공용 인증·커플 멤버 의존성."""
+
 from __future__ import annotations
 
+from dataclasses import dataclass
+from uuid import UUID
+
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from .models.api import Who
+from .services.auth import InvalidToken, decode_token
 
-MOCK_ME: Who = "a"
+_bearer = HTTPBearer(auto_error=False)
 
 
-def current_member() -> Who:
-    """요청자가 이 커플에서 a 인지 b 인지.
+@dataclass(frozen=True)
+class AuthenticatedUser:
+    user_id: UUID
+    email: str
+    display_name: str
+    couple_id: UUID | None = None
+    member: Who | None = None
+    couple_status: str | None = None
 
-    `mine`(지표)·`sentiment`(내 단어) 를 요청자 것으로 채우는 데 쓴다 (P-3 예외, ISSUE B1·B3).
-    TODO(윤석): JWT → users → couples(user_a/user_b) 조회로 교체 (TASKS 2-1).
-    테스트는 app.dependency_overrides[current_member] 로 갈아끼운다.
-    """
-    return MOCK_ME
+
+def _unauthorized(message: str = "인증이 필요합니다") -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail={"code": "UNAUTHORIZED", "message": message},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+async def current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> AuthenticatedUser:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise _unauthorized()
+    try:
+        user_id = decode_token(
+            credentials.credentials, request.app.state.container.settings.jwt_secret
+        )
+    except InvalidToken as exc:
+        raise _unauthorized(str(exc)) from exc
+
+    row = await request.app.state.container.postgres.get_user_context(user_id)
+    if row is None:
+        raise _unauthorized("사용자를 찾을 수 없습니다")
+    return AuthenticatedUser(**row)
+
+
+async def current_member(user: AuthenticatedUser = Depends(current_user)) -> Who:
+    """현재 커플에서의 a/b 역할. projection의 `mine`을 결정하는 유일한 경로."""
+    if user.member is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "COUPLE_REQUIRED", "message": "먼저 커플을 연결해주세요"},
+        )
+    return user.member
