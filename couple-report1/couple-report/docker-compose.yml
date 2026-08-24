@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: couple_report
+      POSTGRES_USER: couple
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-couple}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U couple -d couple_report"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.4
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      POSTGRES_DSN: postgresql://couple:${POSTGRES_PASSWORD:-couple}@postgres:5432/couple_report
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION_CONV: ${QDRANT_COLLECTION_CONV:-couple_sessions}
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  web:
+    profiles: ["frontend"]
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "5173:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  qdrant_data:
