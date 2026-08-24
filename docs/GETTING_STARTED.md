@@ -112,6 +112,8 @@ python scripts/smoke_test.py http://localhost:8000
 | Windows에서 `\r\n` 관련 파서 오류 | 에디터가 줄바꿈을 바꿈 | 카톡 파일은 **절대 에디터로 열어 저장하지 말 것**. 원본 그대로 |
 | OpenShift `ImagePullBackOff` | Docker Hub 차단 | 해찬에게. 내부 레지스트리 경유 |
 | OpenShift Postgres/Qdrant `permission denied /data` | SCC | 실습 `trouble_shoot/pvc_error_*.yaml` 참고 |
+| `oc` 명령이 `command not found`(Windows) | `oc` CLI 미설치 | `winget install -e --id RedHat.OpenShift-Client`. 설치 후 **터미널만 새로 열지 말고 VS Code를 완전히 종료했다 재실행** — PATH가 VS Code 프로세스 시작 시점 기준이라 터미널 탭만 새로 열면 안 잡힘 |
+| `oc login`에 "You must obtain an API token..." 만 뜨고 멈춤 | 이 클러스터는 IBM Cloud IAM이라 비밀번호 로그인 불가 | `oc whoami`로 이미 로그인돼 있는지 먼저 확인(다른 명령 뒤 세션이 남아있는 경우가 많음). 세션이 없으면 `oc login --web` 또는 안내된 URL에서 토큰 발급 후 `oc login --token=<토큰> --server=<서버주소>` |
 
 > **`init.sql` 은 DB 데이터 폴더가 비어 있을 때만 실행됩니다.** 스키마가 바뀌어도 `git pull` 만으로는 반영되지 않아요.
 > 위 두 증상이 그 경우입니다. `down -v` 는 볼륨을 지우므로 올려둔 대화 데이터도 같이 날아갑니다.
