@@ -102,7 +102,7 @@ graph TD
 |---|---|---|---|---|
 | 1-V1 | e5 한국어 카톡 임베딩 품질 | 윤아 | 20문장 유사도 행렬 (`02-vector-db/_common.py` 재활용) | 유사 문장 쌍이 상위에 오는지 표 |
 | 1-V2 | 세션 기준 30분 | 윤석 | `python metrics.py <커플파일> 15/30/60` | 세션 수 비교, 상수 확정 |
-| 1-V3 | 지표 ↔ 실제 관계 변화 | 형준 | 커플 3쌍 `metrics.py` 출력 + 당사자 대조 | 지표별 "움직임/무관" 판정 |
+| 1-V3 | 지표(빈도수 등) ↔ 실제 관계 변화 | 형준 | 커플 3쌍 `metrics.py` 출력 + 당사자 대조 | 지표별 "움직임/무관" 판정 |
 | 1-V4 | gpt-oss 한국어 해석 문장 | 윤아 | Prompt Lab에서 highlights 10회 | 품질 메모, 대안 모델 필요 여부 |
 | 1-V5 | OpenShift 이미지 pull | 해찬 | `oc run` qdrant/postgres | 가능/불가 + 우회 |
 | 1-V6 | 템플릿 Mock 모드 | 윤석 | 포크 후 `USE_MOCK=true` `/health/ready` | 동작 확인 |
