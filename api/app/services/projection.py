@@ -14,8 +14,9 @@
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from ..models.api import (
     ReportResponse,
@@ -71,19 +72,44 @@ def strip_who(outliers: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------- 응답 조립 (라우터가 부르는 것)
 
 
-def build_timeline(stored_weeks: list[dict[str, Any]], me: Who) -> TimelineResponse:
-    """주차별 저장형 → 타임라인 응답. `weekly_terms` 는 {a, b} 로 들고 있고 요청자 것만 나간다."""
+def build_timeline(
+    stored_weeks: list[dict[str, Any]],
+    me: Who,
+    *,
+    from_: date | None = None,
+    to: date | None = None,
+) -> TimelineResponse:
+    """주차별 저장형 → 타임라인 응답.
+
+    범위 양 끝은 포함하며, 저장 순서와 무관하게 월요일 오름차순으로 반환한다.
+    `weekly_terms` 는 {a, b} 로 들고 있고 요청자 것만 나간다.
+    """
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date()
+    current_week = today - timedelta(days=today.weekday())
+    selected: list[tuple[date, dict[str, Any]]] = []
+    for stored in stored_weeks:
+        week_start = stored["week_start"]
+        if isinstance(week_start, str):
+            week_start = date.fromisoformat(week_start)
+        if week_start.weekday() != 0:
+            raise ValueError(f"week_start는 월요일이어야 합니다: {week_start}")
+        if from_ is not None and week_start < from_:
+            continue
+        if to is not None and week_start > to:
+            continue
+        selected.append((week_start, stored))
+
     return TimelineResponse.model_validate({
         "weeks": [
             {
-                "week_start": w["week_start"],
-                "in_progress": w.get("in_progress", False),
-                "report_status": w["report_status"],
+                "week_start": week_start,
+                "in_progress": week_start == current_week,
+                "report_status": w.get("report_status", "pending"),
                 "summary": project_summary(w["summary"], me, w.get("weekly_terms", {}).get(me)),
                 "outlier_count": w.get("outlier_count", 0),
                 "events": w.get("events", []),
             }
-            for w in stored_weeks
+            for week_start, w in sorted(selected, key=lambda item: item[0])
         ]
     })
 
