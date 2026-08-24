@@ -1,5 +1,9 @@
 # 역할: 저장형 → 응답형 투영 테스트 — 상대 값 미전송 계약 (ISSUE B3, TC-API-005-x)
-from app.services.projection import project_metrics, project_summary, strip_who
+from datetime import date, timedelta
+
+import pytest
+
+from app.services.projection import build_timeline, project_metrics, project_summary, strip_who
 
 STORED_SUMMARY = {
     "session_count": 18,
@@ -66,3 +70,74 @@ def test_strip_who_drops_speaker_but_keeps_judgement_inputs():
     assert "who" not in out[0]
     assert out[0]["value_min"] == 184 and out[0]["direction"] == "high"
     assert stored[0]["who"] == "b"   # 원본(weekly_metrics.outliers)은 그대로
+
+
+def _timeline_week(week_start: date, report_status: str | None = "generated") -> dict:
+    stored = {
+        "week_start": week_start,
+        "summary": STORED_SUMMARY,
+        "weekly_terms": {
+            "a": {"pos": [{"canonical": "좋아", "count": 5}], "neg": []},
+            "b": {"pos": [{"canonical": "고마워", "count": 4}], "neg": []},
+        },
+        "outlier_count": 1,
+        "events": [],
+    }
+    if report_status is not None:
+        stored["report_status"] = report_status
+    return stored
+
+
+def test_timeline_projection_sorts_and_filters_inclusive_range():
+    stored = [
+        _timeline_week(date(2026, 8, 17)),
+        _timeline_week(date(2026, 8, 3)),
+        _timeline_week(date(2026, 8, 10)),
+    ]
+
+    response = build_timeline(
+        stored,
+        "a",
+        from_=date(2026, 8, 10),
+        to=date(2026, 8, 17),
+    )
+
+    assert [week.week_start for week in response.weeks] == [
+        date(2026, 8, 10),
+        date(2026, 8, 17),
+    ]
+    assert all(week.week_start.weekday() == 0 for week in response.weeks)
+
+
+def test_timeline_projection_defaults_current_week_and_missing_report_to_pending():
+    today = date.today()
+    current_monday = today - timedelta(days=today.weekday())
+
+    week = build_timeline(
+        [_timeline_week(current_monday, report_status=None)], "a"
+    ).weeks[0]
+
+    assert week.in_progress is True
+    assert week.report_status == "pending"
+
+
+def test_timeline_projection_rejects_non_monday_week_start():
+    with pytest.raises(ValueError, match="월요일"):
+        build_timeline([_timeline_week(date(2026, 8, 18))], "a")
+
+
+def test_timeline_projection_keeps_couple_same_and_mine_requester_specific():
+    stored = [_timeline_week(date(2026, 8, 17))]
+
+    a = build_timeline(stored, "a").model_dump(mode="json")
+    b = build_timeline(stored, "b").model_dump(mode="json")
+
+    for key in PER_PERSON_KEYS:
+        av = a["weeks"][0]["summary"][key]
+        bv = b["weeks"][0]["summary"][key]
+        assert av["couple"] == bv["couple"]
+        assert av["mine"] != bv["mine"]
+        assert not {"a", "b"} & set(av)
+        assert not {"a", "b"} & set(bv)
+    assert a["weeks"][0]["summary"]["sentiment"] != b["weeks"][0]["summary"]["sentiment"]
+    assert a["weeks"][0]["summary"]["activity"] == b["weeks"][0]["summary"]["activity"]

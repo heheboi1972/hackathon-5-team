@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from app.services.kakao_parser import Message, tokenize
 from app.services.metrics import (
+    SESSION_GAP_MIN,
     TERM_MIN_COUNT,
     build_weekly_metrics,
     count_terms,
@@ -25,6 +26,49 @@ def _m(sender: str, when: str, body: str, is_question: bool = False) -> Message:
         body_len=len(body),
         tokens=tokenize(body),
     )
+
+
+def test_session_gap_29_minutes_stays_in_same_session():
+    assert SESSION_GAP_MIN == 30
+    messages = [
+        _m("a", "2026-03-02 20:00", "안녕"),
+        _m("b", "2026-03-02 20:29", "응"),
+    ]
+
+    sessions = split_sessions(messages)
+
+    assert len(sessions) == 1
+    assert sessions[0].msg_count == 2
+
+
+def test_session_gap_exactly_30_minutes_starts_new_session():
+    assert SESSION_GAP_MIN == 30
+    messages = [
+        _m("a", "2026-03-02 20:00", "안녕"),
+        _m("b", "2026-03-02 20:30", "응"),
+    ]
+
+    sessions = split_sessions(messages)
+
+    assert len(sessions) == 2
+    assert [session.msg_count for session in sessions] == [1, 1]
+
+
+def test_session_count_is_monotone_non_increasing_as_gap_grows():
+    messages = [
+        _m("a", "2026-03-02 20:00", "m0"),
+        _m("b", "2026-03-02 20:10", "m1"),
+        _m("a", "2026-03-02 20:30", "m2"),
+        _m("b", "2026-03-02 21:10", "m3"),
+        _m("a", "2026-03-02 22:20", "m4"),
+    ]
+
+    session15 = len(split_sessions(messages, gap_min=15))
+    session30 = len(split_sessions(messages, gap_min=30))
+    session60 = len(split_sessions(messages, gap_min=60))
+
+    assert session15 >= session30 >= session60
+    assert (session15, session30, session60) == (4, 3, 2)
 
 
 def test_session_id_is_deterministic_epoch_of_start():

@@ -1,5 +1,7 @@
 # 역할: 읽기 경로 3개(타임라인·리포트·돌아보기)의 상대 값 미전송 계약 (TC-API-005-13, ISSUE B3)
 # 라우터만 마운트한다: DB·Qdrant·watsonx 없이 돌아야 하므로 app.main 은 쓰지 않는다.
+from copy import deepcopy
+from datetime import date, timedelta
 import json
 from pathlib import Path
 
@@ -60,14 +62,25 @@ def _metric_dicts(payload: dict) -> list[dict]:
     return found
 
 
+def _assert_no_private_axis_keys(node) -> None:
+    """응답 전체에서 저장 전용 a/b 축 키가 재귀적으로 없어야 한다."""
+    if isinstance(node, dict):
+        assert not BANNED & set(node), node
+        for value in node.values():
+            _assert_no_private_axis_keys(value)
+    elif isinstance(node, list):
+        for value in node:
+            _assert_no_private_axis_keys(value)
+
+
 def test_no_partner_value_on_any_read_path(payloads):
     """표시를 안 하는 게 아니라 전송을 안 한다 — 세 경로 응답 전체를 훑는다."""
     for path, (a, b) in payloads.items():
         for payload in (a, b):
+            _assert_no_private_axis_keys(payload)
             dicts = _metric_dicts(payload)
             assert dicts, f"{path}: 지표 dict 를 못 찾음 — 탐색이 헛돌고 있다"
             for d in dicts:
-                assert not BANNED & set(d), f"{path}: {d}"
                 assert "mine" in d, f"{path}: mine 누락 (투영 빠짐) — {d}"
 
 
@@ -115,3 +128,45 @@ def test_frontend_mock_matches_projected_stored_form(payloads, path, mock_name):
 def test_non_monday_week_start_is_400():
     r = _client("a").get(f"{COUPLE}/reports/2026-08-18")   # 화요일
     assert r.status_code == 400
+
+
+def test_timeline_api_contract_with_25_weeks_and_range_filter(monkeypatch):
+    """TC-API-004-1~5: 저장소 대신 25주 저장형을 주입해 읽기 계약만 검증한다."""
+    today = date.today()
+    current_monday = today - timedelta(days=today.weekday())
+    first_monday = current_monday - timedelta(weeks=24)
+    weeks = []
+    for offset in range(25):
+        stored = deepcopy(timeline._STORED_WEEKS[0])
+        stored["week_start"] = first_monday + timedelta(weeks=offset)
+        stored["report_status"] = "generated"
+        weeks.append(stored)
+    weeks.reverse()  # 저장소 반환 순서에 의존하지 않아야 한다.
+    del weeks[0]["report_status"]  # 현재 주 리포트 생성 전
+    monkeypatch.setattr(timeline, "_STORED_WEEKS", weeks)
+
+    payload = _get("a", "/timeline")
+    assert len(payload["weeks"]) == 25
+    starts = [date.fromisoformat(week["week_start"]) for week in payload["weeks"]]
+    assert starts == sorted(starts)
+    assert all(week_start.weekday() == 0 for week_start in starts)
+    assert payload["weeks"][-1]["in_progress"] is True
+    assert payload["weeks"][-1]["report_status"] == "pending"
+
+    expected_summary_keys = {
+        "session_count", "message_count", "question_rate",
+        "message_length_median", "reply_gap_median_min",
+        "resume_delay_median_min", "session_length_median",
+        "activity", "sentiment",
+    }
+    assert set(payload["weeks"][0]["summary"]) == expected_summary_keys
+    activity = payload["weeks"][0]["summary"]["activity"]
+    assert len(activity["by_weekday"]) == 7
+    assert len(activity["by_hour"]) == 24
+    _assert_no_private_axis_keys(payload)
+
+    range_from, range_to = starts[5], starts[8]
+    filtered = _get("a", f"/timeline?from={range_from}&to={range_to}")
+    assert [week["week_start"] for week in filtered["weeks"]] == [
+        week_start.isoformat() for week_start in starts[5:9]
+    ]

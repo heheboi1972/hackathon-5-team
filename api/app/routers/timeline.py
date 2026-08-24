@@ -4,7 +4,7 @@
 # TODO(윤석): _STORED_WEEKS 를 weekly_metrics + weekly_terms 조회로 교체. build_timeline 은 그대로 두면 된다.
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from ..deps import current_member
 from ..models.api import TimelineResponse, Who
@@ -58,8 +58,8 @@ _STORED_WEEKS = [
 @router.get("/{couple_id}/timeline", response_model=TimelineResponse)
 async def timeline(
     couple_id: str,
-    from_: date | None = None,
-    to: date | None = None,
+    from_: date | None = Query(default=None, alias="from"),
+    to: date | None = Query(default=None),
     me: Who = Depends(current_member),
 ) -> TimelineResponse:
-    return build_timeline(_STORED_WEEKS, me)
+    return build_timeline(_STORED_WEEKS, me, from_=from_, to=to)
