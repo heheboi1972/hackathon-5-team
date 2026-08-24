@@ -1,23 +1,55 @@
-# 역할: FR-000 인증 — POST /api/auth/signup, /api/auth/login (참조: API_SPEC §1)
-# 스캐폴딩 스텁: 고정/결정적 응답만. 실제 JWT·DB 저장은 TODO(윤석) — services/auth.py 경유로 교체
-import uuid
+"""FR-000 회원가입·로그인."""
 
-from fastapi import APIRouter, status
+from __future__ import annotations
+
+import asyncio
+
+from fastapi import APIRouter, HTTPException, Request, status
 
 from ..models.api import AuthResponse, LoginRequest, SignupRequest
+from ..services.auth import hash_password, issue_token, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-_NS = uuid.UUID("00000000-0000-0000-0000-00000000feed")  # 이메일→user_id 결정적 생성용
+
+def _token(request: Request, user_id: str) -> str:
+    settings = request.app.state.container.settings
+    return issue_token(user_id, settings.jwt_secret, settings.jwt_expire_minutes)
 
 
-@router.post("/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def signup(body: SignupRequest) -> AuthResponse:
-    user_id = str(uuid.uuid5(_NS, body.email))
-    return AuthResponse(user_id=user_id, token=f"mock-token-{user_id}")
+@router.post(
+    "/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
+)
+async def signup(body: SignupRequest, request: Request) -> AuthResponse:
+    email = str(body.email).strip().casefold()
+    password_hash = await asyncio.to_thread(hash_password, body.password)
+    user_id = await request.app.state.container.postgres.create_user(
+        email, password_hash, body.display_name.strip()
+    )
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "EMAIL_TAKEN", "message": "이미 가입된 이메일입니다"},
+        )
+    return AuthResponse(user_id=str(user_id), token=_token(request, str(user_id)))
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(body: LoginRequest) -> AuthResponse:
-    user_id = str(uuid.uuid5(_NS, body.email))
-    return AuthResponse(user_id=user_id, token=f"mock-token-{user_id}")
+async def login(body: LoginRequest, request: Request) -> AuthResponse:
+    row = await request.app.state.container.postgres.get_user_by_email(
+        str(body.email).strip().casefold()
+    )
+    valid = row is not None and await asyncio.to_thread(
+        verify_password, body.password, row["password_hash"]
+    )
+    if not valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "이메일 또는 비밀번호가 올바르지 않습니다",
+            },
+        )
+    return AuthResponse(
+        user_id=str(row["user_id"]), token=_token(request, str(row["user_id"]))
+    )

@@ -14,13 +14,14 @@ PC / Android / iOS 모두 실제 샘플로 검증됨.
     msgs = parse_export(open("KakaoTalk_xxx.txt", "rb").read())
     # zip 이면 parse_export(zip_bytes) 로 그대로 넘기면 내부 .txt 를 찾아 처리
 """
+
 from __future__ import annotations
 
 import io
 import re
 import zipfile
-from dataclasses import dataclass, asdict, field
-from datetime import datetime, date
+from dataclasses import asdict, dataclass, field
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 KST = ZoneInfo("Asia/Seoul")
@@ -33,12 +34,14 @@ MSG_TYPES = ("text", "photo", "emoticon", "file", "video", "voice", "call", "del
 @dataclass
 class Message:
     sender: str
-    sent_at: datetime          # tz-aware (Asia/Seoul)
+    sent_at: datetime  # tz-aware (Asia/Seoul)
     body: str
     msg_type: str
     is_question: bool
     body_len: int
-    tokens: list[str] = field(default_factory=list)   # 단어 집계용 (text 만). 저장하지 않음
+    tokens: list[str] = field(
+        default_factory=list
+    )  # 단어 집계용 (text 만). 저장하지 않음
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -67,11 +70,17 @@ _PLACEHOLDERS: list[tuple[re.Pattern, str]] = [
 # 한계: 형태소 분석 없음. "괜찮아" 처럼 질문/평서 동형은 물음표 없으면 평서문.
 _TRAIL = r"[\s~ㅋㅎ]*$"
 _Q_MARK = re.compile(r"[?？][\s~ㅋㅎ.!]*$")
-_Q_WORDS = r"(뭐|뭘|무슨|무엇|언제|어디|누구|누가|왜|어떻게|어떡|어때|얼마|몇|어느|어떤)"
+_Q_WORDS = (
+    r"(뭐|뭘|무슨|무엇|언제|어디|누구|누가|왜|어떻게|어떡|어때|얼마|몇|어느|어떤)"
+)
 _Q_WORD_RE = re.compile(_Q_WORDS)
 _Q_WORD_ALONE = re.compile(r"^" + _Q_WORDS + r"[야요]?" + _TRAIL)
-_Q_COLLOQ_END = re.compile(r"(어|아|야|지|죠|요|나|니|까|데|래|게|해|돼|와|가|줘|네|나요|ㄹ까)" + _TRAIL)
-_Q_STRONG_END = re.compile(r"(?<!아)(니)" + _TRAIL + r"|(냐|까|까요|나요|ㄹ까|을까|을까요)" + _TRAIL)
+_Q_COLLOQ_END = re.compile(
+    r"(어|아|야|지|죠|요|나|니|까|데|래|게|해|돼|와|가|줘|네|나요|ㄹ까)" + _TRAIL
+)
+_Q_STRONG_END = re.compile(
+    r"(?<!아)(니)" + _TRAIL + r"|(냐|까|까요|나요|ㄹ까|을까|을까요)" + _TRAIL
+)
 _Q_HESITATE = re.compile(r"까\s*말까" + _TRAIL)
 _EXCLAIM_END = re.compile(r"![\s~ㅋㅎ]*$")
 
@@ -88,15 +97,17 @@ def classify(body: str) -> str:
 
 def is_question(body: str) -> bool:
     b = body.rstrip()
-    if _Q_MARK.search(b):                       # (1)
+    if _Q_MARK.search(b):  # (1)
         return True
-    if _EXCLAIM_END.search(b):                  # (4)
+    if _EXCLAIM_END.search(b):  # (4)
         return False
-    if _Q_HESITATE.search(b):                   # "할까 말까" 는 독백
+    if _Q_HESITATE.search(b):  # "할까 말까" 는 독백
         return False
-    if _Q_WORD_RE.search(b) and (_Q_COLLOQ_END.search(b) or _Q_WORD_ALONE.match(b)):   # (2)
+    if _Q_WORD_RE.search(b) and (
+        _Q_COLLOQ_END.search(b) or _Q_WORD_ALONE.match(b)
+    ):  # (2)
         return True
-    return bool(_Q_STRONG_END.search(b))        # (3)
+    return bool(_Q_STRONG_END.search(b))  # (3)
 
 
 # ---------------------------------------------------------------- 토크나이즈 (단어 집계용, FR-002 sentiment)
@@ -106,8 +117,10 @@ def is_question(body: str) -> bool:
 #  - 흔한 조사 제거: 이/가/을/를/은/는/도/만/에/로/의/요 (2글자 이상 어절에서만)
 _URL_RE = re.compile(r"https?://\S+")
 _REPEAT_RE = re.compile(r"(.)\1{2,}")
-_REPEAT2_RE = re.compile(r"(..)\1+")                          # "조아조아" → "조아"                         # 같은 글자 3회 이상 → 1회
-_JAMO_RE = re.compile(r"[ㄱ-ㅎㅏ-ㅣ]+")                          # 자모만 있는 덩어리 (ㅋㅋ ㅠㅠ)
+_REPEAT2_RE = re.compile(
+    r"(..)\1+"
+)  # "조아조아" → "조아"                         # 같은 글자 3회 이상 → 1회
+_JAMO_RE = re.compile(r"[ㄱ-ㅎㅏ-ㅣ]+")  # 자모만 있는 덩어리 (ㅋㅋ ㅠㅠ)
 _PUNCT_RE = re.compile(r"[^\w가-힣\s]")
 _PARTICLE_RE = re.compile(r"(이|가|을|를|은|는|도|만|에|로|의|요)$")
 
@@ -153,6 +166,7 @@ def _make(sender: str, when: datetime, body: str) -> Message:
 
 # ---------------------------------------------------------------- 레코드 분할 + 시스템 메시지
 
+
 def _split_records(text: str) -> list[str]:
     """
     CRLF 가 있으면 CRLF 로, 없으면(LF 로 정규화된 파일) LF 로 나눈다.
@@ -191,7 +205,9 @@ def _is_system(rec: str) -> bool:
 
 _PC_HEADER_RE = re.compile(r"^(.+) 님과 카카오톡 대화$")
 _BRACKET_DATE_RE = re.compile(r"^-+ (\d{4})년 (\d{1,2})월 (\d{1,2})일 \S+ -+$")
-_BRACKET_MSG_RE = re.compile(r"^\[(.+?)\] \[(오전|오후) (\d{1,2}):(\d{2})\] (.*)$", re.S)
+_BRACKET_MSG_RE = re.compile(
+    r"^\[(.+?)\] \[(오전|오후) (\d{1,2}):(\d{2})\] (.*)$", re.S
+)
 
 
 def parse_bracket(text: str) -> list[Message]:
@@ -226,20 +242,24 @@ def parse_bracket(text: str) -> list[Message]:
         if m:
             flush()
             if cur_date is None:
-                continue                   # 날짜 구분선 앞이면 날짜를 모른다 → 버림
+                continue  # 날짜 구분선 앞이면 날짜를 모른다 → 버림
             who, ampm, hh, mm, body = m.groups()
             sender = who
             when = datetime(
-                cur_date.year, cur_date.month, cur_date.day,
-                _to_24h(ampm, int(hh)), int(mm), tzinfo=KST,
+                cur_date.year,
+                cur_date.month,
+                cur_date.day,
+                _to_24h(ampm, int(hh)),
+                int(mm),
+                tzinfo=KST,
             )
             lines = [body]
             continue
         if _is_system(rec):
-            flush()                        # 시스템 메시지(초대/퇴장/방장 등) → 버림
+            flush()  # 시스템 메시지(초대/퇴장/방장 등) → 버림
             continue
         if sender is not None:
-            lines.append(rec)              # 여러 줄 메시지의 이어지는 줄
+            lines.append(rec)  # 여러 줄 메시지의 이어지는 줄
         # 그 외(헤더, 첫 메시지 전 빈 줄) → 버림
     flush()
     return out
@@ -253,7 +273,8 @@ parse_pc = parse_bracket
 
 # 한 줄에 날짜까지: "2026년 8월 5일 오후 11:12, 이름 : 본문". 날짜 구분선 없음.
 _ANDROID_MSG_RE = re.compile(
-    r"^(\d{4})년 (\d{1,2})월 (\d{1,2})일 (오전|오후) (\d{1,2}):(\d{2}), (.+?) : (.*)$", re.S
+    r"^(\d{4})년 (\d{1,2})월 (\d{1,2})일 (오전|오후) (\d{1,2}):(\d{2}), (.+?) : (.*)$",
+    re.S,
 )
 
 
@@ -287,14 +308,16 @@ def parse_android(text: str) -> list[Message]:
             flush()
             y, mo, d, ampm, hh, mm, who, body = m.groups()
             sender = who
-            when = datetime(int(y), int(mo), int(d), _to_24h(ampm, int(hh)), int(mm), tzinfo=KST)
+            when = datetime(
+                int(y), int(mo), int(d), _to_24h(ampm, int(hh)), int(mm), tzinfo=KST
+            )
             lines = [body]
             continue
         if _BARE_DATE_RE.match(rec) or _is_system(rec):
-            flush()                        # 날짜 구분선 / 시스템 메시지 → 버림
+            flush()  # 날짜 구분선 / 시스템 메시지 → 버림
             continue
         if sender is not None:
-            lines.append(rec)              # 여러 줄 메시지의 이어지는 줄
+            lines.append(rec)  # 여러 줄 메시지의 이어지는 줄
     flush()
     return out
 
@@ -306,7 +329,8 @@ def parse_android(text: str) -> list[Message]:
 #   메시지: "2026. 8. 5. 오전 10:58, 이름 : 본문"               (시각 뒤 쉼표, " : " 구분)
 #   레코드 끝 CRLF / 내부 줄바꿈 LF → PC 와 동일 트릭. BOM 있음.
 _IOS_MSG_RE = re.compile(
-    r"^(\d{4})\. (\d{1,2})\. (\d{1,2})\. (오전|오후) (\d{1,2}):(\d{2}), (.+?) : (.*)$", re.S
+    r"^(\d{4})\. (\d{1,2})\. (\d{1,2})\. (오전|오후) (\d{1,2}):(\d{2}), (.+?) : (.*)$",
+    re.S,
 )
 _IOS_HEADER_RE = re.compile(r"^저장한 날짜 : \d{4}\. \d{1,2}\. \d{1,2}\. (오전|오후)")
 
@@ -333,20 +357,23 @@ def parse_ios(text: str) -> list[Message]:
             flush()
             y, mo, d, ampm, hh, mm, who, body = m.groups()
             sender = who
-            when = datetime(int(y), int(mo), int(d), _to_24h(ampm, int(hh)), int(mm), tzinfo=KST)
+            when = datetime(
+                int(y), int(mo), int(d), _to_24h(ampm, int(hh)), int(mm), tzinfo=KST
+            )
             lines = [body]
             continue
         if _BARE_DATE_RE.match(rec) or _is_system(rec):
-            flush()                        # 날짜 구분선 / 시스템 메시지 → 버림
+            flush()  # 날짜 구분선 / 시스템 메시지 → 버림
             continue
         if sender is not None:
-            lines.append(rec)              # 여러 줄 메시지의 이어지는 줄
+            lines.append(rec)  # 여러 줄 메시지의 이어지는 줄
         # 그 외(파일명 헤더) → 버림
     flush()
     return out
 
 
 # ---------------------------------------------------------------- 형식 감지 + 진입점
+
 
 def detect_format(text: str) -> str:
     """
@@ -376,26 +403,38 @@ def _extract_txt_from_zip(data: bytes) -> bytes:
         return z.read(name)
 
 
-def parse_export(data: bytes) -> list[Message]:
+def decode_export(data: bytes) -> tuple[str, str]:
+    """zip 추출·UTF-8 디코딩 후 (감지 형식, 텍스트)를 반환한다."""
     if data[:2] == b"PK":
         data = _extract_txt_from_zip(data)
     text = data.decode("utf-8-sig")
     fmt = detect_format(text)
+    return fmt, text
+
+
+def parse_export(data: bytes) -> list[Message]:
+    fmt, text = decode_export(data)
     return {"pc": parse_bracket, "android": parse_android, "ios": parse_ios}[fmt](text)
 
 
 # ---------------------------------------------------------------- 커플 서비스 검증
 
+
 def validate_couple(msgs: list[Message]) -> tuple[str, str]:
     """발화자가 정확히 2명인지 확인하고 (이름1, 이름2) 반환."""
     senders = sorted({m.sender for m in msgs})
     if len(senders) != 2:
-        raise ValueError(f"커플 대화방 파일을 올려주세요 (발화자 {len(senders)}명 감지)")
+        raise ValueError(
+            f"커플 대화방 파일을 올려주세요 (발화자 {len(senders)}명 감지)"
+        )
     return senders[0], senders[1]
 
 
 if __name__ == "__main__":
-    import sys, json, collections
+    import collections
+    import json
+    import sys
+
     msgs = parse_export(open(sys.argv[1], "rb").read())
     print(f"{len(msgs)} messages")
     print("types:", collections.Counter(m.msg_type for m in msgs))

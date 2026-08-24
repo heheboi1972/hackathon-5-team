@@ -8,7 +8,17 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .container import build_container
-from .routers import auth, chat, couples, health, reports, review, timeline, upload
+from .routers import (
+    auth,
+    chat,
+    couples,
+    health,
+    jobs,
+    reports,
+    review,
+    timeline,
+    upload,
+)
 
 
 @asynccontextmanager
@@ -50,5 +60,5 @@ async def error_shape_handler(request: Request, exc: HTTPException) -> JSONRespo
     return JSONResponse(status_code=exc.status_code, content=body)
 
 
-for r in (auth, couples, upload, timeline, reports, review, chat, health):
+for r in (auth, couples, upload, jobs, timeline, reports, review, chat, health):
     app.include_router(r.router)
