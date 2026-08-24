@@ -1,9 +1,0 @@
-[
-  {
-    "template_id": "q_rate_down_01",
-    "metric": "question_rate",
-    "direction": "down",
-    "text": "다음 대화에서 서로의 하루를 한 번 더 물어보면 어떨까요."
-  }
-]
-
