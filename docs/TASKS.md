@@ -137,7 +137,7 @@ graph TD
 | 2-8 | 업로드 화면 (드롭 → 이름 매핑 → 진행률) | 시여 | — | 1-4 |
 | 2-9 | 타임라인 화면 (Mock fixture로 먼저) | 시여 | — | 1-4 |
 | 2-10 | api Deployment + Service + Route + Secret/ConfigMap (서비스명 `couple-report-api`). 메모: 이미지에 `data/` 포함됨(빌드 컨텍스트 = repo 루트, ISSUE A6) — Deployment 에 별도 볼륨 불필요 | 해찬 | — | 1-6 |
-| 2-13 | Instana agent 존재 확인 (DaemonSet) + `INSTANA_AGENT_HOST` 값 확보 | 해찬 | — | 1-V5 |
+| 2-13 | ~~Instana agent 존재 확인~~ **완료 — 없음 확인됨 (ISSUE D3)**. `execution_trace`로 대체 | 해찬 | — | 1-V5 |
 | 2-11 | 제안 템플릿 풀 20~30개 작성 (지표 5 × 방향; `initiation_*` 없음) | 윤아 | — | — |
 | 2-12 | 에이전트 4개 instructions 초안 + 검수 규칙표 | 윤아 | — | 0-6 |
 
@@ -177,7 +177,7 @@ graph TD
 | 4-3 | 금지 표현 regex 전 리포트 스캔 | 윤아 | TC-API-005-9 |
 | 4-4 | 데모 데이터 준비 (동의받은 커플 1쌍 또는 합성) | 형준 | — |
 | 4-5 | Mock 모드 백업 경로 점검 | 윤석 | TC-API-008-10 |
-| 4-6 | Instana에서 데모 시나리오 1회 트레이스 확인 (TRD §9.1 질문 1~5) | 해찬 + 윤석 | — |
+| 4-6 | ~~Instana에서 트레이스 확인~~ **스킵 (ISSUE D3, agent 없음)**. `execution_trace` 조회로 TRD §9.1 질문 1~3 확인 | 해찬 + 윤석 | — |
 
 ---
 

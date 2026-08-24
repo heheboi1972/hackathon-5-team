@@ -213,9 +213,17 @@
 - 파일: `TRD` §4.2, `scripts/seed_knowledge.py`, `SEED_KNOWLEDGE_ON_START`, TASKS 3-2
 - **결정**: **메모리 dict.** `data/knowledge/*.md`·`templates.json`을 `container.py`에서 앱 시작 시 `{(metric, direction): [...]}`로 로드. `search_knowledge`·`get_suggestion_templates`는 dict 조회(시그니처 유지, `query`는 무시). 삭제: `scripts/seed_knowledge.py`, `.env.example`/`config.py`의 `SEED_KNOWLEDGE_ON_START`·`QDRANT_COLLECTION_KNOWLEDGE`, `qdrant_service.ensure_collections`의 컬렉션 B, `TRD` §4.2 컬렉션 B 행. TASKS 3-2는 "문서·템플릿 작성"만 남김(적재 없음). Qdrant는 컬렉션 A만. 자유 질의 검색이 필요해지면 그때 재도입.
 
-### D3. [ ] Instana/OTel (해찬)
+### D3. [x] Instana/OTel (해찬)
 - 클러스터에 agent DaemonSet 없으면 전부 헛일. 1-V5 결과 후 결정. 없으면 `execution_trace` JSONB만 남김.
-- **결정** (1-V5 후):
+- **검증 (2026-08-24)**: 1-V5 완료 후 클러스터 전체를 직접 확인.
+  1. `oc get daemonsets --all-namespaces` — 17개 전부 표준 OpenShift/IBM Cloud 인프라(calico-node, konnectivity-agent, dns-default 등). Instana 관련 0건
+  2. `oc get pods --all-namespaces | grep instana` — 0건
+  3. Instana 표준 에이전트 포트(42699)로 노드 hostIP 직접 연결 시도 → `Connection refused` (방화벽 차단이면 timeout이 났을 것 — refused는 그 포트에 듣는 프로세스 자체가 없다는 뜻이라 결정적 증거)
+  4. 로그인 가능한 Instana 계정(`obs-bigdatalearning.instana.io`)이 있었으나, 팀 인프라용이 아니라 교육 과정 실습(개인 초대) 계정으로 확인됨 — 해커톤 클러스터 자체와는 별개
+- **결정**: **없음. `execution_trace`만 사용.** NFR-005는 이미 `reports.execution_trace` JSONB + `trace_id`만 요구해서 코드 변경 없음.
+  - 정리: `TRD` §9.1 계측 계획(자동 계측·에이전트/LLM/툴 스팬·EUM)은 **보류 표시**로 남김(에이전트가 생기면 재사용, 삭제하지 않음). `api/requirements.txt` 의 `instana==3.2.0` 제거(`AUTOWRAPT_BOOTSTRAP` 빈 값이라 원래도 비활성 — 죽은 의존성). `opentelemetry-api` 는 유지(에이전트 없이도 no-op으로 동작, 가벼움). `config.py` 의 `instana_agent_host`·`instana_service_name` 필드 제거. `.env.example` 주석 정정. `openshift/00-namespace-secret.yaml` ConfigMap 의 `INSTANA_SERVICE_NAME` 제거(보낼 곳이 없는 값)
+  - TASKS 2-13은 이 검증으로 완료 처리. 4-6("Instana에서 트레이스 확인")은 전제가 없어져 스킵 — 리뷰 시 `execution_trace` 조회로 대체
+  - 영향: `docs/TRD.md` §9.1, `api/requirements.txt`, `api/app/config.py`, `.env.example`, `openshift/00-namespace-secret.yaml`, `docs/TASKS.md` 2-13·4-6
 
 ### D4. [→] `ReviewMetrics.range/baseline: dict[str, Any]` (윤석+시여)
 - 돌아보기 화면(가장 늦게 확정)에 타입이 없어 프론트·백이 각자 추측. Phase 3 전까지 `WeekSummary` 서브셋 모델로 고정.

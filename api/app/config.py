@@ -45,11 +45,8 @@ class Settings(BaseSettings):
     session_gap_min: int = 30
     allowed_origins: str = "http://localhost:5173"
     knowledge_dir: str = "data/knowledge"  # 지식 문서·템플릿·감성 시드 (메모리 로드)
-
-    # ---- 관측성 (Instana) ----
-    autowrapt_bootstrap: str = ""
-    instana_agent_host: str = ""
-    instana_service_name: str = "couple-report-api"
+    # 관측성: Instana 는 안 쓴다 — 해커톤 클러스터에 agent 없음 확인됨 (ISSUE D3).
+    # reports.execution_trace + trace_id 로 NFR-005 충족.
 
     # ---- 내부 ----
     mock_dir: Path = Path("/app/mock")

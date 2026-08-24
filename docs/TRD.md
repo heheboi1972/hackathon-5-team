@@ -100,7 +100,7 @@ LLM 출력은 **Pydantic 검증 실패 시 1회 재요청, 2회 실패 시 해�
 | 배포 | Deployment(api, web) · StatefulSet(postgres, qdrant) · Route(edge TLS) · Secret · ConfigMap |
 | CI/CD | Tekton (git-clone → buildah → apply → set image), Git push 트리거 |
 | 로그 | 표준 logging JSON → stdout, `trace_id` 포함 |
-| 관측성 | **Instana** (Python 자동 계측 + OpenTelemetry 스팬) — §9.1 |
+| 관측성 | `reports.execution_trace` + `trace_id`. Instana 는 agent 없음 확인돼 보류 — §9.1, ISSUE D3 |
 
 ### 2.4 의도적으로 제외
 
@@ -355,13 +355,13 @@ API는 `"a"/"b"`만 준다. `lib/names.ts`의 `who(x)`가 `me`면 "나", 아니�
 | 002 비동기 | §4.3 (DB 큐, embed → report 순) |
 | 003 Mock | `AI_PROVIDER=mock` → ai_service·agents 전부 고정 응답 |
 | 004 데이터 보호 | §7 |
-| 005 관측성 | `reports.execution_trace` JSONB + `trace_id` + Instana 트레이스 (§9.1) |
+| 005 관측성 | `reports.execution_trace` JSONB + `trace_id` (§9.1, Instana 보류 — ISSUE D3) |
 | 007 한국어 | 모든 prompts 첫 줄 + `lang=ko` 검증(한글 비율 < 50%면 재요청) |
 | 008 확장 | `metrics.py` 함수 추가 + `summary` 키 추가. select 프롬프트는 키를 나열하지 않음 |
 
-### 9.1 관측성 — Instana
+### 9.1 관측성 — Instana [보류 — ISSUE D3]
 
-개발 완료 후 Instana로 리뷰한다. **자동 계측만으로는 에이전트 단계가 안 보이므로** 아래는 스캐폴딩 단계에서 넣는다.
+**해커톤 클러스터에 Instana agent 없음을 확인함 (2026-08-24, ISSUE D3)** — DaemonSet 전체 조회 0건 + 표준 포트(42699) 직접 연결 시 `Connection refused`. 지금은 `reports.execution_trace` JSONB + `trace_id`(NFR-005)만으로 관측성을 채운다. 아래 계측 계획은 에이전트가 확보되면 그대로 재사용하려고 지우지 않고 남겨둔다 — 지금은 구현하지 않는다.
 
 | 항목 | 구현 | 비용 |
 |---|---|---|
@@ -372,7 +372,7 @@ API는 `"a"/"b"`만 준다. `lib/names.ts`의 `who(x)`가 `me`면 "나", 아니�
 | 작업 큐 스팬 | `jobs` 워커의 주차 루프 `span("report.week", week_start)` | 1줄 |
 | 로그 연결 | logging 포맷에 `trace_id=%(otelTraceID)s` | 포맷 1줄 |
 | 프론트 EUM | `web/index.html` Instana EUM 스니펫 (선택) | 스니펫 |
-| OpenShift | Instana agent DaemonSet — 해커톤 환경 기확인 필요 | 해찬 |
+| OpenShift | Instana agent DaemonSet — **확인 완료, 없음** (ISSUE D3) | 해찬 |
 
 **리뷰 때 확인할 질문** (계측이 이걸 답할 수 있어야 함)
 1. 리포트 1주 생성 시 LLM 4단계 중 병목은 어디인가 (`agent.*` 스팬 비교)
