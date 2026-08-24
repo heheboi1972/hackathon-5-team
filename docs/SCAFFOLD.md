@@ -7,7 +7,7 @@
 
 | 파일 | 갈 곳 | 내용 |
 |---|---|---|
-| `src/kakao_parser.py` | `api/app/services/` | 카톡 파서 (PC·iOS 검증 완료) |
+| `src/kakao_parser.py` | `api/app/services/` | 카톡 파서 (PC·Android·iOS 검증 완료) |
 | `src/metrics.py` | `api/app/services/` | 세션·주간 지표·이상치 |
 | `src/ai_service.py` | `api/app/services/` | watsonx/Mock 서비스. e5 접두사·gpt-oss 토큰 예산·OTel 스팬 포함 |
 | `src/infra/docker-compose.yml` | 루트 | postgres·qdrant·api·web |
