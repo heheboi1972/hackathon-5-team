@@ -1,1 +1,92 @@
-# 역할: Qdrant StatefulSet — 실습 10번 치환 (참조: SCAFFOLD §2)  # TODO: 해찬
+# 역할: Qdrant StatefulSet + PVC (참조: SCAFFOLD §2, docker-compose.yml qdrant 서비스)
+#
+# docker-compose.yml 의 qdrant 서비스와 이미지·버전을 그대로 맞췄다.
+# 인증·환경변수 없음 — compose 도 마찬가지. 컬렉션(couple_sessions)은 앱이 기동 시 만든다
+# (qdrant_service.ensure_collections, ISSUE D2 — 컬렉션 B 는 Qdrant 에 안 둔다).
+#
+# 프리플라이트 확인 결과(2026-08-24)는 10-postgres-statefulset.yaml 머리말과 동일 — 여기도 그대로 적용됨:
+# 동적 StorageClass 있음, anyuid 자동 적용, docker.io pull 열림.
+#
+# 적용 순서: oc apply -f openshift/11-qdrant-statefulset.yaml  (Secret·ConfigMap 의존 없음, 바로 적용 가능)
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant
+  namespace: couple-report
+  labels:
+    app: qdrant
+spec:
+  clusterIP: None  # headless — StatefulSet 표준. QDRANT_URL 의 호스트명 "qdrant" 가 이 이름을 가리킨다
+  selector:
+    app: qdrant
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: qdrant
+  namespace: couple-report
+  labels:
+    app: qdrant
+spec:
+  serviceName: qdrant
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+    spec:
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:v1.19.0
+          ports:
+            - containerPort: 6333
+              name: http
+            - containerPort: 6334
+              name: grpc
+          env:
+            # 기본 스냅샷 경로(./snapshots, 이미지 워킹디렉토리 기준)는 이 클러스터의 anyuid 임의 UID로
+            # 쓰기가 안 된다 (PermissionDenied, 마운트된 볼륨이 아니라서). PVC 안쪽으로 옮긴다.
+            - name: QDRANT__STORAGE__SNAPSHOTS_PATH
+              value: /qdrant/storage/snapshots
+          volumeMounts:
+            - name: qdrant-storage
+              mountPath: /qdrant/storage
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 6333
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 6333
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi  # 임베딩 인메모리 인덱스 — postgres 보다 넉넉히
+  volumeClaimTemplates:
+    - metadata:
+        name: qdrant-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi  # ibmc-vpc-block-10iops-tier 최소 단위 — 2Gi 요청해도 10Gi 로 잡힘 (실측 확인)

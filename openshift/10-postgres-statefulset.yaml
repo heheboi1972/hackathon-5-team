@@ -1,1 +1,111 @@
-# 역할: PostgreSQL StatefulSet — 실습 10번 치환 (참조: SCAFFOLD §2)  # TODO: 해찬
+# 역할: Postgres StatefulSet + PVC (참조: SCAFFOLD §2, docker-compose.yml postgres 서비스)
+#
+# docker-compose.yml 의 postgres 서비스와 이미지·버전·DB 이름을 그대로 맞췄다 —
+# 로컬 개발과 OpenShift 가 다른 걸 디버깅하는 일이 없게.
+#
+# 프리플라이트 확인 결과(2026-08-24, ISSUE 참고) 반영:
+#   - 이 클러스터(IBM Cloud ROKS)는 동적 StorageClass 가 있다 → volumeClaimTemplates 그대로 사용
+#   - 파드에 SCC anyuid 가 자동 적용된다 → 공식 postgres:16-alpine 이미지 그대로, 대응 이미지 불필요
+#   - docker.io pull 이 열려 있다 → 이미지 그대로 pull 가능
+#
+# 적용 순서 (00 을 먼저 적용해 Secret 이 있어야 한다):
+#   oc apply -f openshift/00-namespace-secret.yaml
+#   oc create secret generic couple-report-secrets -n couple-report \
+#     --from-literal=POSTGRES_PASSWORD=<임의 생성값> --dry-run=client -o yaml | oc apply -f -
+#   oc create configmap postgres-init -n couple-report \
+#     --from-file=01-init.sql=postgres/init.sql --dry-run=client -o yaml | oc apply -f -
+#   oc apply -f openshift/10-postgres-statefulset.yaml
+#
+# postgres-init 은 postgres/init.sql 을 그대로 담는다(단일 출처, YAML 에 내용을 복제하지 않음) —
+# init.sql 이 바뀔 때마다(B2·C7 처럼) 위 create configmap 명령을 다시 돌려야 반영된다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: couple-report
+  labels:
+    app: postgres
+spec:
+  clusterIP: None  # headless — StatefulSet 표준. POSTGRES_DSN 의 호스트명 "postgres" 가 이 이름을 가리킨다
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: couple-report
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: couple_report
+            - name: POSTGRES_USER
+              value: couple
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: couple-report-secrets
+                  key: POSTGRES_PASSWORD
+            - name: TZ
+              value: Asia/Seoul
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata  # PVC 루트에 lost+found 가 있어도 initdb 가 안 걸리게
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "couple", "-d", "couple_report"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "couple", "-d", "couple_report"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: postgres-init
+          configMap:
+            name: postgres-init
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi  # ibmc-vpc-block-10iops-tier 최소 단위 — 2Gi 요청해도 10Gi 로 잡힘 (실측 확인)
