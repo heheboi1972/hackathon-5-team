@@ -1,1 +1,22 @@
-# 역할: API Route — 실습 08 (참조: SCAFFOLD §2)  # TODO: 해찬
+# 역할: api Route (참조: SCAFFOLD §2)
+#
+# host 를 지정하지 않으면 OpenShift 가 <route-name>-<namespace>.<router 기본 도메인> 형태로 자동 배정한다.
+# 적용 후 `oc get route couple-report-api -n couple-report` 로 확인.
+#
+# 프론트(30·31번, 아직 미작성)가 이 주소를 API_BASE 로 쓴다. web 쪽 CORS 설정을 위해
+# 00-namespace-secret.yaml 의 ConfigMap ALLOWED_ORIGINS 에는 프론트 Route 호스트를 넣어야 하는데,
+# 그건 이 파일이 아니라 31-web-route.yaml 쪽 값이다 — 헷갈리지 않게 여기 한 줄 남겨둔다.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: couple-report-api
+  namespace: couple-report
+spec:
+  to:
+    kind: Service
+    name: couple-report-api
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

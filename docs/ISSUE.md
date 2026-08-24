@@ -191,6 +191,12 @@
 - 할 것: `Highlight` 에 Pydantic validator — 각 항목이 `.`/`요`/`다` 로 끝나지 않고 길이 상한(40자). 위반 시 리포트 생성 단계에서 터져 화면까지 안 샌다 (LLM 출력 Pydantic 검증 실패 → 1회 재요청, TRD §1)
 - 파일: `models/api.py`, `prompts/interpret.md`, TC-AGENT-002
 
+### C10. [ ] 교육용 클러스터 수명 · 발표 후 데이터 정리 (해찬)
+- OpenShift 클러스터(`c100-e.us-south.containers.cloud.ibm.com`)는 교육 기간에 발급받은 IBM Cloud ROKS 샌드박스. 발표(해커톤 마감)까지는 유지될 것으로 추정하지만, 강사·운영 쪽의 확정 공지는 아직 없음.
+- `postgres-data`·`qdrant-storage` PVC(각 2Gi, [10-postgres-statefulset.yaml](../openshift/10-postgres-statefulset.yaml)·[11-qdrant-statefulset.yaml](../openshift/11-qdrant-statefulset.yaml))는 실제 카톡 대화(암호화 저장)를 담게 되므로, 클러스터가 예고 없이 회수되면 발표 직전 서비스 중단 리스크가 있고 동적 StorageClass 스토리지라 소액과금도 발생한다.
+- 할 것: 클러스터 만료 시점을 강사·운영 쪽에 확인. **발표 종료 후에는 두 PVC를 정리**(`oc delete pvc postgres-data-postgres-0 qdrant-storage-qdrant-0` 형태) — 개인정보 보관 최소화 + 불필요한 과금 방지.
+- 파일: `openshift/10-postgres-statefulset.yaml`, `openshift/11-qdrant-statefulset.yaml`
+
 ---
 
 ## D. 과설계 제거 후보
@@ -245,5 +251,6 @@
 - **A4** 담당 재배분 — 팀 회의 후 TASKS §5~7·§10 수정
 - **A7** 챗봇 `metric_query` 수치 정책 — 챗봇 구현(3-6) 전까지
 - **D3** Instana — 1-V5 후
-- **C1~C9, D4** — TASKS 비고로 이관됨. 담당자가 구현 시 적용. 이 파일에선 추적 안 함
+- **C1~C10, D4** — TASKS 비고로 이관됨. 담당자가 구현 시 적용. 이 파일에선 추적 안 함
   (C7~C9 는 2026-08-24 스캐폴딩 점검에서 나온 것. **C7 은 수정·검증 완료**, C8 은 문서만 반영·구현은 2-3, C9 만 미착수)
+  (C10 은 2026-08-24 oc 접속 확인 중 나온 것. 강사·운영 쪽 확인 전까지 미착수)
