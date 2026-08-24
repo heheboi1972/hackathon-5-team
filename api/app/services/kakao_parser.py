@@ -144,7 +144,10 @@ def _clean(body: str) -> str:
     return _CONTROL_RE.sub("", body).strip()
 
 
-def _to_24h(ampm: str, hour: int) -> int:
+def _to_24h(ampm: str | None, hour: int) -> int:
+    """폰이 24시간제로 설정돼 있으면 오전/오후 없이 시각이 그대로 나온다(ampm=None) — 변환 없이 통과."""
+    if ampm is None:
+        return hour
     if ampm == "오전":
         return 0 if hour == 12 else hour
     return 12 if hour == 12 else hour + 12
@@ -188,9 +191,10 @@ _SYSTEM_RES: tuple[re.Pattern, ...] = (
     re.compile(r"^.+님이 채팅방 이름을 (변경|수정)하였습니다\.?$"),
     re.compile(r"^.+님이 (공지를 등록했|공지를 수정했|메시지를 가렸)습니다\.?$"),
     re.compile(r"^채팅방 관리자가 .+$"),
-    # 구 Android / iOS: 시각 뒤가 쉼표가 아니라 콜론이면 시스템 메시지
-    re.compile(r"^\d{4}년 \d{1,2}월 \d{1,2}일 (오전|오후) \d{1,2}:\d{2}: "),
-    re.compile(r"^\d{4}\. \d{1,2}\. \d{1,2}\. (오전|오후) \d{1,2}:\d{2}: "),
+    # 구 Android / iOS: 시각 뒤가 쉼표가 아니라 콜론이면 시스템 메시지.
+    # 오전/오후 없이 24시간제로 나오는 폰 설정도 있음(_MSG_RE 들과 동일한 이유) → 선택적으로.
+    re.compile(r"^\d{4}년 \d{1,2}월 \d{1,2}일 (?:(?:오전|오후) )?\d{1,2}:\d{2}: "),
+    re.compile(r"^\d{4}\. \d{1,2}\. \d{1,2}\. (?:(?:오전|오후) )?\d{1,2}:\d{2}: "),
 )
 
 # 대시 없는 날짜 구분선 (iOS / 구 Android). 대괄호 형식은 _BRACKET_DATE_RE 가 잡는다.
@@ -206,7 +210,8 @@ def _is_system(rec: str) -> bool:
 _PC_HEADER_RE = re.compile(r"^(.+) 님과 카카오톡 대화$")
 _BRACKET_DATE_RE = re.compile(r"^-+ (\d{4})년 (\d{1,2})월 (\d{1,2})일 \S+ -+$")
 _BRACKET_MSG_RE = re.compile(
-    r"^\[(.+?)\] \[(오전|오후) (\d{1,2}):(\d{2})\] (.*)$", re.S
+    # 오전/오후는 폰이 12시간제일 때만 붙는다 — 24시간제 폰은 "[20:24]" 처럼 바로 시각이 나온다.
+    r"^\[(.+?)\] \[(?:(오전|오후) )?(\d{1,2}):(\d{2})\] (.*)$", re.S
 )
 
 
@@ -273,7 +278,8 @@ parse_pc = parse_bracket
 
 # 한 줄에 날짜까지: "2026년 8월 5일 오후 11:12, 이름 : 본문". 날짜 구분선 없음.
 _ANDROID_MSG_RE = re.compile(
-    r"^(\d{4})년 (\d{1,2})월 (\d{1,2})일 (오전|오후) (\d{1,2}):(\d{2}), (.+?) : (.*)$",
+    # 24시간제 폰: "...일 20:24, 이름 : 본문" (오전/오후 생략)
+    r"^(\d{4})년 (\d{1,2})월 (\d{1,2})일 (?:(오전|오후) )?(\d{1,2}):(\d{2}), (.+?) : (.*)$",
     re.S,
 )
 
@@ -329,10 +335,11 @@ def parse_android(text: str) -> list[Message]:
 #   메시지: "2026. 8. 5. 오전 10:58, 이름 : 본문"               (시각 뒤 쉼표, " : " 구분)
 #   레코드 끝 CRLF / 내부 줄바꿈 LF → PC 와 동일 트릭. BOM 있음.
 _IOS_MSG_RE = re.compile(
-    r"^(\d{4})\. (\d{1,2})\. (\d{1,2})\. (오전|오후) (\d{1,2}):(\d{2}), (.+?) : (.*)$",
+    # 24시간제 폰: "2026. 8. 5. 20:24, 이름 : 본문" (오전/오후 생략)
+    r"^(\d{4})\. (\d{1,2})\. (\d{1,2})\. (?:(오전|오후) )?(\d{1,2}):(\d{2}), (.+?) : (.*)$",
     re.S,
 )
-_IOS_HEADER_RE = re.compile(r"^저장한 날짜 : \d{4}\. \d{1,2}\. \d{1,2}\. (오전|오후)")
+_IOS_HEADER_RE = re.compile(r"^저장한 날짜 : \d{4}\. \d{1,2}\. \d{1,2}\.")  # 오전/오후는 12시간제 폰에만 있음
 
 
 def parse_ios(text: str) -> list[Message]:

@@ -1,5 +1,5 @@
 # 역할: 파서 테스트 — is_question (TC-PARSE-004), tokenize (TC-METRIC-007),
-#       형식 감지·픽스처 파싱 (TC-PARSE-001~003)
+#       형식 감지·픽스처 파싱 (TC-PARSE-001~003), 24시간제 폰 설정 (TC-PARSE-006)
 from pathlib import Path
 
 import pytest
@@ -7,7 +7,10 @@ import pytest
 from app.services.kakao_parser import (
     detect_format,
     is_question,
+    parse_android,
+    parse_bracket,
     parse_export,
+    parse_ios,
     tokenize,
     validate_couple,
 )
@@ -125,3 +128,56 @@ def test_android_new_fixture_keeps_crlf_inside_message():
     assert raw.replace(b"\r\n", b"").count(b"\n") == 0
     # 여러 줄 메시지의 이어지는 줄이 CRLF 로 끊겨 있어야 버그가 재현된다
     assert "첫째 줄이야\r\n둘째 줄이고" in raw.decode("utf-8")
+
+
+# --- 24시간제 폰 설정 (TC-PARSE-006) — 오전/오후 없이 "20:24" 로 바로 나오는 경우 ---
+# 실제 발견 경위: 팀원이 본인 폰(24시간제 설정)으로 내보낸 실제 카톡 텍스트를 기반으로
+# 합성 대화를 만들다가, 그 원본 자체가 24시간제로 나온다는 걸 보고했다. 카톡 앱 설정이
+# 아니라 iOS/Android 시스템 시계 형식 설정이라 실사용자 누구나 겪을 수 있다.
+# 고치기 전 실패 양상: 세 정규식 모두 (오전|오후) 가 필수라 24시간제 줄이 "새 메시지"로
+# 인식 안 되고 직전 메시지의 이어지는 줄로 조용히 합쳐졌다 — 에러 없이 데이터만 깨짐.
+
+
+def test_bracket_24h_no_ampm():
+    text = "--- 2026년 8월 5일 수요일 ---\r\n[민수] [20:24] 안녕\r\n[영희] [09:05] 응 좋은 아침"
+    msgs = parse_bracket(text)
+    assert [(m.sender, m.sent_at.hour, m.sent_at.minute, m.body) for m in msgs] == [
+        ("민수", 20, 24, "안녕"),
+        ("영희", 9, 5, "응 좋은 아침"),
+    ]
+
+
+def test_android_old_24h_no_ampm():
+    text = "2026년 8월 5일 20:24, 민수 : 안녕\r\n2026년 8월 5일 09:05, 영희 : 응"
+    msgs = parse_android(text)
+    assert [(m.sender, m.sent_at.hour, m.sent_at.minute) for m in msgs] == [
+        ("민수", 20, 24),
+        ("영희", 9, 5),
+    ]
+
+
+def test_ios_24h_no_ampm():
+    text = "2026. 8. 5. 20:24, 민수 : 안녕\r\n2026. 8. 5. 09:05, 영희 : 응"
+    msgs = parse_ios(text)
+    assert [(m.sender, m.sent_at.hour, m.sent_at.minute) for m in msgs] == [
+        ("민수", 20, 24),
+        ("영희", 9, 5),
+    ]
+
+
+def test_ios_24h_system_message_still_filtered():
+    """24시간제 폰의 초대/퇴장 메시지도(콜론 구분) 여전히 걸러져야 한다."""
+    text = "2026. 8. 5. 20:00: 민수님이 영희님을 초대했습니다.\r\n2026. 8. 5. 20:24, 민수 : 안녕"
+    msgs = parse_ios(text)
+    assert len(msgs) == 1
+    assert msgs[0].body == "안녕"
+
+
+def test_ios_12h_regression_after_24h_fix():
+    """오전/오후 있는 기존 12시간제 입력이 24시간제 지원 추가 후에도 그대로 맞아야 한다."""
+    text = "2026. 8. 5. 오후 8:24, 민수 : 안녕\r\n2026. 8. 5. 오전 12:05, 영희 : 자정 넘어서 응"
+    msgs = parse_ios(text)
+    assert [(m.sender, m.sent_at.hour, m.sent_at.minute) for m in msgs] == [
+        ("민수", 20, 24),
+        ("영희", 0, 5),  # 오전 12시 = 자정
+    ]
