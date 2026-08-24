@@ -4,8 +4,21 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# .env 는 실행 위치와 무관하게 저장소 루트에서 찾는다.
+# 상대경로 ".env" 만 두면 `cd api && uvicorn app.main:app` 처럼 띄웠을 때 파일을 못 찾고,
+# pydantic-settings 는 에러 없이 기본값(빈 문자열)으로 떨어져 키가 조용히 사라진다.
+# 컨테이너에는 이 경로에 파일이 없지만 docker-compose 가 실제 환경변수로 주입하고,
+# 존재하지 않는 env_file 은 무시되므로 문제되지 않는다.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # 뒤쪽이 우선 — 저장소 루트를 기본으로 두되, 실행 디렉터리의 .env 가 있으면 그것을 덮어쓴다
+    model_config = SettingsConfigDict(
+        env_file=(_REPO_ROOT / ".env", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # ---- 모드 ----
     ai_provider: str = "mock"  # mock | watsonx
