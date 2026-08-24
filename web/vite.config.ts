@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react()],
+  envPrefix: ["VITE_", "USE_MOCK"],
   server: {
     port: 5173,
     proxy: {
