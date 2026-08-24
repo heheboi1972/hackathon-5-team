@@ -89,7 +89,7 @@ graph TD
 | 0-2 | `kakao_parser.py`, `metrics.py` repo 커밋 | 해찬 | api/app/services/ | — |
 | 0-3 | 팀 공용 watsonx 프로젝트 생성, 5명 초대, API 키 발급 | 해찬 | .env (Git 제외) | — |
 | 0-4 | Git repo 생성, 템플릿 포크, `.gitignore`에 `.env` | 윤석 | repo | — |
-| 0-5 | Android 카톡 샘플 확보 | 팀원 중 Android | tests/fixtures/kakao/android.txt | — |
+| 0-5 | ~~Android 카톡 샘플 확보~~ **완료** — 최신 앱은 PC 와 동일한 대괄호 형식으로 확인, 파서 반영 | 팀원 중 Android | tests/fixtures/kakao/android.txt(구 형식), android_new.txt(신 형식) | — |
 | 0-6 | JSON 계약(API_SPEC §4.2) 검토·확정 | 형준 | API_SPEC v0.2 | 0-1 |
 
 ---
@@ -194,6 +194,7 @@ graph TD
 ## 9. 완료 기준 (Definition of Done)
 
 - [ ] 파서·지표: PC·iOS·Android 실 파일 3종 파싱 성공, 지표 출력 확인
+      (파서는 완료 — 4개 픽스처 통과. 지표 출력은 `upload.py` 스텁 해제 후 확인 필요)
 - [ ] TC-INT-001~003 OpenShift에서 1회 완주 (이게 통과하면 API TC 대부분은 자동으로 커버됨)
 - [ ] TC-API-008-4/5 (조언 요청 리다이렉트) 수동 확인
 - [ ] 금지 표현 0건

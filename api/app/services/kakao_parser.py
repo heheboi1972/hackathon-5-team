@@ -1,7 +1,13 @@
 """
 카카오톡 대화 내보내기 파서.
 
-PC 형식은 실제 샘플로 검증됨. Android / iOS 는 샘플 확보 후 regex 만 채우면 됨.
+PC / Android / iOS 모두 실제 샘플로 검증됨.
+
+형식 3종:
+  - 대괄호 (PC + Android 최신 앱): 헤더 + `--- 날짜 ---` 구분선 + `[이름] [오후 1:43] 본문`
+  - 구 Android: `2026년 8월 5일 오후 11:12, 이름 : 본문` (한 줄에 날짜까지)
+  - iOS: `2026. 8. 5. 오전 10:58, 이름 : 본문`
+
 
 사용:
     from kakao_parser import parse_export
@@ -145,70 +151,155 @@ def _make(sender: str, when: datetime, body: str) -> Message:
     )
 
 
-# ---------------------------------------------------------------- PC 형식 (확인됨)
+# ---------------------------------------------------------------- 레코드 분할 + 시스템 메시지
+
+def _split_records(text: str) -> list[str]:
+    """
+    CRLF 가 있으면 CRLF 로, 없으면(LF 로 정규화된 파일) LF 로 나눈다.
+    CRLF 로 나누면 PC 의 여러 줄 메시지(내부 LF)는 한 레코드로 유지되고,
+    Android(내부 줄바꿈도 CRLF)는 조각나지만 파서의 이어붙이기가 다시 합친다.
+    """
+    return text.split("\r\n") if "\r\n" in text else text.split("\n")
+
+
+# 대화 내용이 아닌 줄. 이어붙이기 대상에서 빼야 해서 명시적으로 열거한다.
+# (한계: 목록에 없는 시스템 문구는 직전 메시지의 이어지는 줄로 붙는다)
+_SYSTEM_RES: tuple[re.Pattern, ...] = (
+    re.compile(r"^.+ 님과 카카오톡 대화$"),
+    re.compile(r"^저장한 날짜 ?: .+$"),
+    re.compile(r"^.+님이 .+님을 초대했습니다\.?$"),
+    re.compile(r"^.+님이 (들어왔|나갔)습니다\.?$"),
+    re.compile(r"^.+님을 내보냈습니다\.?$"),
+    re.compile(r"^.+님이 방장이 되(었습니다|어 .+)$"),
+    re.compile(r"^.+님이 채팅방 이름을 (변경|수정)하였습니다\.?$"),
+    re.compile(r"^.+님이 (공지를 등록했|공지를 수정했|메시지를 가렸)습니다\.?$"),
+    re.compile(r"^채팅방 관리자가 .+$"),
+    # 구 Android / iOS: 시각 뒤가 쉼표가 아니라 콜론이면 시스템 메시지
+    re.compile(r"^\d{4}년 \d{1,2}월 \d{1,2}일 (오전|오후) \d{1,2}:\d{2}: "),
+    re.compile(r"^\d{4}\. \d{1,2}\. \d{1,2}\. (오전|오후) \d{1,2}:\d{2}: "),
+)
+
+# 대시 없는 날짜 구분선 (iOS / 구 Android). 대괄호 형식은 _BRACKET_DATE_RE 가 잡는다.
+_BARE_DATE_RE = re.compile(r"^\d{4}년 \d{1,2}월 \d{1,2}일 \S+요일$")
+
+
+def _is_system(rec: str) -> bool:
+    return any(p.match(rec) for p in _SYSTEM_RES)
+
+
+# ------------------------------------------------- 대괄호 형식 = PC + Android 최신 앱 (확인됨)
 
 _PC_HEADER_RE = re.compile(r"^(.+) 님과 카카오톡 대화$")
-_PC_DATE_RE = re.compile(r"^-+ (\d{4})년 (\d{1,2})월 (\d{1,2})일 \S+ -+$")
-_PC_MSG_RE = re.compile(r"^\[(.+?)\] \[(오전|오후) (\d{1,2}):(\d{2})\] (.*)$", re.S)
+_BRACKET_DATE_RE = re.compile(r"^-+ (\d{4})년 (\d{1,2})월 (\d{1,2})일 \S+ -+$")
+_BRACKET_MSG_RE = re.compile(r"^\[(.+?)\] \[(오전|오후) (\d{1,2}):(\d{2})\] (.*)$", re.S)
 
 
-def parse_pc(text: str) -> list[Message]:
+def parse_bracket(text: str) -> list[Message]:
     """
-    PC 내보내기. 메시지 끝은 CRLF, 메시지 내부 줄바꿈은 LF → CRLF 로 split 하면
-    여러 줄 메시지가 한 레코드로 잡힌다.
+    `[이름] [오후 1:43] 본문` 형식. PC 와 Android 최신 앱이 이 형식을 공유한다
+    (헤더·구분선·본문 배치가 같아 내용만으로는 구분 불가).
+
+    여러 줄 메시지: 새 메시지 머리글·날짜 구분선·시스템 메시지가 아닌 줄은
+    직전 메시지의 이어지는 줄로 붙인다(중간 빈 줄 포함). PC 는 내부 줄바꿈이
+    LF 라 애초에 한 레코드이므로 영향이 없고, Android 는 내부도 CRLF 라
+    레코드가 쪼개지는데 이 로직이 원문을 복원한다.
     """
-    records = text.split("\r\n")
     out: list[Message] = []
     cur_date: date | None = None
+    sender: str | None = None
+    when: datetime | None = None
+    lines: list[str] = []
 
-    for rec in records:
-        if not rec.strip():
-            continue
-        m = _PC_DATE_RE.match(rec)
+    def flush() -> None:
+        nonlocal sender, when, lines
+        if sender is not None and when is not None:
+            out.append(_make(sender, when, "\n".join(lines)))
+        sender, when, lines = None, None, []
+
+    for rec in _split_records(text):
+        m = _BRACKET_DATE_RE.match(rec)
         if m:
+            flush()
             cur_date = date(int(m[1]), int(m[2]), int(m[3]))
             continue
-        m = _PC_MSG_RE.match(rec)
-        if m and cur_date is not None:
-            sender, ampm, hh, mm, body = m.groups()
+        m = _BRACKET_MSG_RE.match(rec)
+        if m:
+            flush()
+            if cur_date is None:
+                continue                   # 날짜 구분선 앞이면 날짜를 모른다 → 버림
+            who, ampm, hh, mm, body = m.groups()
+            sender = who
             when = datetime(
                 cur_date.year, cur_date.month, cur_date.day,
                 _to_24h(ampm, int(hh)), int(mm), tzinfo=KST,
             )
-            out.append(_make(sender, when, body))
+            lines = [body]
             continue
-        # 그 외: 헤더, 시스템 메시지(초대/퇴장/삭제 등) → 버림
+        if _is_system(rec):
+            flush()                        # 시스템 메시지(초대/퇴장/방장 등) → 버림
+            continue
+        if sender is not None:
+            lines.append(rec)              # 여러 줄 메시지의 이어지는 줄
+        # 그 외(헤더, 첫 메시지 전 빈 줄) → 버림
+    flush()
     return out
 
 
-# ---------------------------------------------------------------- Android / iOS (샘플 확보 후 채움)
+# PC 는 대괄호 형식의 한 갈래 — 기존 이름 유지 (docs/TEST_CASES.md TC-PARSE-002)
+parse_pc = parse_bracket
 
-# 예상 형식: "2026년 8월 5일 오후 11:12, 이름 : 본문"  (한 줄, 날짜 구분선 없음)
+
+# ---------------------------------------------------------------- 구 Android 형식 (확인됨)
+
+# 한 줄에 날짜까지: "2026년 8월 5일 오후 11:12, 이름 : 본문". 날짜 구분선 없음.
 _ANDROID_MSG_RE = re.compile(
     r"^(\d{4})년 (\d{1,2})월 (\d{1,2})일 (오전|오후) (\d{1,2}):(\d{2}), (.+?) : (.*)$", re.S
 )
 
 
 def parse_android(text: str) -> list[Message]:
-    """TODO: 실제 샘플로 검증 필요. 여러 줄 메시지의 줄바꿈 처리 방식 확인."""
+    """
+    Android 내보내기는 앱 버전에 따라 두 가지다.
+      (신) PC 와 같은 대괄호 형식 → parse_bracket 이 처리
+      (구) 한 줄에 날짜까지 → 아래 로직
+
+    구 형식의 여러 줄 메시지는 둘째 줄부터 날짜·이름 없이 그대로 나오므로
+    머리글/날짜 구분선/시스템 메시지가 아닌 줄은 직전 메시지에 이어붙인다.
+    """
+    records = _split_records(text)
+    if any(_BRACKET_MSG_RE.match(r) for r in records):
+        return parse_bracket(text)
+
     out: list[Message] = []
-    pending: Message | None = None
-    for line in text.splitlines():
-        m = _ANDROID_MSG_RE.match(line)
+    sender: str | None = None
+    when: datetime | None = None
+    lines: list[str] = []
+
+    def flush() -> None:
+        nonlocal sender, when, lines
+        if sender is not None and when is not None:
+            out.append(_make(sender, when, "\n".join(lines)))
+        sender, when, lines = None, None, []
+
+    for rec in records:
+        m = _ANDROID_MSG_RE.match(rec)
         if m:
-            y, mo, d, ampm, hh, mm, sender, body = m.groups()
+            flush()
+            y, mo, d, ampm, hh, mm, who, body = m.groups()
+            sender = who
             when = datetime(int(y), int(mo), int(d), _to_24h(ampm, int(hh)), int(mm), tzinfo=KST)
-            pending = _make(sender, when, body)
-            out.append(pending)
-        elif pending is not None and line.strip():
-            # 여러 줄 메시지의 연속 줄로 가정 (샘플로 확인 필요)
-            pending.body = _clean(pending.body + "\n" + line)
-            pending.body_len = len(pending.body) if pending.msg_type == "text" else 0
-            pending.is_question = pending.msg_type == "text" and is_question(pending.body)
+            lines = [body]
+            continue
+        if _BARE_DATE_RE.match(rec) or _is_system(rec):
+            flush()                        # 날짜 구분선 / 시스템 메시지 → 버림
+            continue
+        if sender is not None:
+            lines.append(rec)              # 여러 줄 메시지의 이어지는 줄
+    flush()
     return out
 
 
-# iOS "텍스트 메시지만 보내기" (확인됨)
+# ---------------------------------------------------------------- iOS "텍스트 메시지만 보내기" (확인됨)
 #   헤더:   "Talk_2026.8.21 23:43-1.txt" / "저장한 날짜 : 2026. 8. 22. 오후 11:16"
 #   구분선: "2026년 8월 5일 수요일"  (대시 없음, 메시지마다 날짜가 있어 실제로는 불필요)
 #   시스템: "2026. 8. 5. 오전 9:10: 김OO님이 ... 초대했습니다."  (시각 뒤 콜론)
@@ -221,25 +312,54 @@ _IOS_HEADER_RE = re.compile(r"^저장한 날짜 : \d{4}\. \d{1,2}\. \d{1,2}\. (�
 
 
 def parse_ios(text: str) -> list[Message]:
+    """
+    iOS 는 내부 줄바꿈이 LF 라 CRLF 분할만으로 여러 줄 메시지가 한 레코드로 잡힌다.
+    다만 LF 로 정규화된 파일도 견디도록, 머리글이 아닌 줄은 직전 메시지에 이어붙인다.
+    """
     out: list[Message] = []
-    for rec in text.split("\r\n"):
+    sender: str | None = None
+    when: datetime | None = None
+    lines: list[str] = []
+
+    def flush() -> None:
+        nonlocal sender, when, lines
+        if sender is not None and when is not None:
+            out.append(_make(sender, when, "\n".join(lines)))
+        sender, when, lines = None, None, []
+
+    for rec in _split_records(text):
         m = _IOS_MSG_RE.match(rec)
-        if not m:
-            continue  # 헤더, 날짜 구분선, 시스템 메시지 → 버림
-        y, mo, d, ampm, hh, mm, sender, body = m.groups()
-        when = datetime(int(y), int(mo), int(d), _to_24h(ampm, int(hh)), int(mm), tzinfo=KST)
-        out.append(_make(sender, when, body))
+        if m:
+            flush()
+            y, mo, d, ampm, hh, mm, who, body = m.groups()
+            sender = who
+            when = datetime(int(y), int(mo), int(d), _to_24h(ampm, int(hh)), int(mm), tzinfo=KST)
+            lines = [body]
+            continue
+        if _BARE_DATE_RE.match(rec) or _is_system(rec):
+            flush()                        # 날짜 구분선 / 시스템 메시지 → 버림
+            continue
+        if sender is not None:
+            lines.append(rec)              # 여러 줄 메시지의 이어지는 줄
+        # 그 외(파일명 헤더) → 버림
+    flush()
     return out
 
 
 # ---------------------------------------------------------------- 형식 감지 + 진입점
 
 def detect_format(text: str) -> str:
-    head = text.replace("\r\n", "\n").split("\n")[:12]
-    joined = "\n".join(head)
-    if _PC_HEADER_RE.match(head[0].strip()) or "---------------" in joined:
+    """
+    PC 와 Android 최신 앱은 형식이 같아 구분할 수 없다 → 둘 다 "pc" 로 보고
+    같은 파서(parse_bracket)로 넘긴다. "android" 는 구 형식 전용.
+    """
+    head = _split_records(text)[:40]
+    first = head[0].strip() if head else ""
+    if _PC_HEADER_RE.match(first) or any(
+        _BRACKET_DATE_RE.match(l) or _BRACKET_MSG_RE.match(l) for l in head
+    ):
         return "pc"
-    if any(_IOS_HEADER_RE.match(l) for l in head) or any(_IOS_MSG_RE.match(l) for l in head):
+    if any(_IOS_HEADER_RE.match(l) or _IOS_MSG_RE.match(l) for l in head):
         return "ios"
     if any(_ANDROID_MSG_RE.match(l) for l in head):
         return "android"
@@ -261,7 +381,7 @@ def parse_export(data: bytes) -> list[Message]:
         data = _extract_txt_from_zip(data)
     text = data.decode("utf-8-sig")
     fmt = detect_format(text)
-    return {"pc": parse_pc, "android": parse_android, "ios": parse_ios}[fmt](text)
+    return {"pc": parse_bracket, "android": parse_android, "ios": parse_ios}[fmt](text)
 
 
 # ---------------------------------------------------------------- 커플 서비스 검증
