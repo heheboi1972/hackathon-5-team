@@ -7,11 +7,18 @@ import Settings from "./pages/Settings";
 import Timeline from "./pages/Timeline";
 import Upload from "./pages/Upload";
 
+const USE_MOCK =
+  import.meta.env.VITE_USE_MOCK === "true" || import.meta.env.USE_MOCK === "true";
+
 export default function App() {
   return (
     <Routes>
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/" element={<Timeline />} />
+      <Route
+        path="/timeline"
+        element={USE_MOCK ? <Timeline /> : <Navigate to="/onboarding" replace />}
+      />
       <Route path="/upload" element={<Upload />} />
       <Route path="/reports/:week" element={<Report />} />
       <Route path="/review" element={<Review />} />
