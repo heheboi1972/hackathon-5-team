@@ -129,7 +129,7 @@ _PUNCT_RE = re.compile(r"[^\w가-힣\s]")
 _PARTICLE_RE = re.compile(r"(이|가|을|를|은|는|도|만|에|로|의|요)$")
 
 
-def tokenize(body: str) -> list[str]:
+def tokenize(body: str, *, strip_particles: bool = True) -> list[str]:
     b = _URL_RE.sub(" ", body)
     b = _JAMO_RE.sub(" ", b)
     b = _PUNCT_RE.sub(" ", b)
@@ -137,7 +137,7 @@ def tokenize(body: str) -> list[str]:
     for w in b.split():
         w = _REPEAT_RE.sub(r"\1", w)
         w = _REPEAT2_RE.sub(r"\1", w)
-        if len(w) >= 2:
+        if strip_particles and len(w) >= 2:
             w = _PARTICLE_RE.sub("", w)
         if len(w) >= 1 and not w.isdigit():
             out.append(w)

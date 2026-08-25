@@ -1,71 +1,158 @@
-# 역할: 단어 횟수 검색 순수 함수 테스트 (TC-API-008 term_count 근거)
-from datetime import date
+"""TASKS 3-1b 단어 횟수 검색 순수/service 계약."""
+
+import asyncio
+from datetime import date, datetime, timezone
+from uuid import uuid4
 
 import pytest
+from cryptography.fernet import Fernet
 
+from app.services.crypto import BodyCipher
 from app.services.kakao_parser import tokenize
 from app.services.term_search import (
+    TermSearchService,
+    TermSearchValidationError,
     count_in_messages,
     format_answer,
     match_tokens,
     normalize_query,
 )
+from app.tools.count_term import count_term as count_term_tool
 
-LEX = {"좋아": ("좋아", "pos"), "조아": ("좋아", "pos"), "좋앙": ("좋아", "pos")}
-
-
-@pytest.mark.parametrize("q,expected", [
-    ("사랑해", "사랑해"),
-    ("'짜증이'", "짜증"),      # 따옴표·조사 제거
-    ("ㅋㅋㅋ", None),           # 자모만 → 토큰 없음
-])
-def test_normalize_query(q, expected):
-    assert normalize_query(q) == expected
-
-
-def test_match_exact_and_prefix():
-    toks = tokenize("사랑해 사랑해요 사랑 미워")
-    assert toks == ["사랑해", "사랑해", "사랑", "미워"]              # "사랑해요" 는 조사 제거로 이미 합쳐짐
-    assert match_tokens(toks, "사랑해") == ["사랑해", "사랑해"]      # 완전일치
-    assert len(match_tokens(toks, "사랑")) == 3                      # 접두: 사랑해·사랑해·사랑
+LEXICON = {
+    "좋아": ("좋아", "pos"),
+    "조아": ("좋아", "pos"),
+    "좋앙": ("좋아", "pos"),
+    "고마워": ("고마워", "pos"),
+    "감사": ("감사", "pos"),
+    "땡큐": ("땡큐", "pos"),
+}
 
 
-def test_match_canonical_variants():
-    toks = tokenize("조아 좋앙 미워")
-    assert sorted(match_tokens(toks, "좋아", LEX)) == ["조아", "좋앙"]
-    assert match_tokens(toks, "좋아") == []      # 사전 없으면 변형 매칭 안 됨
-
-
-def test_count_is_couple_total_without_sender():
-    msgs = [
-        (date(2026, 3, 2), tokenize("사랑해 사랑해")),
-        (date(2026, 3, 2), tokenize("나도 사랑행")),
-        (date(2026, 3, 9), tokenize("사랑해")),
-        (date(2026, 3, 9), tokenize("치킨 먹자")),
+def test_exact_prefix_and_canonical_modes_are_distinct():
+    tokens = tokenize("사랑해 사랑해요 사랑 사랑한다", strip_particles=False)
+    assert match_tokens(tokens, "사랑해", mode="exact") == ["사랑해"]
+    assert match_tokens(tokens, "사랑", mode="prefix") == tokens
+    variants = tokenize("좋아 조아 좋앙", strip_particles=False)
+    assert sorted(match_tokens(variants, "좋아", mode="canonical", lexicon=LEXICON)) == [
+        "조아", "좋아", "좋앙"
     ]
-    r = count_in_messages(msgs, "사랑해")
-    assert r["total"] == 3                                    # "사랑행" 은 접두가 아니라 사전 없이는 안 합쳐짐
-    assert r["by_week"] == [
-        {"week_start": date(2026, 3, 2), "count": 2},
-        {"week_start": date(2026, 3, 9), "count": 1},
+    assert normalize_query("사랑해요", strip_particles=False) == "사랑해요"
+
+
+def test_canonical_does_not_merge_synonyms_or_other_sentiments():
+    tokens = tokenize("고마워 감사 땡큐", strip_particles=False)
+    for query in ("고마워", "감사", "땡큐"):
+        result = count_in_messages(
+            [(date(2026, 8, 17), tokens)], query, mode="canonical", lexicon=LEXICON
+        )
+        assert result["count"] == 1
+
+
+def test_result_is_couple_total_and_has_no_speaker_dimension():
+    messages = [
+        (date(2026, 8, 17), ["사랑해", "사랑해"]),
+        (date(2026, 8, 17), ["사랑해"]),
     ]
-    assert "sender" not in r and all("sender" not in f for f in r["matched_forms"])
+    result = count_in_messages(messages, "사랑해", mode="exact")
+    assert result["query"] == "사랑해" and result["mode"] == "exact"
+    assert result["count"] == result["total"] == 3
+    def has_private_key(node):
+        if isinstance(node, dict):
+            return bool({"a", "b", "who", "sender"} & set(node)) or any(
+                has_private_key(value) for value in node.values()
+            )
+        if isinstance(node, list):
+            return any(has_private_key(value) for value in node)
+        return False
 
-    # 시드 사전에 "사랑행 → 사랑해" 가 있으면 변형까지 합산된다
-    lex = {"사랑해": ("사랑해", "pos"), "사랑행": ("사랑해", "pos")}
-    r2 = count_in_messages(msgs, "사랑해", lex)
-    assert r2["total"] == 4
-    assert {f["form"] for f in r2["matched_forms"]} == {"사랑해", "사랑행"}
+    assert not has_private_key(result)
+    assert result == count_in_messages(messages, "사랑해", mode="exact")
 
 
-def test_count_arbitrary_non_sentiment_word():
-    msgs = [(date(2026, 3, 2), tokenize("치킨 시킬까")), (date(2026, 3, 9), tokenize("치킨이 최고"))]
-    assert count_in_messages(msgs, "치킨")["total"] == 2       # 감성 사전과 무관
+def test_arbitrary_and_missing_words_and_answer_format():
+    rows = [(date(2026, 8, 17), ["치킨", "먹자", "치킨"])]
+    found = count_in_messages(rows, "치킨", mode="exact")
+    assert found["count"] == 2
+    assert "2번" in format_answer(found)
+    assert "누가 얼마나 썼는지는 알려드리지 않아요" in format_answer(
+        found, asked_about_person=True
+    )
+    assert "찾지 못했어요" in format_answer(
+        count_in_messages(rows, "피자", mode="exact")
+    )
 
 
-def test_format_answer():
-    r = count_in_messages([(date(2026, 3, 2), tokenize("좋아 조아"))], "좋아", LEX)
-    assert "2번" in format_answer(r)
-    assert "알려드리지 않아요" in format_answer(r, asked_about_person=True)
-    zero = count_in_messages([], "없는말")
-    assert "찾지 못했어요" in format_answer(zero)
+@pytest.mark.parametrize("query", ["", "   ", "두 단어", "ㅋㅋㅋ"])
+def test_invalid_query(query):
+    with pytest.raises(TermSearchValidationError):
+        normalize_query(query)
+
+
+def test_invalid_mode():
+    with pytest.raises(TermSearchValidationError):
+        match_tokens(["사랑해"], "사랑해", mode="contains")
+
+
+class _Repository:
+    def __init__(self, cipher):
+        self.cipher = cipher
+        self.version = 2
+        self.rows = [
+            {"sent_at": datetime(2026, 8, 18, tzinfo=timezone.utc),
+             "body_encrypted": cipher.encrypt("사랑해 치킨").decode("ascii")},
+            {"sent_at": datetime(2026, 8, 19, tzinfo=timezone.utc),
+             "body_encrypted": cipher.encrypt("사랑해요 사랑해").decode("ascii")},
+        ]
+        self.cache = {}
+        self.source_reads = 0
+        self.lexicons = {}
+
+    async def get_term_source_version(self, couple_id):
+        return self.version
+
+    async def get_term_count_cache(self, couple_id, term, **kwargs):
+        return self.cache.get((couple_id, term, kwargs["source_version"]))
+
+    async def get_term_search_source(self, couple_id, **_kwargs):
+        self.source_reads += 1
+        return self.version, list(self.rows)
+
+    async def get_couple_lexicon(self, couple_id):
+        return self.lexicons.get(couple_id, {})
+
+    async def save_term_count_cache(self, couple_id, term, **kwargs):
+        self.cache[(couple_id, term, kwargs["source_version"])] = kwargs["result"]
+
+    async def invalidate_term_count_cache(self, couple_id):
+        keys = [key for key in self.cache if key[0] == couple_id]
+        for key in keys:
+            del self.cache[key]
+        return len(keys)
+
+
+def test_service_cache_miss_hit_invalidation_and_tool_have_no_ai_calls():
+    async def scenario():
+        cipher = BodyCipher(Fernet.generate_key().decode("ascii"))
+        repo = _Repository(cipher)
+        service = TermSearchService(repo, cipher)
+        couple_id = uuid4()
+
+        first = await count_term_tool(couple_id, "사랑해", "exact", service=service)
+        assert first["count"] == 2 and repo.source_reads == 1
+        second = await service.count_term(couple_id, "사랑해", "exact")
+        assert second == first and repo.source_reads == 1
+
+        repo.rows.append({
+            "sent_at": datetime(2026, 8, 20, tzinfo=timezone.utc),
+            "body_encrypted": cipher.encrypt("사랑해").decode("ascii"),
+        })
+        repo.version += 1
+        assert await repo.invalidate_term_count_cache(couple_id) == 1
+        refreshed = await service.count_term(couple_id, "사랑해", "exact")
+        assert refreshed["count"] == 3 and repo.source_reads == 2
+
+        # service/tool 생성자와 호출 경로 어디에도 AIService가 없다.
+        assert not hasattr(service, "ai")
+
+    asyncio.run(scenario())
