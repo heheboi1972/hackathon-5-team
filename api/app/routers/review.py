@@ -1,47 +1,24 @@
 # 역할: FR-005 돌아보기 — GET review, POST/DELETE notes (참조: API_SPEC §5) — 시여 담당 영역
-# 스캐폴딩 스텁: 고정 저장형. 구간 지표·기준선 계산은 TODO
 # 라우터는 응답 모델을 직접 만들지 않는다 — services.projection.build_review 만 호출 (ISSUE B3).
-# 지표는 {couple, mine} — 상대 값 미전송. 타입 고정은 ISSUE D4
+# 지표는 {couple, mine} — 상대 값 미전송. 타입은 models.api의 review 전용 모델로 고정한다.
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import ValidationError
 
 from ..deps import current_member
 from ..models.api import NoteCreateRequest, NoteResponse, ReviewResponse, Who
 from ..services.projection import build_review
+from ..services.review_metrics import build_stored_review
 
 router = APIRouter(prefix="/api/couples", tags=["review"])
 
 KST = timezone(timedelta(hours=9))
 
-# 구간 저장형 (사람별 a/b). 각 지표 dict 는 {couple, a, b}, 스칼라는 그대로 통과
+# Notes 쓰기 경로는 기존 2-5 스텁을 유지한다. GET review 지표/메모는 PostgreSQL을 읽는다.
 _STORED = {
-    "sessions": [
-        {
-            "session_id": 1187,
-            "started_at": datetime(2026, 8, 19, 22, 10, tzinfo=KST),
-            "ended_at": datetime(2026, 8, 19, 23, 55, tzinfo=KST),
-            "initiator": "a",
-            "msg_count": 34,
-        }
-    ],
-    "metrics": {
-        "range": {
-            "question_rate": {"couple": 0.2, "a": 0.1, "b": 0.3},
-            "message_length_median": {"couple": 13, "a": 9, "b": 20},
-            "reply_gap_median_min": {"couple": 12, "a": 3, "b": 41},
-            "session_length_median": 34,
-        },
-        "baseline": {
-            "weeks": 8,
-            "question_rate": {"couple": 0.23, "a": 0.22, "b": 0.24},
-            "message_length_median": {"couple": 13, "a": 14, "b": 12},
-            "reply_gap_median_min": {"couple": 5, "a": 4, "b": 6},
-            "session_length_median": 22,
-        },
-    },
     "notes": [
         {
             "note_id": 7,
@@ -65,55 +42,44 @@ def _validation_error(message: str) -> HTTPException:
     )
 
 
-def _overlaps(start: datetime, end: datetime, item_start: datetime, item_end: datetime) -> bool:
-    return item_start <= end and item_end >= start
-
-
-def _notes_in_range(start: datetime, end: datetime) -> list[dict]:
-    notes = []
-    for note in _STORED["notes"]:
-        note_start = _with_timezone(note.get("range_start") or note["created_at"])
-        note_end = _with_timezone(note.get("range_end") or note["created_at"])
-        if _overlaps(start, end, note_start, note_end):
-            notes.append(note)
-    return notes
-
-
 @router.get("/{couple_id}/review", response_model=ReviewResponse)
 async def review(
-    couple_id: str,
+    couple_id: UUID,
+    request: Request,
     start: datetime | None = None,
     end: datetime | None = None,
     session_id: int | None = None,
     me: Who = Depends(current_member),
 ) -> ReviewResponse:
     if session_id is not None:
-        selected = next((s for s in _STORED["sessions"] if s["session_id"] == session_id), None)
-        if selected is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail={"code": "NOT_FOUND", "message": "세션을 찾을 수 없습니다"},
-            )
-        s = selected["started_at"]
-        e = selected["ended_at"]
-        sessions = [selected]
+        mode = "session"
+        query_start = query_end = None
     else:
         if (start is None) != (end is None):
             raise _validation_error("start와 end를 함께 입력해주세요")
-        s = _with_timezone(start or datetime(2026, 8, 17, 0, 0, tzinfo=KST))
-        e = _with_timezone(end or datetime(2026, 8, 21, 0, 0, tzinfo=KST))
-        if e < s:
+        if start is None or end is None:
+            raise _validation_error("start와 end를 입력하거나 session_id를 입력해주세요")
+        query_start = _with_timezone(start)
+        query_end = _with_timezone(end)
+        if query_end < query_start:
             raise _validation_error("end는 start보다 빠를 수 없습니다")
-        if e - s > timedelta(days=14):
+        if query_end - query_start > timedelta(days=14):
             raise _validation_error("돌아보기 범위는 최대 14일입니다")
-        sessions = [
-            session
-            for session in _STORED["sessions"]
-            if _overlaps(s, e, session["started_at"], session["ended_at"])
-        ]
+        mode = "date"
 
-    stored = {**_STORED, "sessions": sessions, "notes": _notes_in_range(s, e)}
-    return build_review(stored, me, s, e)
+    raw = await request.app.state.container.postgres.get_review_data(
+        couple_id,
+        start=query_start,
+        end=query_end,
+        session_id=session_id,
+    )
+    if raw is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "세션을 찾을 수 없습니다"},
+        )
+    stored = build_stored_review(raw, mode=mode)
+    return build_review(stored, me, raw["range_start"], raw["range_end"])
 
 
 @router.post("/{couple_id}/notes", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)

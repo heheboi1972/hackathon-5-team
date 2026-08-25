@@ -407,6 +407,130 @@ class PostgresService:
             for row in rows
         ]
 
+    # --------------------------------------------------------------- review
+
+    async def get_review_data(
+        self,
+        couple_id: UUID,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        session_id: int | None = None,
+    ) -> dict[str, Any] | None:
+        """review 계산에 필요한 원시 행만 반환한다.
+
+        날짜 범위는 기존 review의 양 끝 포함 조건을 유지한다. baseline은 선택
+        시작 직전 최대 8주이며, 서비스가 비율/중앙값과 응답 저장형을 계산한다.
+        """
+        async with (
+            self.pool.connection() as conn,
+            conn.cursor(row_factory=dict_row) as cur,
+        ):
+            if session_id is not None:
+                await cur.execute(
+                    """
+                    SELECT session_id, started_at, ended_at, initiator, msg_count
+                      FROM sessions
+                     WHERE couple_id = %s AND session_id = %s
+                    """,
+                    (couple_id, session_id),
+                )
+                selected = await cur.fetchone()
+                if selected is None:
+                    return None
+                sessions = [selected]
+                range_start = selected["started_at"]
+                range_end = selected["ended_at"]
+                await cur.execute(
+                    """
+                    SELECT session_id, sender, sent_at, body_len, is_question
+                      FROM messages
+                     WHERE couple_id = %s AND session_id = %s
+                     ORDER BY sent_at, message_id
+                    """,
+                    (couple_id, session_id),
+                )
+            else:
+                if start is None or end is None:
+                    raise ValueError("날짜 review에는 start와 end가 필요합니다")
+                range_start, range_end = start, end
+                await cur.execute(
+                    """
+                    SELECT session_id, started_at, ended_at, initiator, msg_count
+                      FROM sessions
+                     WHERE couple_id = %s
+                       AND started_at <= %s AND ended_at >= %s
+                     ORDER BY started_at, session_id
+                    """,
+                    (couple_id, end, start),
+                )
+                sessions = list(await cur.fetchall())
+                await cur.execute(
+                    """
+                    SELECT session_id, sender, sent_at, body_len, is_question
+                      FROM messages
+                     WHERE couple_id = %s AND sent_at >= %s AND sent_at <= %s
+                     ORDER BY sent_at, message_id
+                    """,
+                    (couple_id, start, end),
+                )
+            messages = list(await cur.fetchall())
+
+            baseline_floor = range_start - timedelta(weeks=8)
+            await cur.execute(
+                """
+                SELECT session_id, sender, sent_at, body_len, is_question
+                  FROM messages
+                 WHERE couple_id = %s AND sent_at >= %s AND sent_at < %s
+                 ORDER BY sent_at, message_id
+                """,
+                (couple_id, baseline_floor, range_start),
+            )
+            baseline_messages = list(await cur.fetchall())
+            baseline_start = (
+                max(baseline_floor, baseline_messages[0]["sent_at"])
+                if baseline_messages
+                else baseline_floor
+            )
+
+            await cur.execute(
+                """
+                SELECT session_id, started_at, ended_at, initiator, msg_count
+                  FROM sessions
+                 WHERE couple_id = %s AND started_at >= %s AND ended_at < %s
+                 ORDER BY started_at, session_id
+                """,
+                (couple_id, baseline_start, range_start),
+            )
+            baseline_sessions = list(await cur.fetchall())
+
+            await cur.execute(
+                """
+                SELECT n.note_id,
+                       CASE WHEN n.author = c.user_a THEN 'a'
+                            WHEN n.author = c.user_b THEN 'b' END AS author,
+                       n.body, n.range_start, n.range_end, n.created_at
+                  FROM notes n
+                  JOIN couples c ON c.couple_id = n.couple_id
+                 WHERE n.couple_id = %s
+                   AND n.range_start <= %s AND n.range_end >= %s
+                 ORDER BY n.created_at, n.note_id
+                """,
+                (couple_id, range_end, range_start),
+            )
+            notes = list(await cur.fetchall())
+
+        return {
+            "range_start": range_start,
+            "range_end": range_end,
+            "baseline_start": baseline_start,
+            "sessions": sessions,
+            "messages": messages,
+            "baseline_messages": baseline_messages,
+            "baseline_sessions": baseline_sessions,
+            "notes": notes,
+        }
+
     async def dissolve_couple(self, couple_id: UUID, user_id: UUID) -> None:
         async with self.pool.connection() as conn, conn.transaction():
             await self._lock(conn, couple_id)

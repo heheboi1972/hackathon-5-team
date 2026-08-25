@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 Who = Literal["a", "b"]
 CoupleStatus = Literal["pending", "awaiting_confirm", "active", "dissolved"]
@@ -299,9 +299,41 @@ class ReviewRange(BaseModel):
     end: datetime
 
 
+class RangeMetrics(BaseModel):
+    question_rate: CoupleMine
+    reply_gap_median_min: CoupleMine
+    message_count: int
+
+    @field_validator("question_rate")
+    @classmethod
+    def question_rate_is_ratio(cls, value: CoupleMine) -> CoupleMine:
+        for item in (value.couple, value.mine):
+            if item is not None and not 0 <= item <= 1:
+                raise ValueError("question_rate는 0과 1 사이의 비율이어야 합니다")
+        return value
+
+
+class BaselineMetrics(BaseModel):
+    """RangeMetrics와 기간 의미가 달라 별도 계약으로 유지한다."""
+
+    weeks: int = Field(ge=0, le=8)
+    question_rate: CoupleMine
+    reply_gap_median_min: CoupleMine
+    message_count: float | None
+
+    @field_validator("question_rate")
+    @classmethod
+    def question_rate_is_ratio(cls, value: CoupleMine) -> CoupleMine:
+        for item in (value.couple, value.mine):
+            if item is not None and not 0 <= item <= 1:
+                raise ValueError("question_rate는 0과 1 사이의 비율이어야 합니다")
+        return value
+
+
 class ReviewMetrics(BaseModel):
-    range: dict[str, Any]
-    baseline: dict[str, Any]
+    range: RangeMetrics
+    baseline: BaselineMetrics
+    comment: str
 
 
 class NoteResponse(BaseModel):

@@ -295,6 +295,12 @@ PC 처럼 CRLF 로만 잘라내면 둘째 줄부터 통째로 버려진다.
 | 006-3 | 15일 | 400 |
 | 006-4 | baseline.weeks | ≤8 |
 | 006-5 | notes 포함 | 범위 겹치는 메모 |
+| 006-6 | metrics 키 계약 | `range`는 `question_rate`·`reply_gap_median_min`·`message_count`, `baseline`은 여기에 `weeks`를 더한 정확한 키 집합 |
+| 006-7 | 지표 축·메시지 수 (B3) | 질문 비율·답장 시간은 `{couple, mine}`만, 메시지 수는 개인 축 없는 커플 합산 스칼라 |
+| 006-8 | comment | couple 기준의 숫자 없는 한 문장, 같은 입력은 같은 결과, LLM 호출 없음 |
+| 006-9 | A/B 투영 | 같은 review를 A·B로 조회하면 `couple` 동일, `mine`만 다르고 응답 어디에도 지표용 `a`/`b` 키 없음 |
+| 006-10 | baseline.message_count | 날짜 범위는 baseline 일평균을 선택 구간 길이로 환산, `session_id`는 과거 baseline 세션 `msg_count` 평균 |
+| 006-11 | 프론트 mock 계약 | `web/src/api/mock/review.json`도 006-6~8과 같은 구조이며 TypeScript build 통과 |
 
 ### TC-API-007: 메모
 

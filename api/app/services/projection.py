@@ -136,6 +136,7 @@ def build_review(stored: dict[str, Any], me: Who, start: datetime, end: datetime
         "metrics": {
             "range": project_metrics(stored["metrics"]["range"], me),
             "baseline": project_metrics(stored["metrics"]["baseline"], me),
+            "comment": stored["metrics"]["comment"],
         },
         "notes": stored["notes"],
     })
