@@ -4,12 +4,15 @@ from copy import deepcopy
 from datetime import date, timedelta
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from uuid import UUID, uuid4
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from app.deps import current_member
+from app.deps import AuthenticatedUser, current_member, current_user
+from app.main import error_shape_handler
 from app.routers import reports, review, timeline
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,19 +21,78 @@ WEB_MOCK_DIR = ROOT / "web" / "src" / "api" / "mock"
 PER_PERSON_KEYS = ("question_rate", "message_length_median", "reply_gap_median_min", "resume_delay_median_min")
 BANNED = {"a", "b", "baseline_a", "baseline_b", "delta_a", "delta_b"}
 WEEK = "2026-08-17"   # 월요일
-COUPLE = "/api/couples/c1"
+COUPLE_ID = UUID("11111111-1111-1111-1111-111111111111")
+COUPLE = f"/api/couples/{COUPLE_ID}"
 
 
-def _client(me: str) -> TestClient:
+def _partner_value(value):
+    if value is None:
+        return None
+    return value + (0.01 if isinstance(value, float) else 1)
+
+
+def _stored_timeline_rows() -> list[dict]:
+    """프론트 A 응답 fixture를 저장형으로 되돌린 테스트 전용 데이터."""
+    projected = json.loads(
+        (WEB_MOCK_DIR / "timeline.json").read_text(encoding="utf-8")
+    )
+    rows = []
+    for week in projected["weeks"]:
+        summary = deepcopy(week["summary"])
+        my_terms = summary.pop("sentiment")
+        for key in PER_PERSON_KEYS:
+            value = summary[key]
+            summary[key] = {
+                "couple": value["couple"],
+                "a": value["mine"],
+                "b": _partner_value(value["mine"]),
+            }
+        rows.append(
+            {
+                "week_start": date.fromisoformat(week["week_start"]),
+                "report_status": week["report_status"],
+                "summary": summary,
+                "weekly_terms": {
+                    "a": my_terms,
+                    "b": {
+                        "pos": [{"canonical": "귀여워", "count": 15}],
+                        "neg": [{"canonical": "바쁘", "count": 5}],
+                    },
+                },
+                "outlier_count": week["outlier_count"],
+                "events": week["events"],
+            }
+        )
+    return rows
+
+
+class _TimelineRepository:
+    def __init__(self, rows: list[dict] | None = None):
+        self.rows = rows if rows is not None else _stored_timeline_rows()
+
+    async def get_timeline(self, couple_id, *, from_=None, to=None):
+        assert couple_id == COUPLE_ID
+        return [
+            deepcopy(row)
+            for row in sorted(self.rows, key=lambda item: item["week_start"])
+            if (from_ is None or row["week_start"] >= from_)
+            and (to is None or row["week_start"] <= to)
+        ]
+
+
+def _client(me: str, timeline_rows: list[dict] | None = None) -> TestClient:
     app = FastAPI()
     for mod in (timeline, reports, review):
         app.include_router(mod.router)
+    app.state.container = SimpleNamespace(
+        postgres=_TimelineRepository(timeline_rows)
+    )
     app.dependency_overrides[current_member] = lambda: me
     return TestClient(app)
 
 
-def _get(me: str, path: str) -> dict:
-    r = _client(me).get(COUPLE + path)
+def _get(me: str, path: str, timeline_rows: list[dict] | None = None) -> dict:
+    r = _client(me, timeline_rows).get(COUPLE + path)
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -130,22 +192,22 @@ def test_non_monday_week_start_is_400():
     assert r.status_code == 400
 
 
-def test_timeline_api_contract_with_25_weeks_and_range_filter(monkeypatch):
-    """TC-API-004-1~5: 저장소 대신 25주 저장형을 주입해 읽기 계약만 검증한다."""
+def test_timeline_api_contract_with_25_weeks_and_range_filter():
+    """TC-API-004-1~5: repository 대역으로 라우터 읽기 계약을 검증한다."""
     today = date.today()
     current_monday = today - timedelta(days=today.weekday())
     first_monday = current_monday - timedelta(weeks=24)
+    template = _stored_timeline_rows()[0]
     weeks = []
     for offset in range(25):
-        stored = deepcopy(timeline._STORED_WEEKS[0])
+        stored = deepcopy(template)
         stored["week_start"] = first_monday + timedelta(weeks=offset)
         stored["report_status"] = "generated"
         weeks.append(stored)
     weeks.reverse()  # 저장소 반환 순서에 의존하지 않아야 한다.
     del weeks[0]["report_status"]  # 현재 주 리포트 생성 전
-    monkeypatch.setattr(timeline, "_STORED_WEEKS", weeks)
 
-    payload = _get("a", "/timeline")
+    payload = _get("a", "/timeline", weeks)
     assert len(payload["weeks"]) == 25
     starts = [date.fromisoformat(week["week_start"]) for week in payload["weeks"]]
     assert starts == sorted(starts)
@@ -166,7 +228,41 @@ def test_timeline_api_contract_with_25_weeks_and_range_filter(monkeypatch):
     _assert_no_private_axis_keys(payload)
 
     range_from, range_to = starts[5], starts[8]
-    filtered = _get("a", f"/timeline?from={range_from}&to={range_to}")
+    filtered = _get(
+        "a", f"/timeline?from={range_from}&to={range_to}", weeks
+    )
     assert [week["week_start"] for week in filtered["weeks"]] == [
         week_start.isoformat() for week_start in starts[5:9]
     ]
+
+
+@pytest.mark.parametrize(
+    ("user_couple_id", "member"),
+    [
+        (UUID("22222222-2222-2222-2222-222222222222"), "a"),
+        (COUPLE_ID, None),
+    ],
+)
+def test_timeline_rejects_non_member_with_contract_error(user_couple_id, member):
+    app = FastAPI()
+    app.include_router(timeline.router)
+    app.add_exception_handler(HTTPException, error_shape_handler)
+    app.state.container = SimpleNamespace(postgres=_TimelineRepository())
+    app.dependency_overrides[current_user] = lambda: AuthenticatedUser(
+        user_id=uuid4(),
+        email="other@example.com",
+        display_name="other",
+        couple_id=user_couple_id,
+        member=member,
+        couple_status="active",
+    )
+
+    response = TestClient(app).get(f"{COUPLE}/timeline")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": {
+            "code": "NOT_COUPLE_MEMBER",
+            "message": "해당 커플의 구성원이 아닙니다",
+        }
+    }

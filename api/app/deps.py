@@ -51,11 +51,17 @@ async def current_user(
     return AuthenticatedUser(**row)
 
 
-async def current_member(user: AuthenticatedUser = Depends(current_user)) -> Who:
-    """현재 커플에서의 a/b 역할. projection의 `mine`을 결정하는 유일한 경로."""
-    if user.member is None:
+async def current_member(
+    couple_id: UUID,
+    user: AuthenticatedUser = Depends(current_user),
+) -> Who:
+    """경로의 커플에서 현재 사용자의 a/b 역할을 반환한다."""
+    if user.member is None or user.couple_id != couple_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "COUPLE_REQUIRED", "message": "먼저 커플을 연결해주세요"},
+            detail={
+                "code": "NOT_COUPLE_MEMBER",
+                "message": "해당 커플의 구성원이 아닙니다",
+            },
         )
     return user.member
