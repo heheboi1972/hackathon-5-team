@@ -1,1 +1,23 @@
-# 역할: Web Route (참조: SCAFFOLD §2)  # TODO: 해찬
+# 역할: Web Route (참조: SCAFFOLD §2)
+#
+# **사용자가 실제로 여는 주소가 이것이다.** host 를 안 적으면 OpenShift 가
+# <route-name>-<namespace>.<router 기본 도메인> 으로 자동 배정한다.
+# 적용 후: `oc get route couple-report-web -n couple-report`
+#
+# 이 Route 의 호스트가 ConfigMap 의 ALLOWED_ORIGINS 값이다 (00-namespace-secret.yaml).
+# 다만 브라우저는 보통 여기로만 요청한다 — nginx 가 /api/ 를 같은 오리진에서 프록시하므로
+# 정상 경로에서는 CORS 자체가 안 걸린다. ALLOWED_ORIGINS 는 api Route 로 직접 부를 때를 위한 안전장치.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: couple-report-web
+  namespace: couple-report
+spec:
+  to:
+    kind: Service
+    name: couple-report-web
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
