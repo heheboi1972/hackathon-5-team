@@ -1,1 +1,11 @@
-# 역할: 지식 문서 조회 툴 — container.knowledge.search(metric, direction) 메모리 dict (참조: API_SPEC §8, ISSUE D2)  # TODO: 구현
+"""메모리 지식 dict를 조회하는 에이전트 tool."""
+
+from __future__ import annotations
+
+from ..services.knowledge import Knowledge
+
+
+def search_knowledge(
+    metric: str, direction: str, k: int = 5, *, knowledge: Knowledge
+) -> list[dict]:
+    return [dict(item) for item in knowledge.search(metric, direction, k)]
