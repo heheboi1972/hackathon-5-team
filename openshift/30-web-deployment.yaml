@@ -25,7 +25,9 @@ spec:
           imagePullPolicy: Always
           ports:
             - name: http
-              containerPort: 80
+              # 8080 인 이유: 이미지가 nginx-unprivileged 다. OpenShift 는 임의의 non-root UID 로
+              # 돌리는데 기본 nginx 는 /var/cache/nginx 쓰기와 80 포트 바인딩이 둘 다 막혀 크래시한다.
+              containerPort: 8080
           readinessProbe:
             httpGet: { path: /, port: http }
             initialDelaySeconds: 3
