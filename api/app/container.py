@@ -10,6 +10,7 @@ from .config import Settings
 from .services.ai_service import AIService, build_ai_service
 from .services.crypto import BodyCipher
 from .services.jobs import JobService
+from .services.lexicon import BuildLexiconService
 from .services.knowledge import Knowledge, load_knowledge
 from .services.postgres_service import PostgresService
 from .services.qdrant_service import QdrantService
@@ -26,6 +27,7 @@ class Container:
     cipher: BodyCipher
     jobs: JobService
     knowledge: Knowledge  # 지식 문서·템플릿·감성 시드 사전 (메모리, ISSUE D2)
+    lexicon: BuildLexiconService
     postgres_up: bool = False
     qdrant_up: bool = False
     # TODO(윤석): agents = {select, interpret, suggest, safety}, report_supervisor, chat_supervisor
@@ -54,6 +56,8 @@ async def build_container(settings: Settings) -> Container:
     )
     jobs = JobService(pg)
     knowledge = load_knowledge(Path(settings.knowledge_dir))
+    lexicon = BuildLexiconService(pg, ai, cipher, knowledge.seed_lexicon)
+    jobs.register("build_lexicon", lexicon.handle_job)
     c = Container(
         settings=settings,
         ai=ai,
@@ -62,6 +66,7 @@ async def build_container(settings: Settings) -> Container:
         cipher=cipher,
         jobs=jobs,
         knowledge=knowledge,
+        lexicon=lexicon,
     )
 
     # 저장소가 아직 안 떴어도 앱은 뜬다 — /health/ready 가 503으로 알려줌

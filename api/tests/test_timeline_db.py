@@ -115,7 +115,7 @@ async def _run_db_test() -> None:
                     week_start DATE NOT NULL,
                     sender CHAR(1) NOT NULL,
                     canonical VARCHAR(50) NOT NULL,
-                    polarity VARCHAR(3) NOT NULL,
+                    sentiment VARCHAR(7) NOT NULL,
                     count INTEGER NOT NULL,
                     PRIMARY KEY (couple_id, week_start, sender, canonical)
                 )
@@ -165,12 +165,15 @@ async def _run_db_test() -> None:
             await conn.execute(
                 """
                 INSERT INTO weekly_terms
-                    (couple_id, week_start, sender, canonical, polarity, count)
+                    (couple_id, week_start, sender, canonical, sentiment, count)
                 VALUES
                     (%s, %s, 'a', '좋아', 'pos', 5),
-                    (%s, %s, 'b', '고마워', 'pos', 4)
+                    (%s, %s, 'b', '고마워', 'pos', 4),
+                    (%s, %s, 'a', '보통', 'neutral', 9)
                 """,
-                (couple_id, weeks[-1], couple_id, weeks[-1]),
+                (
+                    couple_id, weeks[-1], couple_id, weeks[-1], couple_id, weeks[-1]
+                ),
             )
             await conn.execute(
                 "INSERT INTO events (couple_id, at, kind, label) VALUES (%s, %s, 'anniversary', '기념일')",
