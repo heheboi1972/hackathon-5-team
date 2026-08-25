@@ -462,6 +462,69 @@ class PostgresService:
             )
             return list(await cur.fetchall())
 
+    async def get_messages_in_sessions(
+        self, couple_id: UUID, session_ids: Sequence[int]
+    ) -> list[dict[str, Any]]:
+        """search_conversation 툴(TASKS 3-1)용 — 벡터 검색으로 고른 세션들의 본문만 가져온다.
+        Qdrant payload 에는 본문·발화자가 없어서(프라이버시) 인용 카드는 여기서 복호화해 만든다."""
+        if not session_ids:
+            return []
+        async with (
+            self.pool.connection() as conn,
+            conn.cursor(row_factory=dict_row) as cur,
+        ):
+            await cur.execute(
+                """
+                SELECT session_id, sender, sent_at, body_enc, body_len, is_question
+                  FROM messages
+                 WHERE couple_id=%s AND session_id = ANY(%s)
+                 ORDER BY session_id, sent_at
+                """,
+                (couple_id, list(session_ids)),
+            )
+            return list(await cur.fetchall())
+
+    async def get_weekly_metrics(
+        self,
+        couple_id: UUID,
+        *,
+        start: date | None = None,
+        end: date | None = None,
+    ) -> list[dict[str, Any]]:
+        """주 오름차순 weekly_metrics 행. 기준선은 저장돼 있지 않다 —
+        upload 는 현재값만 넣고(summary_hash 안정성), 직전 4주 평균은 조회 시점에 계산한다
+        (metrics.metrics_from_stored)."""
+        async with (
+            self.pool.connection() as conn,
+            conn.cursor(row_factory=dict_row) as cur,
+        ):
+            await cur.execute(
+                """
+                SELECT week_start, summary, summary_hash, outliers
+                  FROM weekly_metrics
+                 WHERE couple_id=%s
+                   AND (%s::date IS NULL OR week_start >= %s)
+                   AND (%s::date IS NULL OR week_start <= %s)
+                 ORDER BY week_start
+                """,
+                (couple_id, start, start, end, end),
+            )
+            return list(await cur.fetchall())
+
+    async def get_report(self, couple_id: UUID, week_start: date) -> dict[str, Any] | None:
+        async with (
+            self.pool.connection() as conn,
+            conn.cursor(row_factory=dict_row) as cur,
+        ):
+            await cur.execute(
+                """
+                SELECT week_start, status, report, execution_trace, updated_at
+                  FROM reports WHERE couple_id=%s AND week_start=%s
+                """,
+                (couple_id, week_start),
+            )
+            return await cur.fetchone()
+
     async def get_couple_lexicon(self, couple_id: UUID) -> dict[str, tuple[str, str]]:
         async with self.pool.connection() as conn:
             rows = await (
