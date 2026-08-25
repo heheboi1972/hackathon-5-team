@@ -2,7 +2,7 @@
   "_comment": "공용 감성 시드 사전 (ISSUE A1). 커플 첫 업로드 시 couple_lexicon 에 source='seed' 로 들어가고, Phase 3 build_lexicon 잡이 커플별 단어를 LLM 으로 보강한다. 문자열은 term=canonical, 객체는 철자 변형 → canonical 매핑. 동의어는 묶지 않는다 (A5). 편집: 윤아 (1-8, 2026-08-24 — 활용형(~해/~았어/었어) 변형 누락 보강 + 커플 대화 흔한 단어 추가).",
   "pos": [
     "좋아", {"term": "조아", "canonical": "좋아"}, {"term": "좋앙", "canonical": "좋아"}, {"term": "조아요", "canonical": "좋아"},
-    "고마워", {"term": "고마웡", "canonical": "고마워"}, {"term": "고마웠어", "canonical": "고마워"}, {"term": "고맙다", "canonical": "고마워"}, "감사",
+    "고마워", {"term": "고마웡", "canonical": "고마워"}, {"term": "고마웠어", "canonical": "고마워"}, {"term": "고맙다", "canonical": "고마워"}, {"term": "고마와", "canonical": "고마워"}, "감사",
     "사랑해", {"term": "사랑행", "canonical": "사랑해"}, {"term": "사랑했어", "canonical": "사랑해"}, "사랑",
     "보고싶어", {"term": "보고싶", "canonical": "보고싶어"},
     "행복", {"term": "행복해", "canonical": "행복"}, {"term": "행복했어", "canonical": "행복"},
@@ -33,7 +33,7 @@
     "외로", {"term": "외로워", "canonical": "외로"}, {"term": "외로웠어", "canonical": "외로"},
     "답답", {"term": "답답해", "canonical": "답답"}, {"term": "답답했어", "canonical": "답답"},
     "스트레스",
-    "아파", "아프", {"term": "아팠어", "canonical": "아파"},
+    "아파", "아프", {"term": "아팠어", "canonical": "아파"}, {"term": "아푸다", "canonical": "아파"}, {"term": "아퍼", "canonical": "아파"}
     "미안해", {"term": "미안", "canonical": "미안해"},
     "삐졌어", {"term": "삐짐", "canonical": "삐졌어"},
     "질투", "무서워", "지겨워"

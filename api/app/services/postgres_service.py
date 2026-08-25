@@ -444,6 +444,24 @@ class PostgresService:
             )
             return list(await cur.fetchall())
 
+    async def get_messages_for_embedding(self, couple_id: UUID) -> list[dict[str, Any]]:
+        """embed_sessions 잡(TASKS 2-6, services/embed_sessions.py)용.
+        session_id 가 배정된 메시지만 반환 — session_id IS NULL 인 메시지는 세션 재구성 전 상태라 대상이 아니다."""
+        async with (
+            self.pool.connection() as conn,
+            conn.cursor(row_factory=dict_row) as cur,
+        ):
+            await cur.execute(
+                """
+                SELECT session_id, sender, sent_at, body_enc, body_len, is_question
+                  FROM messages
+                 WHERE couple_id=%s AND session_id IS NOT NULL
+                 ORDER BY session_id, sent_at
+                """,
+                (couple_id,),
+            )
+            return list(await cur.fetchall())
+
     async def get_couple_lexicon(self, couple_id: UUID) -> dict[str, tuple[str, str]]:
         async with self.pool.connection() as conn:
             rows = await (

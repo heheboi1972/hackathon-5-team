@@ -9,6 +9,7 @@ from pathlib import Path
 from .config import Settings
 from .services.ai_service import AIService, build_ai_service
 from .services.crypto import BodyCipher
+from .services.embed_sessions import run_embed_sessions_job
 from .services.jobs import JobService
 from .services.knowledge import Knowledge, load_knowledge
 from .services.postgres_service import PostgresService
@@ -63,6 +64,8 @@ async def build_container(settings: Settings) -> Container:
         jobs=jobs,
         knowledge=knowledge,
     )
+    # embed_sessions 잡 핸들러 등록 (TASKS 2-6, 윤아). report_backfill 등 다른 kind는 윤석이 등록.
+    jobs.register("embed_sessions", lambda job: run_embed_sessions_job(c, job))
 
     # 저장소가 아직 안 떴어도 앱은 뜬다 — /health/ready 가 503으로 알려줌
     try:

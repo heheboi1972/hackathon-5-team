@@ -1,6 +1,6 @@
 # 역할: Qdrant 컬렉션 A(대화 세션) 관리 — upsert, search(couple_id 필터), delete_by_couple (참조: TRD §4.2)
 # 컬렉션 B(지식·템플릿)는 Qdrant 에 두지 않음 → container.knowledge 메모리 dict (ISSUE D2)
-# 스캐폴딩: 클라이언트·컬렉션 보장(차원 검증 포함)·ping만. upsert/search는 TODO(윤석)
+# upsert_sessions: embed_sessions.py(TASKS 2-6, 윤아)가 호출. search_conversation은 여전히 TODO(윤석, 챗봇 검색용 TASKS 3-1).
 from __future__ import annotations
 
 import logging
@@ -12,6 +12,7 @@ from qdrant_client.models import (
     Filter,
     FilterSelector,
     MatchValue,
+    PointStruct,
     VectorParams,
 )
 
@@ -71,7 +72,22 @@ class QdrantService:
             wait=True,
         )
 
+    async def upsert_sessions(self, couple_id, points: list[dict]) -> None:
+        """embed_sessions 잡(services/embed_sessions.py, TASKS 2-6)에서 호출.
+        points: [{"id","vector","payload"}, ...] — id는 이미 결정론적 UUID로 만들어져 있어서
+        (embed_sessions.build_points, 근거는 그 파일 상단 주석) 재업로드로 같은 청크가 다시 임베딩돼도
+        upsert 로 덮어쓰기만 되고 중복 포인트가 쌓이지 않는다.
+        (윤아가 2-6 범위로 먼저 채워둠 — 실제 Qdrant 인프라에서 point id 제약 등 검수 부탁, 윤석)"""
+        if not points:
+            return
+        await self.client.upsert(
+            collection_name=self.collection_conv,
+            points=[
+                PointStruct(id=p["id"], vector=p["vector"], payload=p["payload"])
+                for p in points
+            ],
+            wait=True,
+        )
+
     # ------------------------------------------------------------ TODO(윤석)
-    # point id = f"{session_id}:{chunk_idx}" (결정론 → 재업로드 시 멱등 upsert). payload 에 본문 없음.
-    # async def upsert_sessions(self, couple_id, points): ...
-    # async def search_conversation(self, couple_id, vector, k=8, start=None, end=None): ...
+    # search_conversation(couple_id, vector, k=8, start=None, end=None) — TASKS 3-1 챗봇 검색용
