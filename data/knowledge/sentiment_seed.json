@@ -33,7 +33,7 @@
     "외로", {"term": "외로워", "canonical": "외로"}, {"term": "외로웠어", "canonical": "외로"},
     "답답", {"term": "답답해", "canonical": "답답"}, {"term": "답답했어", "canonical": "답답"},
     "스트레스",
-    "아파", "아프", {"term": "아팠어", "canonical": "아파"}, {"term": "아푸다", "canonical": "아파"}, {"term": "아퍼", "canonical": "아파"}
+    "아파", "아프", {"term": "아팠어", "canonical": "아파"}, {"term": "아푸다", "canonical": "아파"}, {"term": "아퍼", "canonical": "아파"},
     "미안해", {"term": "미안", "canonical": "미안해"},
     "삐졌어", {"term": "삐짐", "canonical": "삐졌어"},
     "질투", "무서워", "지겨워"
