@@ -1,12 +1,13 @@
 # 역할: 읽기 경로 3개(타임라인·리포트·돌아보기)의 상대 값 미전송 계약 (TC-API-005-13, ISSUE B3)
 # 라우터만 마운트한다: DB·Qdrant·watsonx 없이 돌아야 하므로 app.main 은 쓰지 않는다.
 from copy import deepcopy
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import json
-import re
 from pathlib import Path
+import re
 from types import SimpleNamespace
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -25,6 +26,7 @@ BANNED = {"a", "b", "baseline_a", "baseline_b", "delta_a", "delta_b"}
 WEEK = "2026-08-17"   # 월요일
 COUPLE_ID = UUID("11111111-1111-1111-1111-111111111111")
 COUPLE = f"/api/couples/{COUPLE_ID}"
+KST = ZoneInfo("Asia/Seoul")
 
 
 def _partner_value(value):
@@ -89,6 +91,50 @@ class _TimelineRepository:
         assert couple_id == COUPLE_ID and week_start == date.fromisoformat(WEEK)
         return UUID(int=9)
 
+    async def get_review_data(self, couple_id, *, start=None, end=None, session_id=None):
+        assert couple_id == COUPLE_ID
+        session = {
+            "session_id": 1187,
+            "started_at": datetime(2026, 8, 19, 22, 10, tzinfo=KST),
+            "ended_at": datetime(2026, 8, 19, 23, 55, tzinfo=KST),
+            "initiator": "a",
+            "msg_count": 4,
+        }
+        if session_id is not None and session_id != 1187:
+            return None
+        range_start = session["started_at"] if session_id is not None else start
+        range_end = session["ended_at"] if session_id is not None else end
+        messages = [
+            {"session_id": 1187, "sender": "a", "sent_at": datetime(2026, 8, 19, 22, 10, tzinfo=KST), "is_question": True},
+            {"session_id": 1187, "sender": "b", "sent_at": datetime(2026, 8, 19, 22, 12, tzinfo=KST), "is_question": False},
+            {"session_id": 1187, "sender": "a", "sent_at": datetime(2026, 8, 19, 22, 20, tzinfo=KST), "is_question": True},
+            {"session_id": 1187, "sender": "b", "sent_at": datetime(2026, 8, 19, 22, 21, tzinfo=KST), "is_question": False},
+        ]
+        baseline_messages = []
+        for index in range(4):
+            at = datetime(2026, 7, 20, 20, tzinfo=KST) + timedelta(weeks=index)
+            baseline_messages.extend([
+                {"session_id": 1100 + index, "sender": "a", "sent_at": at, "is_question": False},
+                {"session_id": 1100 + index, "sender": "b", "sent_at": at + timedelta(minutes=5), "is_question": index % 2 == 0},
+            ])
+        return {
+            "range_start": range_start,
+            "range_end": range_end,
+            "baseline_start": baseline_messages[0]["sent_at"],
+            "sessions": [session],
+            "messages": messages,
+            "baseline_messages": baseline_messages,
+            "baseline_sessions": [{"msg_count": count} for count in (10, 20, 30, 40)],
+            "notes": [{
+                "note_id": 7,
+                "author": "a",
+                "body": "시험 끝나고 싸움",
+                "range_start": range_start,
+                "range_end": range_end,
+                "created_at": datetime(2026, 8, 20, 9, tzinfo=KST),
+            }],
+        }
+
 
 def _client(me: str, timeline_rows: list[dict] | None = None) -> TestClient:
     app = FastAPI()
@@ -102,6 +148,8 @@ def _client(me: str, timeline_rows: list[dict] | None = None) -> TestClient:
 
 
 def _get(me: str, path: str, timeline_rows: list[dict] | None = None) -> dict:
+    if path == "/review":
+        path += "?start=2026-08-19T00:00:00&end=2026-08-22T00:00:00"
     r = _client(me, timeline_rows).get(COUPLE + path)
     assert r.status_code == 200, r.text
     return r.json()
@@ -181,21 +229,77 @@ def test_sentiment_is_requester_own_terms_only(payloads):
 
 
 def test_review_scalars_survive_projection(payloads):
-    """dict 가 아닌 값(message_count, weeks)은 투영을 그대로 통과해야 한다."""
+    """message_count는 개인 축이 없는 스칼라이고 baseline은 최대 8주다."""
     a, _ = payloads["/review"]
-    assert a["metrics"]["range"]["message_count"] == 187
-    assert a["metrics"]["baseline"]["weeks"] == 8
+    assert a["metrics"]["range"]["message_count"] == 4
+    assert isinstance(a["metrics"]["baseline"]["message_count"], float)
+    assert a["metrics"]["baseline"]["weeks"] <= 8
+    assert a["metrics"]["comment"].endswith(".")
 
 
-def test_review_comment_has_no_change_amount_digits(payloads):
-    """comment는 변화 방향만 담아야 한다 — 변화량 숫자를 쓰면 ISSUE B4 위반 (2026-08-25 결정).
-    단, 기준선 기간을 가리키는 "N주"는 예시("지난 8주보다 ~")에 명시적으로 허용됨 — 그 외 숫자는 금지."""
+def _assert_review_contract(payload: dict) -> None:
+    metrics = payload["metrics"]
+    assert set(metrics) == {"range", "baseline", "comment"}
+    assert set(metrics["range"]) == {
+        "question_rate", "reply_gap_median_min", "message_count"
+    }
+    assert set(metrics["baseline"]) == {
+        "weeks", "question_rate", "reply_gap_median_min", "message_count"
+    }
+    assert metrics["baseline"]["weeks"] <= 8
+    for section in ("range", "baseline"):
+        for metric in ("question_rate", "reply_gap_median_min"):
+            assert set(metrics[section][metric]) == {"couple", "mine"}
+        assert not isinstance(metrics[section]["message_count"], dict)
+    assert isinstance(metrics["comment"], str)
+    assert metrics["comment"].endswith(".") and metrics["comment"].count(".") == 1
+    assert re.search(r"\d", metrics["comment"]) is None
+    _assert_no_private_axis_keys(payload)
+
+
+def test_review_final_contract_for_a_b_and_frontend_mock(payloads):
     a, b = payloads["/review"]
-    for payload in (a, b):
-        comment = payload["metrics"]["comment"]
-        assert comment, "comment가 비어있음"
-        stripped = re.sub(r"\d+주", "", comment)
-        assert not any(ch.isdigit() for ch in stripped), comment
+    mock = json.loads((WEB_MOCK_DIR / "review.json").read_text(encoding="utf-8"))
+    for payload in (a, b, mock):
+        _assert_review_contract(payload)
+
+    for section in ("range", "baseline"):
+        for metric in ("question_rate", "reply_gap_median_min"):
+            assert a["metrics"][section][metric]["couple"] == b["metrics"][section][metric]["couple"]
+            assert a["metrics"][section][metric]["mine"] != b["metrics"][section][metric]["mine"]
+        assert a["metrics"][section]["message_count"] == b["metrics"][section]["message_count"]
+    assert a["metrics"]["comment"] == b["metrics"]["comment"]
+
+
+def test_review_session_and_date_range_contract():
+    by_session = _client("a").get(f"{COUPLE}/review?session_id=1187")
+    assert by_session.status_code == 200
+    session_payload = by_session.json()
+    assert len(session_payload["sessions"]) == 1
+    assert session_payload["range"] == {
+        "start": session_payload["sessions"][0]["started_at"],
+        "end": session_payload["sessions"][0]["ended_at"],
+    }
+    assert session_payload["metrics"]["range"]["message_count"] == 4
+
+    by_date = _client("a").get(
+        f"{COUPLE}/review?start=2026-08-19T00:00:00&end=2026-08-22T00:00:00"
+    )
+    assert by_date.status_code == 200
+    date_payload = by_date.json()
+    assert date_payload["range"] == {
+        "start": "2026-08-19T00:00:00+09:00",
+        "end": "2026-08-22T00:00:00+09:00",
+    }
+    assert len(date_payload["sessions"]) == 1
+    assert date_payload["notes"][0]["note_id"] == 7
+
+
+def test_review_rejects_fifteen_day_range():
+    response = _client("a").get(
+        f"{COUPLE}/review?start=2026-08-01T00:00:00&end=2026-08-16T00:00:00"
+    )
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize(("path", "mock_name"), [

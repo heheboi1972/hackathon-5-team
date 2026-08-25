@@ -233,10 +233,12 @@
   - TASKS 2-13은 이 검증으로 완료 처리. 4-6("Instana에서 트레이스 확인")은 전제가 없어져 스킵 — 리뷰 시 `execution_trace` 조회로 대체
   - 영향: `docs/TRD.md` §9.1, `api/requirements.txt`, `api/app/config.py`, `.env.example`, `openshift/00-namespace-secret.yaml`, `docs/TASKS.md` 2-13·4-6
 
-### D4. [→] `ReviewMetrics.range/baseline: dict[str, Any]` (윤석+시여)
-- 돌아보기 화면(가장 늦게 확정)에 타입이 없어 프론트·백이 각자 추측. Phase 3 전까지 `WeekSummary` 서브셋 모델로 고정.
-- 파일: `models/api.py`, `types.ts`, `API_SPEC` §5.1
-- **담당자 판단 (해찬 결정 아님)**: 시여·윤석이 Phase 3 시작 전 30분 맞추면 됨. 기준은 API_SPEC §5.1 예시 JSON (A2 반영해 `initiation_ratio` 제거, **B3 반영해 `{couple, mine}` 형태**). 값 형태는 B3로 확정됐고 남은 건 타입으로 박을지 여부.
+### D4. [x] `ReviewMetrics` range/baseline 타입 확정 (윤석+시여) — **완료 (2026-08-25, 윤석)**
+- **결정**: `RangeMetrics`와 `BaselineMetrics`를 별도 타입으로 고정했다. 지표는 질문 비율·답장 시간·메시지 수 세 개이며, `question_rate`·`reply_gap_median_min`은 B3의 `{couple, mine}`, `message_count`는 개인별 분리 없는 커플 합산이다.
+- baseline은 최대 8주다. 날짜 범위의 `baseline.message_count`는 baseline 일평균을 선택 구간 길이에 맞춰 환산하고, `session_id` 조회는 과거 baseline 세션 `msg_count` 평균을 사용한다.
+- `metrics.comment`는 couple 값과 기존 band 규칙만으로 만드는 숫자 없는 방향성 한 문장이다. LLM은 호출하지 않는다.
+- **반영·검증**: `models/api.py`, `services/review_metrics.py`, `services/projection.py`, `types.ts`, `Review.tsx`, API_SPEC §5.1, TC-API-006·005-13 및 관련 pytest/TypeScript build.
+- **병합 메모 (2026-08-25, 윤아+윤석 합침)**: 윤석님이 실 DB 연결(`postgres_service.get_review_data`)까지 구현 완료. 윤아의 챗봇 쪽 `ChatResponse.metrics: ReviewMetrics | None`(A7) 필드와 겹치지 않아 그대로 병합 — 백엔드 143/152 pytest, 프론트 production build 모두 통과 확인.
 
 ---
 

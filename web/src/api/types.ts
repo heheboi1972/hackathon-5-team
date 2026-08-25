@@ -17,8 +17,8 @@ export interface ApiError {
 
 /** 커플 합산 + 요청자 본인 값. 상대 값은 응답에 담기지 않는다 (P-3 예외, ISSUE B3) */
 export interface CoupleMine {
-  couple?: number | null;
-  mine?: number | null;
+  couple: number | null;
+  mine: number | null;
 }
 
 // ---------------------------------------------------------------- 1. 인증 (FR-000)
@@ -249,8 +249,13 @@ export interface RangeMetrics {
   message_count: number; // 구간 합산, 개인별 미제공
 }
 
-export interface BaselineMetrics extends RangeMetrics {
-  weeks: number; // 기준선으로 쓴 과거 주 수 (보통 8)
+// RangeMetrics와 기간 의미가 달라 별도 타입으로 유지 (윤석, 2026-08-25).
+// message_count는 날짜범위 모드에서 baseline 일평균을 선택 구간 길이로 환산한 값이라 null일 수 있음.
+export interface BaselineMetrics {
+  weeks: number; // 기준선으로 쓴 과거 주 수 (보통 8, 최대 8)
+  question_rate: CoupleMine;
+  reply_gap_median_min: CoupleMine;
+  message_count: number | null;
 }
 
 export interface ReviewMetrics {

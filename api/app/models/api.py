@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 Who = Literal["a", "b"]
 CoupleStatus = Literal["pending", "awaiting_confirm", "active", "dissolved"]
@@ -300,22 +300,45 @@ class ReviewRange(BaseModel):
 
 
 class RangeMetrics(BaseModel):
-    """돌아보기 카드에 보여줄 지표 3개로 한정 (2026-08-25 결정).
+    """돌아보기 카드에 보여줄 지표 3개로 한정 (2026-08-25 결정, 윤아+윤석 병합).
     `message_count` 만 구간 합산 스칼라(개인별 미제공) — 나머지 2개는 CoupleMine.
     `message_length_median`·`session_length_median` 은 이 화면에서 뺌(타임라인/리포트에는 계속 있음)."""
     question_rate: CoupleMine
     reply_gap_median_min: CoupleMine   # 분 단위 — 타임라인·리포트와 단위 통일
     message_count: int
 
+    @field_validator("question_rate")
+    @classmethod
+    def question_rate_is_ratio(cls, value: CoupleMine) -> CoupleMine:
+        for item in (value.couple, value.mine):
+            if item is not None and not 0 <= item <= 1:
+                raise ValueError("question_rate는 0과 1 사이의 비율이어야 합니다")
+        return value
 
-class BaselineMetrics(RangeMetrics):
-    weeks: int  # 기준선으로 쓴 과거 주 수 (보통 8)
+
+class BaselineMetrics(BaseModel):
+    """RangeMetrics와 기간 의미가 달라 별도 계약으로 유지한다(윤석, 2026-08-25).
+    `message_count`는 날짜범위 모드에서 baseline 일평균을 선택 구간 길이로 환산한 값이라
+    float일 수 있다 — RangeMetrics.message_count(정수 합산)와 타입이 다르다."""
+    weeks: int = Field(ge=0, le=8)  # 기준선으로 쓴 과거 주 수 (보통 8)
+    question_rate: CoupleMine
+    reply_gap_median_min: CoupleMine
+    message_count: float | None
+
+    @field_validator("question_rate")
+    @classmethod
+    def question_rate_is_ratio(cls, value: CoupleMine) -> CoupleMine:
+        for item in (value.couple, value.mine):
+            if item is not None and not 0 <= item <= 1:
+                raise ValueError("question_rate는 0과 1 사이의 비율이어야 합니다")
+        return value
 
 
 class ReviewMetrics(BaseModel):
     """`comment`: 방향성 문장 1줄. 숫자를 넣지 않는다 — 리포트 하이라이트와 같은 규칙(ISSUE B4).
     숫자는 위 range/baseline 카드가 이미 보여주므로, comment는 방향만 요약한다.
-    예: "지난 8주보다 답장이 조금 빨라졌어요" (O) / "3분 빨라졌어요" (X)."""
+    실제 생성은 `services/review_metrics.py`의 `review_comment()`가 담당한다(LLM 미사용).
+    예: "평소보다 답장 간격이 조금 길어졌어요." (O) / "3분 길어졌어요." (X)."""
     range: RangeMetrics
     baseline: BaselineMetrics
     comment: str

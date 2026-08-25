@@ -334,15 +334,32 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "range": { "start": "...", "end": "..." },
   "sessions": [{ "session_id": 1187, "started_at": "...", "ended_at": "...", "initiator": "a", "msg_count": 34 }],
   "metrics": {
-    "range": { "question_rate": { "couple": 0.2, "mine": 0.1 }, "reply_gap_median_min": { "couple": 12, "mine": 3 }, "message_count": 187 },
-    "baseline": { "weeks": 8, "question_rate": { "couple": 0.23, "mine": 0.22 }, "reply_gap_median_min": { "couple": 5, "mine": 4 }, "message_count": 210 },
-    "comment": "지난 8주보다 답장이 많이 느려졌어요"
+    "range": {
+      "question_rate": { "couple": 0.2, "mine": 0.1 },
+      "reply_gap_median_min": { "couple": 12, "mine": 3 },
+      "message_count": 145
+    },
+    "baseline": {
+      "weeks": 8,
+      "question_rate": { "couple": 0.23, "mine": 0.22 },
+      "reply_gap_median_min": { "couple": 5, "mine": 4 },
+      "message_count": 132.5
+    },
+    "comment": "평소보다 답장 간격이 뚜렷하게 길어졌어요."
   },
   "notes": [{ "note_id": 7, "author": "a", "body": "시험 끝나고 싸움", "created_at": "..." }]
 }
 ```
 
-**2026-08-25 변경**: `metrics.range`/`metrics.baseline`를 3개 지표(question_rate·reply_gap_median_min·message_count)로 한정하고 `comment`(방향 문장 1줄, 숫자 없음 — ISSUE B4와 동일 규칙)를 추가함. `message_length_median`·`session_length_median`은 이 화면에서 제외(타임라인·리포트에는 계속 있음). `message_count`는 구간 합산 스칼라(개인별 미제공).
+**지표 규칙**
+- `question_rate`는 API에서 `0.0~1.0` 비율을 유지하며, 퍼센트 변환은 프론트에서 한다.
+- `reply_gap_median_min`은 기존 답장 간격 중앙값이며 단위는 분이다.
+- `message_count`는 개인별로 나누지 않은 선택 구간의 커플 전체 메시지 수다.
+- baseline은 선택 구간 직전 과거 데이터이며 최대 8주다. 비교에 필요한 과거 데이터가 부족한 값은 `null`로 유지한다.
+- 날짜 범위 조회의 `baseline.message_count`는 baseline 실제 일평균에 선택 구간 길이를 곱해 환산한다. 기존 `start`/`end` 기간 길이에 임의로 하루를 더하지 않는다.
+- `session_id` 조회의 `baseline.message_count`는 baseline에 포함된 과거 세션 `msg_count`의 평균이다.
+- `comment`는 `couple` 값만 사용한 숫자 없는 방향성 한 문장이다. 기존 지표 band 규칙으로 코드가 결정론적으로 만들며 LLM을 호출하지 않는다. (윤석 구현, 2026-08-25)
+- `message_length_median`·`session_length_median`은 이 화면에서 제외한다(타임라인·리포트에는 계속 있음).
 
 ### 5.2 POST /api/couples/{couple_id}/notes
 

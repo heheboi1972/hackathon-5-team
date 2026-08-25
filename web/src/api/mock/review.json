@@ -16,15 +16,15 @@
     "range": {
       "question_rate": { "couple": 0.2, "mine": 0.1 },
       "reply_gap_median_min": { "couple": 12, "mine": 3 },
-      "message_count": 187
+      "message_count": 145
     },
     "baseline": {
       "weeks": 8,
       "question_rate": { "couple": 0.23, "mine": 0.22 },
       "reply_gap_median_min": { "couple": 5, "mine": 4 },
-      "message_count": 210
+      "message_count": 132.5
     },
-    "comment": "지난 8주보다 답장이 많이 느려졌어요"
+    "comment": "평소보다 답장 간격이 뚜렷하게 길어졌어요."
   },
   "notes": [
     {
