@@ -1,5 +1,6 @@
 // 역할: 라우트 정의 (참조: TRD §6.1) — 가드(couples/me 분기)는 TODO(시여)
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import ChatPage from "./pages/ChatPage";
 import Onboarding from "./pages/Onboarding";
 import Report from "./pages/Report";
 import Review from "./pages/Review";
@@ -14,6 +15,7 @@ const navigationItems = [
   { label: "타임라인", icon: "home", path: "/", matches: (pathname: string) => pathname === "/" || pathname.startsWith("/timeline") },
   { label: "주간 리포트", icon: "calendar", path: "/report", matches: (pathname: string) => pathname === "/report" || pathname.startsWith("/reports/") },
   { label: "돌아보기", icon: "chat", path: "/review", matches: (pathname: string) => pathname.startsWith("/review") },
+  { label: "챗봇", icon: "chat", path: "/chat", matches: (pathname: string) => pathname.startsWith("/chat") },
   { label: "대화 올리기", icon: "upload", path: "/upload", matches: (pathname: string) => pathname.startsWith("/upload") },
   { label: "설정", icon: "settings", path: "/settings", matches: (pathname: string) => pathname.startsWith("/settings") },
 ];
@@ -89,6 +91,7 @@ function AppShell() {
           />
           <Route path="/reports/:week" element={<Report />} />
           <Route path="/review" element={<Review />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/onboarding" replace />} />
         </Routes>
