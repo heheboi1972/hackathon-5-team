@@ -15,17 +15,16 @@
   "metrics": {
     "range": {
       "question_rate": { "couple": 0.2, "mine": 0.1 },
-      "message_length_median": { "couple": 13, "mine": 9 },
       "reply_gap_median_min": { "couple": 12, "mine": 3 },
-      "session_length_median": 34
+      "message_count": 187
     },
     "baseline": {
       "weeks": 8,
       "question_rate": { "couple": 0.23, "mine": 0.22 },
-      "message_length_median": { "couple": 13, "mine": 14 },
       "reply_gap_median_min": { "couple": 5, "mine": 4 },
-      "session_length_median": 22
-    }
+      "message_count": 210
+    },
+    "comment": "지난 8주보다 답장이 많이 느려졌어요"
   },
   "notes": [
     {

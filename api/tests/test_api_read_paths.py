@@ -3,6 +3,7 @@
 from copy import deepcopy
 from datetime import date, timedelta
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -180,10 +181,21 @@ def test_sentiment_is_requester_own_terms_only(payloads):
 
 
 def test_review_scalars_survive_projection(payloads):
-    """dict 가 아닌 값(session_length_median, weeks)은 투영을 그대로 통과해야 한다."""
+    """dict 가 아닌 값(message_count, weeks)은 투영을 그대로 통과해야 한다."""
     a, _ = payloads["/review"]
-    assert a["metrics"]["range"]["session_length_median"] == 34
+    assert a["metrics"]["range"]["message_count"] == 187
     assert a["metrics"]["baseline"]["weeks"] == 8
+
+
+def test_review_comment_has_no_change_amount_digits(payloads):
+    """comment는 변화 방향만 담아야 한다 — 변화량 숫자를 쓰면 ISSUE B4 위반 (2026-08-25 결정).
+    단, 기준선 기간을 가리키는 "N주"는 예시("지난 8주보다 ~")에 명시적으로 허용됨 — 그 외 숫자는 금지."""
+    a, b = payloads["/review"]
+    for payload in (a, b):
+        comment = payload["metrics"]["comment"]
+        assert comment, "comment가 비어있음"
+        stripped = re.sub(r"\d+주", "", comment)
+        assert not any(ch.isdigit() for ch in stripped), comment
 
 
 @pytest.mark.parametrize(("path", "mock_name"), [

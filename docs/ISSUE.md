@@ -64,14 +64,14 @@
   - compose 의 `./data:/app/data:ro` 볼륨은 **유지** — 개발 중에는 볼륨이 이미지 것을 덮어써 재빌드 없이 지식 문서를 고칠 수 있고, OpenShift 에는 볼륨이 없으니 이미지 안의 것을 쓴다
   - **검증**: 이미지 빌드 후 컨테이너 안에서 `load_knowledge` 실행 → `seed_lexicon: 61` (수정 전이면 0). `docs`·`templates` 가 0 인 건 파일이 아직 비어서고(TASKS 1-7·2-11), A6 와 무관
 
-### A7. [ ] 챗봇 `metric_query` 의 수치·노출 정책
+### A7. [x] 챗봇 `metric_query` 의 수치·노출 정책
 - **문제**: B3(지표는 `couple`+`mine` 만)·B4(LLM 문장에 숫자 금지)를 리포트 경로에만 적용했다. 챗봇 `metric_query` 는 공백이다.
   - `tools.get_metrics` 가 저장형(`a`/`b`)을 주면 B3 가 이 경로로 무너진다
   - LLM 에 숫자를 그대로 주면 B4 와 어긋난다. 반대로 밴딩만 주면 "얼마나 빨라?" 에 답을 못 한다
   - `term_count` 는 A3 에서 "커플 합산만, 사람 지목해도 합산 + 안내 문구"까지 정했는데 `metric_query` 만 빠져 있다
 - **선택지**: (가) `term_count` 와 같은 규칙 — 커플 값만, 숫자 허용 / (나) 커플 값 + `mine` 까지 (본인이 물었으니), 숫자 허용 / (다) 리포트와 동일하게 밴딩만
-- **영향**: `tools/get_metrics.py`, `prompts/chat_answer.md`, `agents/chat_supervisor.py`, API_SPEC §6.1·§8, TC-API-008-2
-- **결정**:
+- **영향**: `tools/get_metrics.py`, `prompts/chat_answer.md`, `agents/chat_supervisor.py`, `models/api.py` `ChatResponse`, `web/src/api/types.ts`, API_SPEC §6.1·§8, TC-API-008-2
+- **결정 (2026-08-25, 윤아)**: **(나)에 가깝되, 숫자를 문장이 아니라 별도 구조화 필드로 뺀다.** 돌아보기(FR-005) 화면과 완전히 같은 `{range, baseline, comment}` 카드 형태를 그대로 재사용 — `ChatResponse`에 `metrics: ReviewMetrics | None` 필드를 새로 추가해 `couple`+`mine`(본인 값)까지 숫자로 그대로 보여주고(B3 준수), `answer`(LLM이 쓰는 문장)에는 숫자를 **예외 없이** 금지한다(B4를 리포트보다 더 엄격하게 적용 — "얼마나 빨라?"에는 카드가 답하고, 문장은 방향만 말한다). "정확히 몇 %야?" 류 질문도 문장으로 숫자를 불러주지 않고 카드를 보라고 안내함. 이렇게 하면 (다)안의 단점("얼마나 빨라?"에 답 못 함)과 (나)안의 단점(LLM이 숫자를 실수로 잘못 말할 위험) 둘 다 회피됨. `comment`는 LLM이 아니라 코드가 결정론적으로 생성(`services/projection.py`)해서 B4를 재현성 있게 보장. 반영: `prompts/chat_answer.md`(2026-08-25 개정), `models/api.py`/`types.ts`(`metrics` 필드 추가). **남은 일**: `tools/get_metrics.py`가 아직 이 형태를 반환하지 않음(현재는 주차별 리스트) — 윤석과 구현 조율 필요, `build_review()` 재사용 권장.
 
 ---
 

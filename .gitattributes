@@ -1,4 +1,0 @@
-# 카톡 내보내기 픽스처는 줄바꿈이 곧 테스트 대상이다.
-# autocrlf 가 LF 로 정규화하면 "메시지 내부 줄바꿈도 CRLF" 인 Android 회귀를
-# 픽스처가 재현하지 못하므로 바이트 그대로 보관한다. (TC-PARSE-005)
-api/tests/fixtures/kakao/*.txt -text

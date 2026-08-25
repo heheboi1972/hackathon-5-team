@@ -334,12 +334,15 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "range": { "start": "...", "end": "..." },
   "sessions": [{ "session_id": 1187, "started_at": "...", "ended_at": "...", "initiator": "a", "msg_count": 34 }],
   "metrics": {
-    "range": { "question_rate": { "couple": 0.2, "mine": 0.1 }, "message_length_median": { "couple": 13, "mine": 9 }, "reply_gap_median_min": { "couple": 12, "mine": 3 }, "session_length_median": 34 },
-    "baseline": { "weeks": 8, "question_rate": { "couple": 0.23, "mine": 0.22 }, "message_length_median": { "couple": 13, "mine": 14 }, "reply_gap_median_min": { "couple": 5, "mine": 4 }, "session_length_median": 22 }
+    "range": { "question_rate": { "couple": 0.2, "mine": 0.1 }, "reply_gap_median_min": { "couple": 12, "mine": 3 }, "message_count": 187 },
+    "baseline": { "weeks": 8, "question_rate": { "couple": 0.23, "mine": 0.22 }, "reply_gap_median_min": { "couple": 5, "mine": 4 }, "message_count": 210 },
+    "comment": "지난 8주보다 답장이 많이 느려졌어요"
   },
   "notes": [{ "note_id": 7, "author": "a", "body": "시험 끝나고 싸움", "created_at": "..." }]
 }
 ```
+
+**2026-08-25 변경**: `metrics.range`/`metrics.baseline`를 3개 지표(question_rate·reply_gap_median_min·message_count)로 한정하고 `comment`(방향 문장 1줄, 숫자 없음 — ISSUE B4와 동일 규칙)를 추가함. `message_length_median`·`session_length_median`은 이 화면에서 제외(타임라인·리포트에는 계속 있음). `message_count`는 구간 합산 스칼라(개인별 미제공).
 
 ### 5.2 POST /api/couples/{couple_id}/notes
 
@@ -394,9 +397,27 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "answer": "2026년 3월 14일 저녁 대화에서 A가 처음 '자기야'라고 불렀어요.",
   "citations": [{ "session_id": 812, "at": "2026-03-14T19:22:00+09:00", "sender": "a", "snippet": "자기야 뭐해" }],
   "redirect": null,
-  "trace_id": "uuid"
+  "trace_id": "uuid",
+  "metrics": null
 }
 ```
+
+**`metric_query` 응답 예시 (2026-08-25 결정, ISSUE A7)** — 숫자는 `metrics` 카드로만 나가고 `answer`는 방향 문장 1줄뿐:
+```json
+{
+  "intent": "metric_query",
+  "answer": "지난 8주보다 답장이 많이 느려졌어요.",
+  "citations": [],
+  "redirect": null,
+  "trace_id": "uuid",
+  "metrics": {
+    "range": { "question_rate": { "couple": 0.2, "mine": 0.1 }, "reply_gap_median_min": { "couple": 12, "mine": 3 }, "message_count": 187 },
+    "baseline": { "weeks": 8, "question_rate": { "couple": 0.23, "mine": 0.22 }, "reply_gap_median_min": { "couple": 5, "mine": 4 }, "message_count": 210 },
+    "comment": "지난 8주보다 답장이 많이 느려졌어요"
+  }
+}
+```
+`metrics`는 metric_query 외에는 항상 `null`. 프론트는 이 카드를 돌아보기 화면과 동일한 컴포넌트로 그리면 됨(§5.1 `ReviewMetrics`와 타입 동일).
 
 **advice_request**
 ```json
@@ -419,7 +440,7 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 | 툴 | 시그니처 | 설명 |
 |---|---|---|
 | `search_conversation` | `(couple_id, query, start?, end?, k=8) → [{session_id, at, sender, snippet, score}]` | 컬렉션 A 벡터 검색 + 메타 필터 |
-| `get_metrics` | `(couple_id, week_start? \| range?) → summary + metrics` | Postgres 조회 |
+| `get_metrics` | `(couple_id, focus_range?) → {range: RangeMetrics, baseline: BaselineMetrics, comment: str}` — 돌아보기(§5.1) 화면과 동일한 range-vs-baseline 형태 (2026-08-25 결정, ISSUE A7). `comment`는 코드가 숫자 없이 방향만 생성(`services/projection.py`) | Postgres 조회, `build_review()` 로직 재사용 권장 |
 | `get_report` | `(couple_id, week_start) → report` | Postgres 조회 |
 | `search_knowledge` | `(metric, direction, k=5) → [{doc, section, text, source}]` | 지식 dict (`data/knowledge/interpretations`, 메모리) |
 | `get_suggestion_templates` | `(metric, direction) → [{template_id, text}]` | 지식 dict (`data/knowledge/templates.json`, 메모리) |

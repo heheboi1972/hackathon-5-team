@@ -299,9 +299,26 @@ class ReviewRange(BaseModel):
     end: datetime
 
 
+class RangeMetrics(BaseModel):
+    """돌아보기 카드에 보여줄 지표 3개로 한정 (2026-08-25 결정).
+    `message_count` 만 구간 합산 스칼라(개인별 미제공) — 나머지 2개는 CoupleMine.
+    `message_length_median`·`session_length_median` 은 이 화면에서 뺌(타임라인/리포트에는 계속 있음)."""
+    question_rate: CoupleMine
+    reply_gap_median_min: CoupleMine   # 분 단위 — 타임라인·리포트와 단위 통일
+    message_count: int
+
+
+class BaselineMetrics(RangeMetrics):
+    weeks: int  # 기준선으로 쓴 과거 주 수 (보통 8)
+
+
 class ReviewMetrics(BaseModel):
-    range: dict[str, Any]
-    baseline: dict[str, Any]
+    """`comment`: 방향성 문장 1줄. 숫자를 넣지 않는다 — 리포트 하이라이트와 같은 규칙(ISSUE B4).
+    숫자는 위 range/baseline 카드가 이미 보여주므로, comment는 방향만 요약한다.
+    예: "지난 8주보다 답장이 조금 빨라졌어요" (O) / "3분 빨라졌어요" (X)."""
+    range: RangeMetrics
+    baseline: BaselineMetrics
+    comment: str
 
 
 class NoteResponse(BaseModel):
@@ -352,11 +369,16 @@ class Citation(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    """`metrics`: metric_query 전용 카드 (2026-08-25 결정, ISSUE A7).
+    숫자는 여기(range/baseline 카드)로만 나가고, `answer`는 comment 스타일로 방향만 말한다
+    (metrics.comment를 그대로 쓰거나 질문에 맞게 살짝만 다듬는다 — 새 숫자 계산 금지, B4).
+    metric_query가 아니면 항상 null."""
     intent: Intent
     answer: str | None
     citations: list[Citation] = []
     redirect: str | None = None
     trace_id: str
+    metrics: ReviewMetrics | None = None
 
 
 # ---------------------------------------------------------------- 7. 시스템

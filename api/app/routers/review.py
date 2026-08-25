@@ -2,6 +2,12 @@
 # 스캐폴딩 스텁: 고정 저장형. 구간 지표·기준선 계산은 TODO
 # 라우터는 응답 모델을 직접 만들지 않는다 — services.projection.build_review 만 호출 (ISSUE B3).
 # 지표는 {couple, mine} — 상대 값 미전송. 타입 고정은 ISSUE D4
+#
+# 2026-08-25: metrics.range/baseline 을 question_rate·reply_gap_median_min·message_count
+# 3개로 한정 + comment(방향 문장, 숫자 없음) 추가 — models/api.py RangeMetrics/BaselineMetrics/
+# ReviewMetrics, services/projection.py 참고. message_length_median·session_length_median 은
+# 이 화면에서 제외(리포트/타임라인에는 계속 있음). ⚠️ 프론트(Review.tsx 등, 시여 담당) 쪽도
+# web/src/api/mock/review.json 새 형태에 맞춰 렌더링 수정 필요.
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -16,7 +22,8 @@ router = APIRouter(prefix="/api/couples", tags=["review"])
 
 KST = timezone(timedelta(hours=9))
 
-# 구간 저장형 (사람별 a/b). 각 지표 dict 는 {couple, a, b}, 스칼라는 그대로 통과
+# 구간 저장형 (사람별 a/b). question_rate·reply_gap_median_min 은 {couple, a, b},
+# message_count 는 구간 합산 스칼라(개인별 미제공, 2026-08-25 결정).
 _STORED = {
     "sessions": [
         {
@@ -30,16 +37,14 @@ _STORED = {
     "metrics": {
         "range": {
             "question_rate": {"couple": 0.2, "a": 0.1, "b": 0.3},
-            "message_length_median": {"couple": 13, "a": 9, "b": 20},
             "reply_gap_median_min": {"couple": 12, "a": 3, "b": 41},
-            "session_length_median": 34,
+            "message_count": 187,
         },
         "baseline": {
             "weeks": 8,
             "question_rate": {"couple": 0.23, "a": 0.22, "b": 0.24},
-            "message_length_median": {"couple": 13, "a": 14, "b": 12},
             "reply_gap_median_min": {"couple": 5, "a": 4, "b": 6},
-            "session_length_median": 22,
+            "message_count": 210,
         },
     },
     "notes": [

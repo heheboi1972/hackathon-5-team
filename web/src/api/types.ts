@@ -241,14 +241,29 @@ export interface NoteResponse {
   created_at: string;
 }
 
+// 돌아보기 카드 지표 3개로 한정 (2026-08-25 결정, ISSUE D4 해소).
+// message_length_median·session_length_median 은 이 화면에서 뺌 (타임라인/리포트에는 그대로 있음).
+export interface RangeMetrics {
+  question_rate: CoupleMine;
+  reply_gap_median_min: CoupleMine; // 분 단위 — 타임라인·리포트와 단위 통일
+  message_count: number; // 구간 합산, 개인별 미제공
+}
+
+export interface BaselineMetrics extends RangeMetrics {
+  weeks: number; // 기준선으로 쓴 과거 주 수 (보통 8)
+}
+
+export interface ReviewMetrics {
+  range: RangeMetrics;
+  baseline: BaselineMetrics;
+  // 방향성 문장 1줄. 숫자 없음 — 리포트 하이라이트와 같은 규칙(ISSUE B4). 숫자는 위 카드가 이미 보여줌.
+  comment: string;
+}
+
 export interface ReviewResponse {
   range: { start: string; end: string };
   sessions: SessionInfo[];
-  // 값은 CoupleMine 형태 (+ range.session_length_median, baseline.weeks 는 스칼라). 타입 고정은 ISSUE D4
-  metrics: {
-    range: Record<string, unknown>;
-    baseline: Record<string, unknown>;
-  };
+  metrics: ReviewMetrics;
   notes: NoteResponse[];
 }
 
@@ -284,6 +299,9 @@ export interface ChatResponse {
   citations: Citation[];
   redirect: string | null;
   trace_id: string;
+  // metric_query 전용 카드 (2026-08-25 결정, ISSUE A7). 숫자는 여기로만 나가고 answer는 방향 문장만.
+  // metric_query가 아니면 항상 null.
+  metrics: ReviewMetrics | null;
 }
 
 // ---------------------------------------------------------------- 7. 시스템

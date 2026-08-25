@@ -33,6 +33,25 @@ PER_PERSON_SUMMARY_KEYS = (
     "resume_delay_median_min",
 )
 
+# 돌아보기(review) 카드에 실제로 보여주는 CoupleMine 지표 2개 (2026-08-25 결정).
+# message_length_median·session_length_median 은 이 화면에서 뺀다 — 타임라인/리포트에는 그대로 있음.
+REVIEW_COUPLE_MINE_KEYS = ("question_rate", "reply_gap_median_min")
+
+# 돌아보기 comment 생성 시 우선순위 (응답 속도가 체감이 커서 먼저 본다) + 방향별 문구.
+# 숫자를 절대 안 쓴다 (ISSUE B4와 같은 규칙) — select_agent._reason() 처럼 코드로 생성해
+# 재현성 있게 규칙을 보장한다 (LLM 미사용).
+_REVIEW_COMMENT_METRICS = ("reply_gap_median_min", "question_rate")
+_REVIEW_COMMENT_PHRASES = {
+    "reply_gap_median_min": {
+        "up": "지난 {weeks}주보다 답장이 {deg} 느려졌어요",
+        "down": "지난 {weeks}주보다 답장이 {deg} 빨라졌어요",
+    },
+    "question_rate": {
+        "up": "지난 {weeks}주보다 질문이 {deg} 늘어난 편이에요",
+        "down": "지난 {weeks}주보다 질문이 {deg} 줄어든 편이에요",
+    },
+}
+
 
 # ---------------------------------------------------------------- 필드 단위 투영
 
@@ -67,6 +86,45 @@ def project_metrics(stored: dict[str, Any], me: Who) -> dict[str, Any]:
 def strip_who(outliers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """moments 조립용. 이상치 **판정**은 사람별 분포로 계속하고(정확도), 응답에서 `who` 만 뺀다."""
     return [{k: v for k, v in o.items() if k != "who"} for o in outliers]
+
+
+def _project_review_metrics(stored: dict[str, Any], me: Who) -> dict[str, Any]:
+    """구간/기준선 저장형 → RangeMetrics/BaselineMetrics 투영.
+    question_rate·reply_gap_median_min 만 {couple, mine}으로 투영하고,
+    message_count(구간 합산 스칼라)·weeks(기준선 표기용)는 그대로 통과시킨다."""
+    out: dict[str, Any] = {}
+    for key in REVIEW_COUPLE_MINE_KEYS:
+        if isinstance(stored.get(key), dict):
+            out[key] = _pick(stored[key], me)
+    if "message_count" in stored:
+        out["message_count"] = stored["message_count"]
+    if "weeks" in stored:
+        out["weeks"] = stored["weeks"]
+    return out
+
+
+def _review_comment(range_metrics: dict[str, Any], baseline_metrics: dict[str, Any]) -> str:
+    """구간 vs 기준선 방향 문장 1줄 — 숫자 없이 정도만 (ISSUE B4와 동일 규칙).
+    변화 폭(상대 비율)이 가장 뚜렷한 지표 하나만 골라 말한다(여러 지표를 한 문장에 욱여넣지 않음).
+    `couple` 값 기준으로 방향을 정한다 — 개인 값(mine)으로 방향이 갈리면 혼란스러워서다."""
+    weeks = baseline_metrics.get("weeks", 8)
+    best: tuple[str, float] | None = None  # (metric, delta 비율)
+    for metric in _REVIEW_COMMENT_METRICS:
+        cur = (range_metrics.get(metric) or {}).get("couple")
+        base = (baseline_metrics.get(metric) or {}).get("couple")
+        if cur is None or base is None or base == 0:
+            continue
+        delta = (cur - base) / base
+        if best is None or abs(delta) > abs(best[1]):
+            best = (metric, delta)
+
+    if best is None or abs(best[1]) < 0.05:
+        return f"지난 {weeks}주와 비슷한 흐름이에요"
+
+    metric, delta = best
+    direction = "up" if delta > 0 else "down"
+    degree = "많이" if abs(delta) >= 0.3 else "조금"
+    return _REVIEW_COMMENT_PHRASES[metric][direction].format(weeks=weeks, deg=degree)
 
 
 # ---------------------------------------------------------------- 응답 조립 (라우터가 부르는 것)
@@ -129,13 +187,22 @@ def build_report(stored: dict[str, Any], me: Who, week_start: date) -> ReportRes
 
 
 def build_review(stored: dict[str, Any], me: Who, start: datetime, end: datetime) -> ReviewResponse:
-    """구간 저장형 → 돌아보기 응답. `metrics.range`·`metrics.baseline` 둘 다 투영한다."""
+    """구간 저장형 → 돌아보기 응답.
+
+    지표는 question_rate·reply_gap_median_min(CoupleMine) + message_count(구간 합산, 개인별
+    미제공) 3개로 한정한다 — message_length_median·session_length_median 은 응답에서 뺀다
+    (카드에 안 보여주기로 결정, 2026-08-25). `comment` 는 `_review_comment()` 가 숫자 없이
+    방향만 코드로 생성한다(LLM 미사용 — B4를 재현성 있게 보장하기 위함).
+    """
+    range_metrics = _project_review_metrics(stored["metrics"]["range"], me)
+    baseline_metrics = _project_review_metrics(stored["metrics"]["baseline"], me)
     return ReviewResponse.model_validate({
         "range": {"start": start, "end": end},
         "sessions": stored["sessions"],
         "metrics": {
-            "range": project_metrics(stored["metrics"]["range"], me),
-            "baseline": project_metrics(stored["metrics"]["baseline"], me),
+            "range": range_metrics,
+            "baseline": baseline_metrics,
+            "comment": _review_comment(range_metrics, baseline_metrics),
         },
         "notes": stored["notes"],
     })
