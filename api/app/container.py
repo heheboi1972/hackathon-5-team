@@ -4,16 +4,25 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
+from .agents.interpret_agent import InterpretAgent
+from .agents.report_supervisor import ReportSupervisor
+from .agents.safety_agent import SafetyAgent
+from .agents.select_agent import SelectAgent
+from .agents.suggest_agent import SuggestAgent
 from .config import Settings
 from .services.ai_service import AIService, build_ai_service
 from .services.crypto import BodyCipher
-from .services.jobs import JobService
+from .services.jobs import JobService, ReportJobHandler
 from .services.lexicon import BuildLexiconService
 from .services.knowledge import Knowledge, load_knowledge
 from .services.postgres_service import PostgresService
 from .services.qdrant_service import QdrantService
+from .tools.get_suggestion_templates import get_suggestion_templates
+from .tools.search_conversation import search_conversation
+from .tools.search_knowledge import search_knowledge
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +37,8 @@ class Container:
     jobs: JobService
     knowledge: Knowledge  # 지식 문서·템플릿·감성 시드 사전 (메모리, ISSUE D2)
     lexicon: BuildLexiconService
+    report_supervisor: ReportSupervisor
+    report_jobs: ReportJobHandler
     postgres_up: bool = False
     qdrant_up: bool = False
     # TODO(윤석): agents = {select, interpret, suggest, safety}, report_supervisor, chat_supervisor
@@ -58,6 +69,27 @@ async def build_container(settings: Settings) -> Container:
     knowledge = load_knowledge(Path(settings.knowledge_dir))
     lexicon = BuildLexiconService(pg, ai, cipher, knowledge.seed_lexicon)
     jobs.register("build_lexicon", lexicon.handle_job)
+    if ai.provider_name == "mock":
+        async def conversation_tool(*_args, **_kwargs):
+            return []
+
+        def suggestion_tool(metric: str, direction: str):
+            return get_suggestion_templates(metric, direction, knowledge=knowledge)
+    else:
+        conversation_tool = partial(search_conversation, ai=ai, qdrant=qd)
+
+        def suggestion_tool(metric: str, direction: str):
+            return get_suggestion_templates(metric, direction, knowledge=knowledge)
+
+    select = SelectAgent(ai)
+    interpret = InterpretAgent(ai, conversation_tool,
+                               partial(search_knowledge, knowledge=knowledge))
+    suggest = SuggestAgent(ai, suggestion_tool)
+    safety = SafetyAgent(ai)
+    supervisor = ReportSupervisor(select, interpret, suggest, safety)
+    report_jobs = ReportJobHandler(pg, supervisor, max_concurrency=3)
+    jobs.register("report_backfill", report_jobs)
+    jobs.register("report_single", report_jobs)
     c = Container(
         settings=settings,
         ai=ai,
@@ -67,6 +99,8 @@ async def build_container(settings: Settings) -> Container:
         jobs=jobs,
         knowledge=knowledge,
         lexicon=lexicon,
+        report_supervisor=supervisor,
+        report_jobs=report_jobs,
     )
 
     # 저장소가 아직 안 떴어도 앱은 뜬다 — /health/ready 가 503으로 알려줌

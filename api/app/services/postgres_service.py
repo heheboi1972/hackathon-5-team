@@ -275,12 +275,12 @@ class PostgresService:
                        (SELECT count(*) FROM weekly_metrics w WHERE w.couple_id=c.couple_id) AS weeks_available,
                        (SELECT count(*) FROM messages m WHERE m.couple_id=c.couple_id) AS message_count,
                        j.job_id AS active_job_id, j.kind AS active_job_kind,
-                       j.done AS active_job_done, j.total AS active_job_total
+                       j.progress_done AS active_job_done, j.progress_total AS active_job_total
                   FROM couples c
                   JOIN users ua ON ua.user_id = c.user_a
                   LEFT JOIN users ub ON ub.user_id = c.user_b
                   LEFT JOIN LATERAL (
-                    SELECT job_id, kind, done, total FROM jobs
+                    SELECT job_id, kind, progress_done, progress_total FROM jobs
                      WHERE couple_id=c.couple_id AND status IN ('queued','running')
                      ORDER BY created_at DESC LIMIT 1
                   ) j ON true
@@ -436,16 +436,17 @@ class PostgresService:
             )
             return cur.rowcount
 
-    async def create_job(self, couple_id: UUID, kind: str, total: int = 0) -> UUID:
+    async def create_job(self, couple_id: UUID, kind: str, total: int = 0,
+                         payload: dict[str, Any] | None = None) -> UUID:
         initial = "done" if total == 0 else "queued"
         async with self.pool.connection() as conn:
             row = await (
                 await conn.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, total)
-                    VALUES (%s, %s, %s, %s) RETURNING job_id
+                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    VALUES (%s, %s, %s, %s, %s) RETURNING job_id
                     """,
-                    (couple_id, kind, initial, total),
+                    (couple_id, kind, initial, total, Jsonb(payload or {})),
                 )
             ).fetchone()
             return row[0]
@@ -459,7 +460,9 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT j.job_id, j.kind, j.status, j.total, j.done, j.failed, j.current_week
+                SELECT j.job_id, j.kind, j.status,
+                       j.progress_total AS total, j.progress_done AS done,
+                       j.progress_failed AS failed, j.current_week
                   FROM jobs j JOIN couples c ON c.couple_id=j.couple_id
                  WHERE j.job_id=%s AND (c.user_a=%s OR c.user_b=%s)
                 """,
@@ -500,7 +503,8 @@ class PostgresService:
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                UPDATE jobs SET done=%s, failed=%s, current_week=%s, updated_at=now()
+                UPDATE jobs SET progress_done=%s, progress_failed=%s,
+                       current_week=%s, updated_at=now()
                  WHERE job_id=%s
                 """,
                 (done, failed, current_week, job_id),
@@ -512,13 +516,123 @@ class PostgresService:
                 """
                 UPDATE jobs
                    SET status=%s, error=%s,
-                       done=CASE WHEN %s IS NULL THEN total ELSE done END,
-                       failed=CASE WHEN %s IS NULL THEN failed ELSE greatest(failed, 1) END,
+                       progress_done=CASE WHEN %s IS NULL THEN progress_total ELSE progress_done END,
+                       progress_failed=CASE WHEN %s IS NULL THEN progress_failed ELSE greatest(progress_failed, 1) END,
                        updated_at=now()
                  WHERE job_id=%s
                 """,
                 ("done" if error is None else "failed", error, error, error, job_id),
             )
+
+    async def set_job_total(self, job_id: UUID, total: int) -> None:
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                "UPDATE jobs SET progress_total=%s, updated_at=now() WHERE job_id=%s",
+                (total, job_id),
+            )
+
+    # -------------------------------------------------------------- reports
+
+    async def get_report_job_weeks(self, job: dict[str, Any]) -> list[dict[str, Any]]:
+        payload = job.get("payload") or {}
+        weeks = payload.get("weeks") or []
+        filters = ["wm.couple_id=%s"]
+        params: list[Any] = [job["couple_id"]]
+        if weeks:
+            filters.append("wm.week_start = ANY(%s::date[])")
+            params.append(weeks)
+        async with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                f"""
+                SELECT wm.couple_id, wm.week_start, wm.summary, wm.metrics, wm.outliers,
+                       wm.summary_hash, r.summary_hash AS report_summary_hash,
+                       r.status AS report_status
+                  FROM weekly_metrics wm
+                  LEFT JOIN reports r USING (couple_id, week_start)
+                 WHERE {' AND '.join(filters)}
+                 ORDER BY wm.week_start DESC
+                """,
+                params,
+            )
+            rows = [dict(row) for row in await cur.fetchall()]
+        for row in rows:
+            row["weekly_terms"] = await self._report_terms(row["couple_id"], row["week_start"])
+        return rows
+
+    async def _report_terms(self, couple_id: UUID, week_start: date) -> dict[str, Any]:
+        result = {"a": {"pos": [], "neg": []}, "b": {"pos": [], "neg": []}}
+        async with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                """
+                SELECT sender, canonical, sentiment, count FROM (
+                    SELECT sender, canonical, sentiment, count,
+                           row_number() OVER (
+                               PARTITION BY sender, sentiment
+                               ORDER BY count DESC, canonical
+                           ) AS rank
+                      FROM weekly_terms
+                     WHERE couple_id=%s AND week_start=%s
+                       AND sentiment IN ('pos','neg') AND count >= 3
+                ) ranked
+                 WHERE rank <= 3 ORDER BY sender, sentiment, count DESC, canonical
+                """,
+                (couple_id, week_start),
+            )
+            for row in await cur.fetchall():
+                result[row["sender"]][row["sentiment"]].append(
+                    {"canonical": row["canonical"], "count": row["count"]})
+        return result
+
+    async def get_report_record(self, couple_id: UUID, week_start: date) -> dict[str, Any] | None:
+        async with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                """
+                SELECT wm.summary, wm.metrics, coalesce(r.status, 'pending') AS status,
+                       coalesce(r.report_json, '{}'::jsonb) AS report_json
+                  FROM weekly_metrics wm LEFT JOIN reports r USING (couple_id, week_start)
+                 WHERE wm.couple_id=%s AND wm.week_start=%s
+                """,
+                (couple_id, week_start),
+            )
+            row = await cur.fetchone()
+        if row is None:
+            return None
+        stored = dict(row["report_json"] or {})
+        stored.update({"status": row["status"], "summary": stored.get("summary", row["summary"]),
+                       "metrics": stored.get("metrics", {} if row["status"] == "pending" else row["metrics"]),
+                       "highlights": stored.get("highlights", []),
+                       "suggestions": stored.get("suggestions", []),
+                       "moments": stored.get("moments", []),
+                       "safety": stored.get("safety")})
+        stored["weekly_terms"] = stored.get("weekly_terms") or await self._report_terms(couple_id, week_start)
+        return stored
+
+    async def save_report(self, couple_id: UUID, week_start: date, status: str,
+                          report_json: dict[str, Any], summary_hash: str | None) -> None:
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO reports (couple_id, week_start, status, report_json, summary_hash, generated_at)
+                VALUES (%s,%s,%s,%s,%s,now())
+                ON CONFLICT (couple_id, week_start) DO UPDATE SET
+                    status=excluded.status, report_json=excluded.report_json,
+                    summary_hash=excluded.summary_hash, generated_at=excluded.generated_at
+                """,
+                (couple_id, week_start, status, Jsonb(report_json), summary_hash),
+            )
+
+    async def save_report_failure(self, couple_id: UUID, week_start: date, trace_id: str,
+                                  execution_trace: list[dict[str, Any]], error: str,
+                                  summary_hash: str | None) -> None:
+        await self.save_report(
+            couple_id, week_start, "failed",
+            {"status": "failed", "trace_id": trace_id, "execution_trace": execution_trace,
+             "error": error[:1000]}, summary_hash,
+        )
+
+    async def create_report_job(self, couple_id: UUID, week_start: date) -> UUID:
+        return await self.create_job(couple_id, "report_single", 1,
+                                     {"weeks": [week_start.isoformat()]})
 
     # --------------------------------------------------------------- upload
 
@@ -734,17 +848,20 @@ class PostgresService:
                 if weeks:
                     await cur.executemany(
                         """
-                        INSERT INTO weekly_metrics (couple_id, week_start, summary, summary_hash, outliers)
-                        VALUES (%s,%s,%s,%s,%s)
+                        INSERT INTO weekly_metrics
+                            (couple_id, week_start, summary, metrics, summary_hash, outliers)
+                        VALUES (%s,%s,%s,%s,%s,%s)
                         ON CONFLICT (couple_id, week_start) DO UPDATE SET
-                            summary=excluded.summary, summary_hash=excluded.summary_hash,
-                            outliers=excluded.outliers, updated_at=now()
+                            summary=excluded.summary, metrics=excluded.metrics,
+                            summary_hash=excluded.summary_hash, outliers=excluded.outliers,
+                            computed_at=now()
                         """,
                         [
                             (
                                 couple_id,
                                 w["week_start"],
                                 Jsonb(w["summary"]),
+                                Jsonb(w.get("metrics", {})),
                                 w["summary_hash"],
                                 Jsonb(w["outliers"]),
                             )
@@ -782,10 +899,11 @@ class PostgresService:
                 if changed:
                     await cur.executemany(
                         """
-                        INSERT INTO reports (couple_id, week_start, status)
-                        VALUES (%s,%s,'pending')
+                        INSERT INTO reports (couple_id, week_start, status, report_json)
+                        VALUES (%s,%s,'pending','{}'::jsonb)
                         ON CONFLICT (couple_id, week_start) DO UPDATE SET
-                            status='pending', report=NULL, execution_trace=NULL, updated_at=now()
+                            status='pending', report_json='{}'::jsonb, summary_hash=NULL,
+                            generated_at=NULL
                         """,
                         [(couple_id, week_start) for week_start in changed],
                     )
@@ -794,26 +912,27 @@ class PostgresService:
                 report_total = len(changed)
                 await cur.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, total)
-                    VALUES (%s,'embed_sessions',%s,%s) RETURNING job_id
+                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    VALUES (%s,'embed_sessions',%s,%s,'{}'::jsonb) RETURNING job_id
                     """,
                     (couple_id, "queued" if embed_total else "done", embed_total),
                 )
                 embed_job_id = (await cur.fetchone())[0]
                 await cur.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, total)
-                    VALUES (%s,'report_backfill',%s,%s) RETURNING job_id
+                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    VALUES (%s,'report_backfill',%s,%s,%s) RETURNING job_id
                     """,
-                    (couple_id, "queued" if report_total else "done", report_total),
+                    (couple_id, "queued" if report_total else "done", report_total,
+                     Jsonb({"weeks": [week.isoformat() for week in changed]})),
                 )
                 report_job_id = (await cur.fetchone())[0]
 
                 if new_messages:
                     await cur.execute(
                         """
-                        INSERT INTO jobs (couple_id, kind, status, total)
-                        VALUES (%s,'build_lexicon','queued',1)
+                        INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                        VALUES (%s,'build_lexicon','queued',1,'{}'::jsonb)
                         """,
                         (couple_id,),
                     )

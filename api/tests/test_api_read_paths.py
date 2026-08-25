@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from app.deps import AuthenticatedUser, current_member, current_user
 from app.main import error_shape_handler
 from app.routers import reports, review, timeline
+from app.utils.json_utils import load_mock
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB_MOCK_DIR = ROOT / "web" / "src" / "api" / "mock"
@@ -78,6 +79,14 @@ class _TimelineRepository:
             if (from_ is None or row["week_start"] >= from_)
             and (to is None or row["week_start"] <= to)
         ]
+
+    async def get_report_record(self, couple_id, week_start):
+        assert couple_id == COUPLE_ID
+        return deepcopy(load_mock("report_stored")) if week_start == date.fromisoformat(WEEK) else None
+
+    async def create_report_job(self, couple_id, week_start):
+        assert couple_id == COUPLE_ID and week_start == date.fromisoformat(WEEK)
+        return UUID(int=9)
 
 
 def _client(me: str, timeline_rows: list[dict] | None = None) -> TestClient:
@@ -190,6 +199,14 @@ def test_frontend_mock_matches_projected_stored_form(payloads, path, mock_name):
 def test_non_monday_week_start_is_400():
     r = _client("a").get(f"{COUPLE}/reports/2026-08-18")   # 화요일
     assert r.status_code == 400
+
+
+def test_report_not_found_and_regenerate_queue_contract():
+    missing = _client("a").get(f"{COUPLE}/reports/2026-08-10")
+    assert missing.status_code == 404
+    queued = _client("a").post(f"{COUPLE}/reports/{WEEK}/regenerate")
+    assert queued.status_code == 202
+    assert queued.json() == {"job_id": str(UUID(int=9))}
 
 
 def test_timeline_api_contract_with_25_weeks_and_range_filter():

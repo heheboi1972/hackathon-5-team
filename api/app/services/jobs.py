@@ -5,12 +5,89 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import date
 from typing import Any
+from uuid import uuid4
 
+from ..agents.report_supervisor import ReportGenerationError, ReportSupervisor
 from .postgres_service import PostgresService
 
 logger = logging.getLogger(__name__)
 JobHandler = Callable[[dict[str, Any]], Awaitable[None]]
+
+
+class ReportJobPartialFailure(RuntimeError):
+    pass
+
+
+class ReportJobHandler:
+    """report_backfill/report_single을 주차별로 격리해 최대 세 개 동시 실행한다."""
+
+    def __init__(self, postgres: PostgresService, supervisor: ReportSupervisor,
+                 max_concurrency: int = 3):
+        self.postgres = postgres
+        self.supervisor = supervisor
+        self.max_concurrency = max_concurrency
+
+    async def __call__(self, job: dict[str, Any]) -> None:
+        force = job["kind"] == "report_single"
+        rows = await self.postgres.get_report_job_weeks(job)
+        await self.postgres.set_job_total(job["job_id"], len(rows))
+        semaphore = asyncio.Semaphore(self.max_concurrency)
+        lock = asyncio.Lock()
+        done = failed = 0
+
+        async def progress(week: date, ok: bool) -> None:
+            nonlocal done, failed
+            async with lock:
+                if ok:
+                    done += 1
+                else:
+                    failed += 1
+                await self.postgres.update_job_progress(
+                    job["job_id"], done=done, failed=failed, current_week=week)
+
+        async def one(row: dict[str, Any]) -> None:
+            async with semaphore:
+                if (not force and row.get("report_summary_hash") == row.get("summary_hash")
+                        and row.get("report_status") in {"generated", "insufficient_baseline"}):
+                    await progress(row["week_start"], True)
+                    return
+                try:
+                    generated = await self.supervisor.run(row)
+                    trace = generated["execution_trace"]
+                    trace.append({"step": "persist", "status": "ok", "input": {},
+                                  "output": {"status": generated["status"]}, "error": None})
+                    report_json = {**generated["report"], "trace_id": generated["trace_id"],
+                                   "execution_trace": trace}
+                    await self.postgres.save_report(
+                        row["couple_id"], row["week_start"], generated["status"],
+                        report_json, row.get("summary_hash"))
+                except ReportGenerationError as exc:
+                    trace = [*exc.execution_trace,
+                             {"step": "persist", "status": "failed", "input": {},
+                              "output": {}, "error": str(exc)[:1000]}]
+                    await self.postgres.save_report_failure(
+                        row["couple_id"], row["week_start"], exc.trace_id,
+                        trace, str(exc), row.get("summary_hash"))
+                    await progress(row["week_start"], False)
+                    return
+                except Exception as exc:
+                    await self.postgres.save_report_failure(
+                        row["couple_id"], row["week_start"], str(uuid4()),
+                        [{"step": "worker", "status": "failed", "input": {},
+                          "output": {}, "error": str(exc)[:1000]}], str(exc),
+                        row.get("summary_hash"))
+                    await progress(row["week_start"], False)
+                    return
+                await progress(row["week_start"], True)
+
+        # repository가 최신 주차 우선으로 반환하며 task 생성 순서도 그대로 유지한다.
+        await asyncio.gather(*(one(row) for row in rows))
+        await self.postgres.update_job_progress(
+            job["job_id"], done=done, failed=failed, current_week=None)
+        if failed:
+            raise ReportJobPartialFailure(f"{failed}개 주차 리포트 생성 실패")
 
 
 class JobService:
