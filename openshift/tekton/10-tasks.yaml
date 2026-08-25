@@ -1,0 +1,85 @@
+# 역할: Tekton Task 2개 — git-clone, buildah (TASKS 3-11)
+#
+# 왜 Task 를 직접 쓰나: 이 클러스터의 OpenShift Pipelines 에는 **ClusterTask 가 없다**
+# (`oc get clustertask` → "server doesn't have a resource type" — Pipelines 1.17+ 에서 제거됨).
+# Tekton Hub 에서 받아오는 방식은 클러스터 외부 의존이 생기므로, 네임스페이스 안에 직접 둔다.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: git-clone
+  namespace: couple-report
+spec:
+  description: 저장소를 워크스페이스에 얕은 클론. 공개 저장소라 인증 secret 이 필요 없다.
+  params:
+    - name: url
+      type: string
+    - name: revision
+      type: string
+      default: main
+  workspaces:
+    - name: output
+  results:
+    - name: commit
+      description: 체크아웃된 커밋 SHA — 어떤 소스로 만든 이미지인지 PipelineRun 에 남는다
+  steps:
+    - name: clone
+      image: alpine/git:2.45.2
+      workingDir: $(workspaces.output.path)
+      script: |
+        #!/bin/sh
+        set -eu
+        # 워크스페이스를 재사용하는 경우가 있어 먼저 비운다 (clone 은 빈 디렉터리를 요구)
+        rm -rf ./..?* ./.[!.]* ./* 2>/dev/null || true
+        git clone --depth 1 --branch "$(params.revision)" "$(params.url)" .
+        git rev-parse HEAD | tr -d '\n' > $(results.commit.path)
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: buildah
+  namespace: couple-report
+spec:
+  description: |
+    Dockerfile 을 빌드해 레지스트리에 push.
+    내부 레지스트리(image-registry.openshift-image-registry.svc:5000)는 클러스터 CA 로 서명된
+    인증서를 쓰는데 buildah 컨테이너가 그 CA 를 안 갖고 있어 TLS_VERIFY 기본값이 false 다.
+    클러스터 내부 통신이라 외부로 나가지 않는다.
+  params:
+    - name: IMAGE
+      type: string
+    - name: DOCKERFILE
+      type: string
+      default: Dockerfile
+    - name: CONTEXT
+      type: string
+      default: .
+    - name: TLS_VERIFY
+      type: string
+      default: "false"
+  workspaces:
+    - name: source
+  steps:
+    - name: build-and-push
+      image: quay.io/buildah/stable:v1.37.5
+      workingDir: $(workspaces.source.path)
+      securityContext:
+        capabilities:
+          add: ["SETFCAP"]
+      # vfs 드라이버: overlay 는 fuse-overlayfs/권한이 필요한데 pipelines SCC 아래선 안 잡힌다.
+      # 느리지만 확실하다 — 이미지 크기가 작아 체감 차이는 크지 않다.
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        buildah --storage-driver=vfs bud \
+          --format=docker \
+          --tls-verify=$(params.TLS_VERIFY) \
+          -f "$(params.DOCKERFILE)" -t "$(params.IMAGE)" "$(params.CONTEXT)"
+        buildah --storage-driver=vfs push \
+          --tls-verify=$(params.TLS_VERIFY) \
+          "$(params.IMAGE)" "docker://$(params.IMAGE)"
+      volumeMounts:
+        - name: varlibcontainers
+          mountPath: /var/lib/containers
+  volumes:
+    - name: varlibcontainers
+      emptyDir: {}
