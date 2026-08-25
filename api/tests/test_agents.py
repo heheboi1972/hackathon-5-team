@@ -17,7 +17,7 @@ from app.agents.interpret_agent import InterpretAgent
 from app.agents.safety_agent import SafetyAgent
 from app.agents.select_agent import SelectAgent
 from app.agents.suggest_agent import SuggestAgent
-from app.models.report import SelectOutput
+from app.models.report import InterpretedHighlight, SelectOutput
 from app.services.knowledge import Knowledge
 from app.tools.get_suggestion_templates import get_suggestion_templates
 from app.tools.search_knowledge import search_knowledge
@@ -51,6 +51,26 @@ def _contains_private_key(node) -> bool:
     if isinstance(node, list):
         return any(_contains_private_key(value) for value in node)
     return False
+
+
+def test_interpretation_clause_over_40_chars_rejected():
+    """ISSUE C9: 절 형식(마침표·종결어미 없음)에 이어 길이 상한도 Pydantic 단에서 막는다.
+
+    generate_validated()의 model_validate() 호출 경로에서 터지므로 실 LLM 출력에도
+    똑같이 걸려 1회 재요청으로 이어진다(TRD §1) — 목 데이터만 보는 렌더 테스트로는
+    못 잡는 경로라 여기서 직접 검증한다."""
+    too_long = "이" * 41  # 종결어미·마침표는 없지만 40자를 넘는 절
+    with pytest.raises(ValueError, match="40자"):
+        InterpretedHighlight(
+            observation="관찰 문장",
+            interpretations=[too_long, "짧은 절이었을 수도"],
+        )
+    # 정확히 40자는 통과해야 한다 (상한 자체이지 그보다 짧은 값이 아님)
+    exactly_40 = "이" * 40
+    InterpretedHighlight(
+        observation="관찰 문장",
+        interpretations=[exactly_40, "짧은 절이었을 수도"],
+    )
 
 
 def test_select_agent_filters_caps_balances_and_validates_schema():

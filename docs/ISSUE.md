@@ -184,12 +184,12 @@
 - **남은 것(윤석)**: 실제 구현. 2-3 에서 `routers/upload.py` 에 UPDATE 단계를 넣는다.
 - 파일: `routers/upload.py`(구현), `REQUIREMENTS` FR-002 ✓, `TEST_CASES` TC-API-003-12 ✓
 
-### C9. [ ] `interpretations` 절 형식에 방어가 없다 (윤석 + 윤아)
-- B4 는 각 항목을 **종결어미 없는 절**로 규정하고 프론트가 `", ".join + " 있어요."` 로 합친다. 프롬프트(윤아)와 렌더(시여)가 두 파일에 걸쳐 맞물려 있는데 **코드가 강제하지 않는다.**
-  - LLM 이 완결 문장을 내면 화면에 `"바빴어요. 있어요."` — 경보 없이 사용자에게 나간다
-  - 현재 테스트는 목 데이터의 마침표만 본다 (`test_banned_patterns.test_interpretations_are_clauses_not_sentences`). 실 LLM 출력은 검증 안 됨
-- 할 것: `Highlight` 에 Pydantic validator — 각 항목이 `.`/`요`/`다` 로 끝나지 않고 길이 상한(40자). 위반 시 리포트 생성 단계에서 터져 화면까지 안 샌다 (LLM 출력 Pydantic 검증 실패 → 1회 재요청, TRD §1)
-- 파일: `models/api.py`, `prompts/interpret.md`, TC-AGENT-002
+### C9. [x] `interpretations` 절 형식에 방어가 없다 (윤석 + 윤아) — **해결됨 (2026-08-25, 해찬)**
+- B4 는 각 항목을 **종결어미 없는 절**로 규정하고 프론트가 `", ".join + " 있어요."` 로 합친다. 프롬프트(윤아)와 렌더(시여)가 두 파일에 걸쳐 맞물려 있는데 코드가 강제하지 않던 문제.
+  - LLM 이 완결 문장을 내면 화면에 `"바빴어요. 있어요."` — 경보 없이 사용자에게 나갈 위험이 있었다
+- **해결**: 윤석님이 PR #27에서 `InterpretedHighlight.interpretations_are_clauses`(`models/report.py`) Pydantic validator를 이미 구현 — 마침표·느낌표·물음표, 종결어미(요/다/니다/예요/이에요)까지 스펙보다 더 꼼꼼히 막고 있었다. **빠져 있던 40자 길이 상한만 추가**(`models/report.py`)하고 회귀 테스트 추가(`test_agents.py::test_interpretation_clause_over_40_chars_rejected`).
+  - `generate_validated()`의 `model_validate()` 경로 안에 있어 실 LLM 출력에도 걸리고, 위반 시 1회 재요청으로 이어진다 (TRD §1) — 문서가 요구한 동작 그대로.
+- 파일: `models/report.py`, `tests/test_agents.py`
 
 ### C11. [x] Qdrant payload 에 시각이 없어 챗봇 기간 검색이 불가능했다 (해찬, 3-1)
 - 2-6 의 point payload 는 `{couple_id, session_id, chunk_idx, point_key}` 뿐이라 **시각 정보가 없었다.** 그런데 API_SPEC §8 의 `search_conversation` 은 `(couple_id, query, start?, end?, k=8)` — "지난달에 제주도 얘기" 같은 기간 한정 질문이 계약에 들어 있다.
@@ -263,9 +263,10 @@
 | 18 | 리포트 문장 톤 (B4) | `metrics.band`·`agent_metric_input`(숫자 대신 방향·정도), `banned_patterns.txt` 초안 + `test_banned_patterns.py`, `interpretations` 절 형식 + `HighlightCard.joinInterpretations` 3문장 병합, 프롬프트 4개 계약부, TC-AGENT-001~004 |
 
 ## 남은 것
-- **A4** 담당 재배분 — 팀 회의 후 TASKS §5~7·§10 수정
+- ~~**A4** 담당 재배분~~ **불필요 (2026-08-25)** — Day 1~2 사이 실제 진행을 보니 담당이 이미 자연스럽게 재배분되어 돌아가고 있음(윤석이 3-1/3-1a/3-1b/3-3~3-5까지, 윤아가 2-6/2-11/2-12까지 겸함). 별도 회의·TASKS 수정 불필요
 - **A7** 챗봇 `metric_query` 수치 정책 — 챗봇 구현(3-6) 전까지
-- **D3** Instana — 1-V5 후
+- **D3** Instana — 1-V5 후 → **완료** (D3 항목 참고)
 - **C1~C10, D4** — TASKS 비고로 이관됨. 담당자가 구현 시 적용. 이 파일에선 추적 안 함
-  (C7~C9 는 2026-08-24 스캐폴딩 점검에서 나온 것. **C7 은 수정·검증 완료**, C8 은 문서만 반영·구현은 2-3, C9 만 미착수)
+  (C7~C9 는 2026-08-24 스캐폴딩 점검에서 나온 것. **C7·C9 수정·검증 완료**, C8 은 문서만 반영·구현은 2-3)
   (C10 은 2026-08-24 oc 접속 확인 중 나온 것. 강사·운영 쪽 확인 전까지 미착수)
+  (C11 은 2026-08-25 3-1 작업 중 나온 것. **완료**)
