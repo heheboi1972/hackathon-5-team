@@ -11,6 +11,7 @@ from .services.ai_service import AIService, build_ai_service
 from .services.crypto import BodyCipher
 from .services.embed_sessions import run_embed_sessions_job
 from .services.jobs import JobService
+from .services.lexicon import BuildLexiconService
 from .services.knowledge import Knowledge, load_knowledge
 from .services.postgres_service import PostgresService
 from .services.qdrant_service import QdrantService
@@ -27,6 +28,7 @@ class Container:
     cipher: BodyCipher
     jobs: JobService
     knowledge: Knowledge  # 지식 문서·템플릿·감성 시드 사전 (메모리, ISSUE D2)
+    lexicon: BuildLexiconService
     postgres_up: bool = False
     qdrant_up: bool = False
     # TODO(윤석): agents = {select, interpret, suggest, safety}, report_supervisor, chat_supervisor
@@ -55,6 +57,8 @@ async def build_container(settings: Settings) -> Container:
     )
     jobs = JobService(pg)
     knowledge = load_knowledge(Path(settings.knowledge_dir))
+    lexicon = BuildLexiconService(pg, ai, cipher, knowledge.seed_lexicon)
+    jobs.register("build_lexicon", lexicon.handle_job)
     c = Container(
         settings=settings,
         ai=ai,
@@ -63,6 +67,7 @@ async def build_container(settings: Settings) -> Container:
         cipher=cipher,
         jobs=jobs,
         knowledge=knowledge,
+        lexicon=lexicon,
     )
     # embed_sessions 잡 핸들러 등록 (TASKS 2-6, 윤아). report_backfill 등 다른 kind는 윤석이 등록.
     jobs.register("embed_sessions", lambda job: run_embed_sessions_job(c, job))

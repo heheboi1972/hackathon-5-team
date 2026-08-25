@@ -354,13 +354,14 @@ class PostgresService:
             last_week = rows[-1]["week_start"]
             await cur.execute(
                 """
-                SELECT week_start, sender, canonical, polarity, count
+                SELECT week_start, sender, canonical, sentiment AS polarity, count
                   FROM weekly_terms
                  WHERE couple_id = %s
                    AND week_start >= %s
                    AND week_start <= %s
+                   AND sentiment IN ('pos', 'neg')
                    AND count >= 3
-                 ORDER BY week_start, sender, polarity, count DESC, canonical
+                 ORDER BY week_start, sender, sentiment, count DESC, canonical
                 """,
                 (couple_id, first_week, last_week),
             )
@@ -479,7 +480,9 @@ class PostgresService:
                 WITH picked AS (
                     SELECT job_id FROM jobs
                      WHERE status='queued' AND kind = ANY(%s::text[])
-                     ORDER BY CASE kind WHEN 'embed_sessions' THEN 0 ELSE 1 END,
+                     ORDER BY CASE kind WHEN 'embed_sessions' THEN 0
+                                             WHEN 'build_lexicon' THEN 1
+                                             ELSE 2 END,
                               created_at, job_id
                      FOR UPDATE SKIP LOCKED LIMIT 1
                 )
@@ -627,11 +630,77 @@ class PostgresService:
         async with self.pool.connection() as conn:
             rows = await (
                 await conn.execute(
-                    "SELECT term, canonical, polarity FROM couple_lexicon WHERE couple_id=%s",
+                    """
+                    SELECT surface, canonical, sentiment
+                      FROM couple_lexicon
+                     WHERE couple_id=%s
+                     ORDER BY surface
+                    """,
                     (couple_id,),
                 )
             ).fetchall()
-            return {term: (canonical, polarity) for term, canonical, polarity in rows}
+            return {
+                surface: (canonical, sentiment)
+                for surface, canonical, sentiment in rows
+            }
+
+    async def insert_couple_lexicon(
+        self, couple_id: UUID, entries: list[dict[str, str]]
+    ) -> int:
+        """append-only INSERT. 충돌한 surface의 기존 분류는 절대 변경하지 않는다."""
+        if not entries:
+            return 0
+        inserted = 0
+        async with self.pool.connection() as conn, conn.transaction():
+            await self._lock(conn, couple_id)
+            async with conn.cursor() as cur:
+                for entry in entries:
+                    await cur.execute(
+                        """
+                        INSERT INTO couple_lexicon
+                            (couple_id, surface, canonical, sentiment)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (couple_id, surface) DO NOTHING
+                        """,
+                        (
+                            couple_id,
+                            entry["surface"],
+                            entry["canonical"],
+                            entry["sentiment"],
+                        ),
+                    )
+                    inserted += cur.rowcount
+        return inserted
+
+    async def replace_weekly_terms(
+        self, couple_id: UUID, rows: list[dict[str, Any]]
+    ) -> None:
+        """한 커플의 모든 영향 주차를 최신 시드+커플 사전 집계로 교체한다."""
+        async with self.pool.connection() as conn, conn.transaction():
+            await self._lock(conn, couple_id)
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM weekly_terms WHERE couple_id=%s", (couple_id,)
+                )
+                if rows:
+                    await cur.executemany(
+                        """
+                        INSERT INTO weekly_terms
+                            (couple_id, week_start, sender, canonical, sentiment, count)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        """,
+                        [
+                            (
+                                couple_id,
+                                row["week_start"],
+                                row["sender"],
+                                row["canonical"],
+                                row["sentiment"],
+                                row["count"],
+                            )
+                            for row in rows
+                        ],
+                    )
 
     async def apply_upload(
         self,
@@ -772,7 +841,7 @@ class PostgresService:
                     await cur.executemany(
                         """
                         INSERT INTO weekly_terms
-                            (couple_id, week_start, sender, canonical, polarity, count)
+                            (couple_id, week_start, sender, canonical, sentiment, count)
                         VALUES (%s,%s,%s,%s,%s,%s)
                         """,
                         [
@@ -820,6 +889,15 @@ class PostgresService:
                     (couple_id, "queued" if report_total else "done", report_total),
                 )
                 report_job_id = (await cur.fetchone())[0]
+
+                if new_messages:
+                    await cur.execute(
+                        """
+                        INSERT INTO jobs (couple_id, kind, status, total)
+                        VALUES (%s,'build_lexicon','queued',1)
+                        """,
+                        (couple_id,),
+                    )
 
             return {
                 "embed_job_id": embed_job_id,
