@@ -1,5 +1,6 @@
 // 역할: 온보딩 — 가입 → 초대코드 → 수락대기 → 수락 (참조: FR-000, FR-001, TRD §6.1) — 시여 담당
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { api, setToken } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -274,6 +275,12 @@ export default function Onboarding() {
           <Badge tone="neutral">4단계 · 연결 완료</Badge>
           <h2 className="mt-3 text-lg font-semibold">연결이 완료되었습니다</h2>
           <p className="mt-2 text-sm text-gray-600">이제 대화 파일을 올리고 리포트를 준비할 수 있어요.</p>
+          <Link
+            to="/upload"
+            className="mt-5 inline-flex rounded bg-rose-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-300"
+          >
+            대화 파일 업로드하기
+          </Link>
         </Card>
       )}
 
