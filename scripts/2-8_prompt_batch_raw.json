@@ -1,7 +1,7 @@
 {
   "safety": [
     {
-      "raw": "{\n  \"passed\": true,\n  \"rewritten\": [\n    {\"before\": \"A가 질문을 많이 했어요\", \"after\": \"요즘 질문이 많아졌어요\"},\n    {\"before\": \"B보다 A가 더 자주 답장했어요\", \"after\": \"답장이 자주 있는 편이에요\"},\n    {\"before\": \"질문이 30% 늘었어요\", \"after\": \"질문이 늘어난 편이에요\"},\n    {\"before\": \"관계 온도 B등급이에요\", \"after\": \"\"},\n    {\"before\": \"더 자주 연락하세요\", \"after\": \"더 자주 연락해보면 어떨까요\"},\n    {\"before\": \"이 정도면 헤어지는 게 나을까 싶어요\", \"after\": \"\"}\n  ]\n}",
+      "raw": "{\n  \"passed\": true,\n  \"rewritten\": [\n    {\"before\": \"A가 질문을 많이 했어요\", \"after\": \"요즘 질문이 많아졌어요\"},\n    {\"before\": \"B보다 A가 더 자주 답장했어요\", \"after\": \"요즘 답장이 자주 오고 있어요\"},\n    {\"before\": \"질문이 30% 늘었어요\", \"after\": \"질문이 늘어난 편이에요\"},\n    {\"before\": \"관계 온도 B등급이에요\", \"after\": \"\"},\n    {\"before\": \"더 자주 연락하세요\", \"after\": \"더 자주 연락해보면 어떨까요\"},\n    {\"before\": \"이 정도면 헤어지는 게 나을까 싶어요\", \"after\": \"\"}\n  ]\n}",
       "parsed": {
         "passed": true,
         "rewritten": [
@@ -11,7 +11,7 @@
           },
           {
             "before": "B보다 A가 더 자주 답장했어요",
-            "after": "답장이 자주 있는 편이에요"
+            "after": "요즘 답장이 자주 오고 있어요"
           },
           {
             "before": "질문이 30% 늘었어요",
@@ -65,7 +65,7 @@
       "input": {
         "message": "지난주 리포트 요약해줘"
       },
-      "raw": "{\n  \"intent\": \"report_query\"\n}",
+      "raw": "{\"intent\": \"report_query\"}",
       "parsed": {
         "intent": "report_query"
       },
@@ -160,7 +160,7 @@
           }
         ]
       },
-      "raw": "{\n  \"answer\": \"2026년 3월 14일 저녁 대화에서 처음 \\\"자기야\\\"라고 부르셨어요.\",\n  \"citations\": [\n    {\n      \"session_id\": 812,\n      \"at\": \"2026-03-14T19:22:00+09:00\",\n      \"sender\": \"a\",\n      \"snippet\": \"자기야 뭐해\"\n    }\n  ]\n}",
+      "raw": "{\n  \"answer\": \"2026년 3월 14일 저녁 대화에서 처음 \\\"자기야\\\"라고 부르셨어요.\",\n  \"citations\": [\n    {\n      \"session_id\": 812,\n      \"at\": \"2026-03-14T19:22:00+09:00\",\n      \"sender\": \"a\",\n      \"snippet\": \"자기야 뭐해\"\n    }\n  ],\n  \"metrics\": null\n}",
       "parsed": {
         "answer": "2026년 3월 14일 저녁 대화에서 처음 \"자기야\"라고 부르셨어요.",
         "citations": [
@@ -170,7 +170,8 @@
             "sender": "a",
             "snippet": "자기야 뭐해"
           }
-        ]
+        ],
+        "metrics": null
       },
       "ok": true,
       "problems": []
@@ -190,58 +191,143 @@
           }
         ]
       },
-      "raw": "{\n  \"answer\": \"관련 기록을 찾지 못했어요.\",\n  \"citations\": []\n}",
+      "raw": "{\n  \"answer\": \"관련 기록을 찾지 못했어요.\",\n  \"citations\": [],\n  \"metrics\": null\n}",
       "parsed": {
         "answer": "관련 기록을 찾지 못했어요.",
-        "citations": []
+        "citations": [],
+        "metrics": null
       },
       "ok": true,
       "problems": []
     },
     {
-      "label": "metric_query 비교 가능",
+      "label": "metric_query 답장 느려짐 (comment 재사용)",
       "input": {
-        "message": "요즘 질문 늘었어?",
+        "message": "요즘 답장 느려졌어?",
         "intent": "metric_query",
         "metrics": {
-          "summary": "최근 4주 질문 비율 추이",
-          "metrics": {
+          "range": {
             "question_rate": {
-              "couple": 0.18,
-              "mine": 0.2,
-              "baseline_couple": 0.12,
-              "delta": "up",
-              "comparable": true
-            }
-          }
+              "couple": 0.2,
+              "mine": 0.1
+            },
+            "reply_gap_median_min": {
+              "couple": 12,
+              "mine": 3
+            },
+            "message_count": 187
+          },
+          "baseline": {
+            "weeks": 8,
+            "question_rate": {
+              "couple": 0.23,
+              "mine": 0.22
+            },
+            "reply_gap_median_min": {
+              "couple": 5,
+              "mine": 4
+            },
+            "message_count": 210
+          },
+          "comment": "지난 8주보다 답장이 많이 느려졌어요"
         }
       },
-      "raw": "{\n  \"answer\": \"최근 4주 동안 질문 비율이 늘어난 편이에요. 현재 질문 비율은 약 18%이며, 이전 대비 상승했습니다.\",\n  \"citations\": []\n}",
+      "raw": "{\n  \"answer\": \"지난 8주보다 답장이 많이 느려졌어요.\",\n  \"citations\": [],\n  \"metrics\": {\n    \"range\": {\n      \"question_rate\": {\n        \"couple\": 0.2,\n        \"mine\": 0.1\n      },\n      \"reply_gap_median_min\": {\n        \"couple\": 12,\n        \"mine\": 3\n      },\n      \"message_count\": 187\n    },\n    \"baseline\": {\n      \"weeks\": 8,\n      \"question_rate\": {\n        \"couple\": 0.23,\n        \"mine\": 0.22\n      },\n      \"reply_gap_median_min\": {\n        \"couple\": 5,\n        \"mine\": 4\n      },\n      \"message_count\": 210\n    },\n    \"comment\": \"지난 8주보다 답장이 많이 느려졌어요\"\n  }\n}",
       "parsed": {
-        "answer": "최근 4주 동안 질문 비율이 늘어난 편이에요. 현재 질문 비율은 약 18%이며, 이전 대비 상승했습니다.",
-        "citations": []
+        "answer": "지난 8주보다 답장이 많이 느려졌어요.",
+        "citations": [],
+        "metrics": {
+          "range": {
+            "question_rate": {
+              "couple": 0.2,
+              "mine": 0.1
+            },
+            "reply_gap_median_min": {
+              "couple": 12,
+              "mine": 3
+            },
+            "message_count": 187
+          },
+          "baseline": {
+            "weeks": 8,
+            "question_rate": {
+              "couple": 0.23,
+              "mine": 0.22
+            },
+            "reply_gap_median_min": {
+              "couple": 5,
+              "mine": 4
+            },
+            "message_count": 210
+          },
+          "comment": "지난 8주보다 답장이 많이 느려졌어요"
+        }
       },
       "ok": true,
       "problems": []
     },
     {
-      "label": "metric_query 비교 불가",
+      "label": "metric_query 정확한 수치 요청 (그래도 문장엔 숫자 금지)",
       "input": {
-        "message": "내가 더 많이 물어봐?",
+        "message": "정확히 몇 프로야?",
         "intent": "metric_query",
         "metrics": {
-          "summary": "데이터 부족",
-          "metrics": {
+          "range": {
             "question_rate": {
-              "comparable": false
-            }
-          }
+              "couple": 0.2,
+              "mine": 0.1
+            },
+            "reply_gap_median_min": {
+              "couple": 12,
+              "mine": 3
+            },
+            "message_count": 187
+          },
+          "baseline": {
+            "weeks": 8,
+            "question_rate": {
+              "couple": 0.23,
+              "mine": 0.22
+            },
+            "reply_gap_median_min": {
+              "couple": 5,
+              "mine": 4
+            },
+            "message_count": 210
+          },
+          "comment": "지난 8주보다 답장이 많이 느려졌어요"
         }
       },
-      "raw": "{\n  \"answer\": \"아직 데이터가 충분히 쌓이지 않아 비교하기 어려워요.\",\n  \"citations\": []\n}",
+      "raw": "{\n  \"answer\": \"정확한 수치는 위 카드에서 확인하실 수 있어요. 지난 8주보다 답장이 많이 느려졌어요.\",\n  \"citations\": [],\n  \"metrics\": {\n    \"range\": {\n      \"question_rate\": { \"couple\": 0.2, \"mine\": 0.1 },\n      \"reply_gap_median_min\": { \"couple\": 12, \"mine\": 3 },\n      \"message_count\": 187\n    },\n    \"baseline\": {\n      \"weeks\": 8,\n      \"question_rate\": { \"couple\": 0.23, \"mine\": 0.22 },\n      \"reply_gap_median_min\": { \"couple\": 5, \"mine\": 4 },\n      \"message_count\": 210\n    },\n    \"comment\": \"지난 8주보다 답장이 많이 느려졌어요\"\n  }\n}",
       "parsed": {
-        "answer": "아직 데이터가 충분히 쌓이지 않아 비교하기 어려워요.",
-        "citations": []
+        "answer": "정확한 수치는 위 카드에서 확인하실 수 있어요. 지난 8주보다 답장이 많이 느려졌어요.",
+        "citations": [],
+        "metrics": {
+          "range": {
+            "question_rate": {
+              "couple": 0.2,
+              "mine": 0.1
+            },
+            "reply_gap_median_min": {
+              "couple": 12,
+              "mine": 3
+            },
+            "message_count": 187
+          },
+          "baseline": {
+            "weeks": 8,
+            "question_rate": {
+              "couple": 0.23,
+              "mine": 0.22
+            },
+            "reply_gap_median_min": {
+              "couple": 5,
+              "mine": 4
+            },
+            "message_count": 210
+          },
+          "comment": "지난 8주보다 답장이 많이 느려졌어요"
+        }
       },
       "ok": true,
       "problems": []
@@ -256,10 +342,11 @@
           "week_start": "2026-08-24"
         }
       },
-      "raw": "{\n  \"answer\": \"해당 주 리포트는 아직 준비 중이라 아직 확인할 수 없어요.\",\n  \"citations\": []\n}",
+      "raw": "{\n  \"answer\": \"그 주 리포트는 아직 준비되지 않았어요.\",\n  \"citations\": [],\n  \"metrics\": null\n}",
       "parsed": {
-        "answer": "해당 주 리포트는 아직 준비 중이라 아직 확인할 수 없어요.",
-        "citations": []
+        "answer": "그 주 리포트는 아직 준비되지 않았어요.",
+        "citations": [],
+        "metrics": null
       },
       "ok": true,
       "problems": []
@@ -287,10 +374,11 @@
           ]
         }
       },
-      "raw": "{\n  \"answer\": \"이번 주 대화가 안정적이었어요. 요즘 대화가 짧게 끝나는 편이며, 서로 안부를 물어보는 것을 제안드렸어요.\",\n  \"citations\": []\n}",
+      "raw": "{\n  \"answer\": \"2026-08-17 주 리포트에서는 대화가 안정적이었다고 하셨고, 요즘 대화가 짧게 끝나는 편이라는 관찰과 바쁜 시기일 수도 있다는 해석이 있었어요. 또한 서로 안부를 물어보는 것을 제안드렸어요.\",\n  \"citations\": [],\n  \"metrics\": null\n}",
       "parsed": {
-        "answer": "이번 주 대화가 안정적이었어요. 요즘 대화가 짧게 끝나는 편이며, 서로 안부를 물어보는 것을 제안드렸어요.",
-        "citations": []
+        "answer": "2026-08-17 주 리포트에서는 대화가 안정적이었다고 하셨고, 요즘 대화가 짧게 끝나는 편이라는 관찰과 바쁜 시기일 수도 있다는 해석이 있었어요. 또한 서로 안부를 물어보는 것을 제안드렸어요.",
+        "citations": [],
+        "metrics": null
       },
       "ok": true,
       "problems": []

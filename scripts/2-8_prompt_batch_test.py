@@ -135,7 +135,9 @@ def validate_chat_intent(parsed: dict, expect: str) -> tuple[bool, list[str]]:
 # ---------------------------------------------------------------- chat_answer.md
 # 입력: 원 메시지 + intent별 tool 결과 (API_SPEC §8 시그니처 기준, 3개 툴 모두 TODO(윤석) — provisional)
 # metric_query는 2026-08-25 결정(ISSUE A7)으로 get_metrics 입력이 {range, baseline, comment}
-# (돌아보기 화면과 동일한 타입)로 바뀜 — answer 문장엔 숫자 절대 금지, 숫자는 metrics 필드로만.
+# (돌아보기 화면과 동일한 타입)로 바뀜 — 일반 질문의 answer엔 숫자 대신 방향 comment만.
+# 단, 2026-08-25 수정: 사용자가 "정확히 몇 %야?"처럼 수치를 콕 집어 물으면 answer도 range 값을
+# 그대로(계산 없이, %는 100배만 허용) 답한다 — 카드로 미루지 않음.
 
 CHAT_ANSWER_CASES = [
     (
@@ -175,7 +177,7 @@ CHAT_ANSWER_CASES = [
         {"must_have_citations": False, "must_have_metrics": True, "no_digits_except_weeks": True},
     ),
     (
-        "metric_query 정확한 수치 요청 (그래도 문장엔 숫자 금지)",
+        "metric_query 정확한 수치 요청 (2026-08-25 수정: 이제는 숫자를 직접 답함)",
         {
             "message": "정확히 몇 프로야?",
             "intent": "metric_query",
@@ -185,7 +187,7 @@ CHAT_ANSWER_CASES = [
                 "comment": "지난 8주보다 답장이 많이 느려졌어요",
             },
         },
-        {"must_have_citations": False, "must_have_metrics": True, "no_digits_except_weeks": True, "must_contain_any": ["카드", "위에"]},
+        {"must_have_citations": False, "must_have_metrics": True, "must_contain_digit": True},
     ),
     (
         "report_query 준비 안 됨",
@@ -236,6 +238,12 @@ def validate_chat_answer(parsed: dict, expect: dict) -> tuple[bool, list[str]]:
         stripped = re.sub(r"\d+주", "", answer)
         if any(ch.isdigit() for ch in stripped):
             problems.append(f"answer 문장에 숫자가 남아있음(metric_query는 숫자 금지 — 2026-08-25 결정, ISSUE A7): {answer!r}")
+    if expect.get("must_contain_digit") and isinstance(answer, str):
+        if not any(ch.isdigit() for ch in answer):
+            problems.append(
+                f"정확한 수치를 물었는데 answer에 숫자가 하나도 없음 (2026-08-25 수정 — "
+                f"이제는 카드로 미루지 않고 직접 답해야 함): {answer!r}"
+            )
     for key in ("must_contain_any", "must_contain_any_2"):
         needles = expect.get(key)
         if needles and not any(n in answer for n in needles):

@@ -72,6 +72,7 @@
 - **선택지**: (가) `term_count` 와 같은 규칙 — 커플 값만, 숫자 허용 / (나) 커플 값 + `mine` 까지 (본인이 물었으니), 숫자 허용 / (다) 리포트와 동일하게 밴딩만
 - **영향**: `tools/get_metrics.py`, `prompts/chat_answer.md`, `agents/chat_supervisor.py`, `models/api.py` `ChatResponse`, `web/src/api/types.ts`, API_SPEC §6.1·§8, TC-API-008-2
 - **결정 (2026-08-25, 윤아)**: **(나)에 가깝되, 숫자를 문장이 아니라 별도 구조화 필드로 뺀다.** 돌아보기(FR-005) 화면과 완전히 같은 `{range, baseline, comment}` 카드 형태를 그대로 재사용 — `ChatResponse`에 `metrics: ReviewMetrics | None` 필드를 새로 추가해 `couple`+`mine`(본인 값)까지 숫자로 그대로 보여주고(B3 준수), `answer`(LLM이 쓰는 문장)에는 숫자를 **예외 없이** 금지한다(B4를 리포트보다 더 엄격하게 적용 — "얼마나 빨라?"에는 카드가 답하고, 문장은 방향만 말한다). "정확히 몇 %야?" 류 질문도 문장으로 숫자를 불러주지 않고 카드를 보라고 안내함. 이렇게 하면 (다)안의 단점("얼마나 빨라?"에 답 못 함)과 (나)안의 단점(LLM이 숫자를 실수로 잘못 말할 위험) 둘 다 회피됨. `comment`는 LLM이 아니라 코드가 결정론적으로 생성(`services/projection.py`)해서 B4를 재현성 있게 보장. 반영: `prompts/chat_answer.md`(2026-08-25 개정), `models/api.py`/`types.ts`(`metrics` 필드 추가). **남은 일**: `tools/get_metrics.py`가 아직 이 형태를 반환하지 않음(현재는 주차별 리스트) — 윤석과 구현 조율 필요, `build_review()` 재사용 권장.
+- **추가 결정 (2026-08-25 수정, 윤아)**: 위 "예외 없이 금지"를 한 가지만 완화. **사용자가 "정확히 몇 %야?", "몇 분이야?"처럼 수치 자체를 콕 집어 물으면, 그때는 `answer`도 실제 숫자를 그대로 답한다**(카드로 미루지 않음 — 2-8 실측에서 카드 안내만 하니 "질문을 무시한 것 같다"는 피드백). 그 외의(콕 집어 묻지 않은) 일반 질문은 기존처럼 `comment`만(숫자 없이) 쓴다. 이때도 LLM이 새로 계산하지 않고 `range`/`baseline` 값을 그대로 옮기며, `question_rate`를 %로 표기할 때 100을 곱하는 것만 예외적으로 허용(그 외 연산 금지) — "LLM이 숫자를 실수로 잘못 말할 위험"은 계산을 안 시키는 걸로 계속 방어함. 반영: `prompts/chat_answer.md`, `scripts/2-8_prompt_batch_test.py`.
 
 ---
 
