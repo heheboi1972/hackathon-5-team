@@ -10,10 +10,10 @@ from app.services.kakao_parser import Message
 _TZ = ZoneInfo("Asia/Seoul")
 
 
-def _msg(sender: str, body: str, msg_type: str = "text") -> Message:
+def _msg(sender: str, body: str, msg_type: str = "text", at: datetime | None = None) -> Message:
     return Message(
         sender=sender,
-        sent_at=datetime(2026, 8, 24, 12, 0, tzinfo=_TZ),
+        sent_at=at or datetime(2026, 8, 24, 12, 0, tzinfo=_TZ),
         body=body,
         msg_type=msg_type,
         is_question=False,
@@ -59,26 +59,43 @@ def test_message_order_preserved_within_chunk():
 
 def test_build_points_ids_are_deterministic_for_idempotent_reupload():
     couple_id = uuid4()
-    points_v1 = build_points(couple_id, session_id=123, vectors=[[0.1, 0.2], [0.3, 0.4]])
+    groups = [[_msg("a", "하나")], [_msg("b", "둘")]]
+    points_v1 = build_points(couple_id, 123, groups, [[0.1, 0.2], [0.3, 0.4]])
     # 같은 (couple_id, session_id, chunk_idx) 면 벡터 값이 달라도(재업로드로 텍스트가 조금 바뀌어도) 같은 id → upsert 로 덮어쓰기만 됨
-    points_v2 = build_points(couple_id, session_id=123, vectors=[[0.9, 0.9], [0.9, 0.9]])
+    points_v2 = build_points(couple_id, 123, groups, [[0.9, 0.9], [0.9, 0.9]])
     assert [p["id"] for p in points_v1] == [p["id"] for p in points_v2]
 
 
 def test_build_points_different_session_ids_get_different_points():
     couple_id = uuid4()
-    a = build_points(couple_id, session_id=1, vectors=[[0.1]])
-    b = build_points(couple_id, session_id=2, vectors=[[0.1]])
+    groups = [[_msg("a", "하나")]]
+    a = build_points(couple_id, 1, groups, [[0.1]])
+    b = build_points(couple_id, 2, groups, [[0.1]])
     assert a[0]["id"] != b[0]["id"]
 
 
 def test_build_points_payload_shape():
     couple_id = uuid4()
-    points = build_points(couple_id, session_id=42, vectors=[[0.1, 0.2]])
+    group = [_msg("a", "하나"), _msg("b", "둘")]
+    points = build_points(couple_id, 42, [group], [[0.1, 0.2]])
     p = points[0]
     assert p["payload"] == {
         "couple_id": str(couple_id),
         "session_id": 42,
         "chunk_idx": 0,
         "point_key": "42:0",
+        "started_at": int(group[0].sent_at.timestamp()),
+        "ended_at": int(group[-1].sent_at.timestamp()),
     }
+
+
+def test_build_points_timestamps_span_the_chunks_own_messages():
+    """기간 필터가 청크 단위로 걸리려면 각 point 가 자기 청크의 시각 범위를 들고 있어야 한다.
+    세션 전체 범위를 넣으면 긴 세션에서 범위 밖 구간까지 검색에 걸린다 (TASKS 3-1)."""
+    couple_id = uuid4()
+    early = _msg("a", "아침", at=datetime(2026, 8, 24, 9, 0, tzinfo=_TZ))
+    late = _msg("b", "밤", at=datetime(2026, 8, 24, 23, 0, tzinfo=_TZ))
+    points = build_points(couple_id, 7, [[early], [late]], [[0.1], [0.2]])
+    assert points[0]["payload"]["ended_at"] == int(early.sent_at.timestamp())
+    assert points[1]["payload"]["started_at"] == int(late.sent_at.timestamp())
+    assert points[0]["payload"]["ended_at"] < points[1]["payload"]["started_at"]

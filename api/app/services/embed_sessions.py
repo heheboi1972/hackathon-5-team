@@ -28,41 +28,61 @@ logger = logging.getLogger(__name__)
 MAX_CHUNK_CHARS = 700  # e5-large TRUNCATE_INPUT_TOKENS=512 토큰 기준 보수적 추정(한글 토큰 비율 고려, ai_service.py 설정과 정합)
 
 
-def chunk_session_text(messages: list[Message], max_chars: int = MAX_CHUNK_CHARS) -> list[str]:
-    """세션 메시지 → 대화체 청크 문자열 리스트.
-    각 청크는 "A: ...\\nB: ..." 형식 (ai_service.py 모듈 docstring 예시와 동일한 포맷).
+def _line(m: Message) -> str:
+    return f"{m.sender.upper()}: {m.body.strip()}"
+
+
+def format_chunk(group: list[Message]) -> str:
+    """청크 메시지 묶음 → 임베딩에 넣을 대화체 문자열 ("A: ...\\nB: ...")."""
+    return "\n".join(_line(m) for m in group)
+
+
+def chunk_session_messages(
+    messages: list[Message], max_chars: int = MAX_CHUNK_CHARS
+) -> list[list[Message]]:
+    """세션 메시지 → 청크별 메시지 묶음.
     text 타입 메시지만 포함한다(사진·이모티콘 등 placeholder 는 검색 의미가 없어 제외).
     메시지 순서를 유지한 채 max_chars 를 넘기기 직전에 청크를 끊는다 — 발화 단위가 잘리지 않게.
-    한 메시지 혼자 max_chars 보다 길어도 버리지 않고 그 줄만으로 청크를 만든다(watsonx 가 512 토큰에서 truncate).
-    text 메시지가 하나도 없는 세션(사진만 오간 세션 등)은 빈 리스트를 반환한다 — 임베딩 대상에서 자연히 제외."""
-    lines: list[str] = []
-    for m in messages:
-        if m.msg_type != "text" or not m.body.strip():
-            continue
-        lines.append(f"{m.sender.upper()}: {m.body.strip()}")
+    한 메시지 혼자 max_chars 보다 길어도 버리지 않고 그 메시지만으로 청크를 만든다(watsonx 가 512 토큰에서 truncate).
+    text 메시지가 하나도 없는 세션(사진만 오간 세션 등)은 빈 리스트를 반환한다 — 임베딩 대상에서 자연히 제외.
 
-    if not lines:
+    문자열이 아니라 Message 묶음을 돌려주는 이유: point payload 에 청크별 시각 범위를 넣어야
+    search_conversation 이 기간 필터를 벡터 검색 **안에서** 걸 수 있다 (TASKS 3-1)."""
+    usable = [m for m in messages if m.msg_type == "text" and m.body.strip()]
+    if not usable:
         return []
 
-    chunks: list[str] = []
-    cur: list[str] = []
+    groups: list[list[Message]] = []
+    cur: list[Message] = []
     cur_len = 0
-    for line in lines:
-        if cur and cur_len + len(line) + 1 > max_chars:
-            chunks.append("\n".join(cur))
+    for m in usable:
+        line_len = len(_line(m)) + 1
+        if cur and cur_len + line_len > max_chars:
+            groups.append(cur)
             cur = []
             cur_len = 0
-        cur.append(line)
-        cur_len += len(line) + 1
+        cur.append(m)
+        cur_len += line_len
     if cur:
-        chunks.append("\n".join(cur))
-    return chunks
+        groups.append(cur)
+    return groups
 
 
-def build_points(couple_id: UUID, session_id: int, vectors: list[list[float]]) -> list[dict[str, Any]]:
-    """임베딩 벡터 리스트 → Qdrant point 리스트. id 결정론 근거는 파일 상단 주석 참고."""
+def chunk_session_text(messages: list[Message], max_chars: int = MAX_CHUNK_CHARS) -> list[str]:
+    """chunk_session_messages 를 임베딩 입력 문자열로 옮긴 것."""
+    return [format_chunk(g) for g in chunk_session_messages(messages, max_chars)]
+
+
+def build_points(
+    couple_id: UUID, session_id: int, groups: list[list[Message]], vectors: list[list[float]]
+) -> list[dict[str, Any]]:
+    """청크 묶음 + 임베딩 벡터 → Qdrant point 리스트. id 결정론 근거는 파일 상단 주석 참고.
+
+    payload 의 started_at/ended_at 은 **청크 자신의** 첫·마지막 메시지 시각(epoch 초)이다.
+    search_conversation 의 기간 필터가 이 값으로 걸린다 — 세션 단위가 아니라 청크 단위라
+    긴 세션에서도 범위 밖 구간이 딸려오지 않는다. 본문·발화자는 여전히 넣지 않는다(프라이버시)."""
     points = []
-    for idx, vec in enumerate(vectors):
+    for idx, (group, vec) in enumerate(zip(groups, vectors)):
         point_key = f"{session_id}:{idx}"
         point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{couple_id}:{point_key}"))
         points.append(
@@ -74,6 +94,8 @@ def build_points(couple_id: UUID, session_id: int, vectors: list[list[float]]) -
                     "session_id": session_id,
                     "chunk_idx": idx,
                     "point_key": point_key,
+                    "started_at": int(group[0].sent_at.timestamp()),
+                    "ended_at": int(group[-1].sent_at.timestamp()),
                 },
             }
         )
@@ -115,10 +137,10 @@ async def run_embed_sessions_job(container: Any, job: dict[str, Any]) -> None:
     failed = 0
     for session_id, messages in sessions:
         try:
-            chunks = chunk_session_text(messages)
-            if chunks:
-                vectors = await container.ai.embed_documents(chunks)
-                points = build_points(couple_id, session_id, vectors)
+            groups = chunk_session_messages(messages)
+            if groups:
+                vectors = await container.ai.embed_documents([format_chunk(g) for g in groups])
+                points = build_points(couple_id, session_id, groups, vectors)
                 await container.qdrant.upsert_sessions(couple_id, points)
             done += 1
         except Exception:

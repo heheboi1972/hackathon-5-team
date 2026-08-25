@@ -149,7 +149,7 @@ graph TD
 
 | ID | 작업 | 담당 | TC | 의존 |
 |---|---|---|---|---|
-| 3-1 | 툴: search_conversation, get_metrics, get_report, search_knowledge(dict), get_suggestion_templates(dict) | 윤석 | — | 2-6, 2-4 |
+| 3-1 | ~~툴: search_conversation, get_metrics, get_report, search_knowledge(dict), get_suggestion_templates(dict)~~ **완료** — 해찬이 이어받음. 기준선은 조회 시점 계산(`metrics.metrics_from_stored`), 기간 검색은 청크 payload 시각으로 Qdrant 필터 (ISSUE C11) | ~~윤석~~ 해찬 | test_tools.py | 2-6, 2-4 |
 | 3-1a | `build_lexicon` 잡 (`services/lexicon.py`): 빈도 상위 단어+예시 → LLM 분류·canonical → `couple_lexicon` append → `weekly_terms` 재집계. 옵션(C6): 표시 후보 문맥 검증 | 윤석 + 윤아(프롬프트) | TC-METRIC-007 | 1-8, 2-3 |
 | 3-2 | 지식 문서·템플릿 작성 완료 (`data/knowledge`, 적재 없음 — 메모리 로드) | 윤아 | — | 2-11, 1-7 |
 | 3-3 | 에이전트 1~4 구현 (**4개 병렬 가능** — I/O 모델은 2-12에서 확정. Mock LLM로 흐름 연결 → 실 LLM). 메모: 코드가 이상치·delta 상위 3 선별하면 select 호출 제거 가능 (C1, 윤석·윤아 합의) | 윤석 + 윤아 | TC-AGENT-001~004 (수동 확인) | 2-12, 3-1 |

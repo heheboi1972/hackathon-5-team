@@ -1,9 +1,12 @@
 # 역할: Qdrant 컬렉션 A(대화 세션) 관리 — upsert, search(couple_id 필터), delete_by_couple (참조: TRD §4.2)
 # 컬렉션 B(지식·템플릿)는 Qdrant 에 두지 않음 → container.knowledge 메모리 dict (ISSUE D2)
-# upsert_sessions: embed_sessions.py(TASKS 2-6, 윤아)가 호출. search_conversation은 여전히 TODO(윤석, 챗봇 검색용 TASKS 3-1).
+# upsert_sessions: embed_sessions.py(TASKS 2-6, 윤아)가 호출.
+# search_conversation: tools/search_conversation.py(TASKS 3-1)가 호출 — 여기선 벡터·메타만 다루고
+#   인용 본문은 툴 쪽에서 Postgres 복호화로 채운다.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
@@ -13,6 +16,7 @@ from qdrant_client.models import (
     FilterSelector,
     MatchValue,
     PointStruct,
+    Range,
     VectorParams,
 )
 
@@ -89,5 +93,42 @@ class QdrantService:
             wait=True,
         )
 
-    # ------------------------------------------------------------ TODO(윤석)
-    # search_conversation(couple_id, vector, k=8, start=None, end=None) — TASKS 3-1 챗봇 검색용
+    async def search_conversation(
+        self,
+        couple_id,
+        vector: list[float],
+        k: int = 8,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[dict]:
+        """벡터 검색 + couple_id 필터 (+ 선택적 기간 필터) → [{session_id, chunk_idx, score}].
+
+        본문·발화자는 payload 에 없다 — 인용 카드는 호출자(tools/search_conversation.py)가
+        Postgres 에서 복호화해 만든다.
+
+        기간 필터는 "청크 구간이 [start, end] 와 겹치는가"로 건다: `ended_at >= start` AND
+        `started_at <= end`. 걸러낸 뒤 top-k 를 뽑으므로, 범위를 좁혀도 그 안에서 가장 가까운
+        k개가 나온다 (전체에서 k개 뽑고 나중에 버리면 범위 안 결과가 0건이 될 수 있다)."""
+        must: list = [
+            FieldCondition(key="couple_id", match=MatchValue(value=str(couple_id)))
+        ]
+        if start is not None:
+            must.append(FieldCondition(key="ended_at", range=Range(gte=start.timestamp())))
+        if end is not None:
+            must.append(FieldCondition(key="started_at", range=Range(lte=end.timestamp())))
+
+        result = await self.client.query_points(
+            collection_name=self.collection_conv,
+            query=vector,
+            query_filter=Filter(must=must),
+            limit=k,
+            with_payload=True,
+        )
+        return [
+            {
+                "session_id": p.payload["session_id"],
+                "chunk_idx": p.payload["chunk_idx"],
+                "score": p.score,
+            }
+            for p in result.points
+        ]

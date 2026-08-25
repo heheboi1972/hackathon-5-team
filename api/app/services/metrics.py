@@ -260,6 +260,26 @@ def _attach_baseline(weeks: list[dict], key: str, who: str, history: list[dict])
         cur["comparable"] = ok
 
 
+BASELINED_KEYS = ("question_rate", "message_length_median", "reply_gap_median_min")
+
+
+def metrics_from_stored(summaries: list[dict]) -> dict:
+    """저장된 주간 summary 들(주 오름차순, **마지막이 대상 주**) → 대상 주의 기준선·delta 붙은 metrics.
+
+    `weekly_metrics.summary` 에는 현재값만 들어간다 — 기준선을 같이 저장하면 뒤 주차가 들어올 때마다
+    앞 주차의 summary_hash 가 흔들려 리포트가 통째로 재생성되기 때문이다. 그래서 조회 시점에
+    직전 4주 평균으로 다시 계산한다. 계산 규칙은 업로드 때와 같은 `_attach_baseline` 을 쓴다.
+    """
+    weeks = [
+        {"metrics": {k: dict(s[k]) for k in BASELINED_KEYS}}
+        for s in summaries
+    ]
+    for key in BASELINED_KEYS:
+        for who in ("couple", "a", "b"):
+            _attach_baseline(weeks, key, who, weeks[-1 - BASELINE_WEEKS_TREND:-1])
+    return weeks[-1]["metrics"]
+
+
 # ---------------------------------------------------------------- 에이전트 입력 밴딩 (ISSUE B3)
 # LLM 은 숫자를 보지 않는다. 코드가 delta 를 방향·정도로 바꿔서 넘긴다 (P-2 결정론).
 # "누가 몇 %" 가 프롬프트에 들어갈 길 자체를 없애는 장치 — 수치는 타임라인 그래프가 보여준다.
