@@ -191,6 +191,13 @@
 - 할 것: `Highlight` 에 Pydantic validator — 각 항목이 `.`/`요`/`다` 로 끝나지 않고 길이 상한(40자). 위반 시 리포트 생성 단계에서 터져 화면까지 안 샌다 (LLM 출력 Pydantic 검증 실패 → 1회 재요청, TRD §1)
 - 파일: `models/api.py`, `prompts/interpret.md`, TC-AGENT-002
 
+### C11. [x] Qdrant payload 에 시각이 없어 챗봇 기간 검색이 불가능했다 (해찬, 3-1)
+- 2-6 의 point payload 는 `{couple_id, session_id, chunk_idx, point_key}` 뿐이라 **시각 정보가 없었다.** 그런데 API_SPEC §8 의 `search_conversation` 은 `(couple_id, query, start?, end?, k=8)` — "지난달에 제주도 얘기" 같은 기간 한정 질문이 계약에 들어 있다.
+- 검색 후 Postgres 에서 거르는 방법도 있지만, 그러면 **전체 기간에서 top-k 를 뽑고 나중에 버리는** 꼴이라 범위 안에 좋은 결과가 있어도 0건이 나올 수 있다.
+- **결정**: payload 에 청크 자신의 `started_at`·`ended_at`(epoch 초)을 넣고 Qdrant 필터로 거른 뒤 top-k 를 뽑는다. 세션 단위가 아니라 **청크 단위** 범위라 긴 세션에서도 범위 밖 구간이 딸려오지 않는다. 본문·발화자는 여전히 payload 에 넣지 않는다(프라이버시 — 인용 카드는 Postgres 복호화로 조립).
+- 기존 데이터 영향 없음: point id 가 결정론이라 `embed_sessions` 잡을 다시 돌리면 같은 id 로 덮어써진다. 실데이터 임베딩 전이라 재적재도 불필요.
+- 파일: `services/embed_sessions.py`(build_points), `services/qdrant_service.py`(search_conversation), `tools/search_conversation.py`
+
 ### C10. [ ] 교육용 클러스터 수명 · 발표 후 데이터 정리 (해찬)
 - OpenShift 클러스터(`c100-e.us-south.containers.cloud.ibm.com`)는 교육 기간에 발급받은 IBM Cloud ROKS 샌드박스. 발표(해커톤 마감)까지는 유지될 것으로 추정하지만, 강사·운영 쪽의 확정 공지는 아직 없음.
 - `postgres-data`·`qdrant-storage` PVC(각 2Gi, [10-postgres-statefulset.yaml](../openshift/10-postgres-statefulset.yaml)·[11-qdrant-statefulset.yaml](../openshift/11-qdrant-statefulset.yaml))는 실제 카톡 대화(암호화 저장)를 담게 되므로, 클러스터가 예고 없이 회수되면 발표 직전 서비스 중단 리스크가 있고 동적 StorageClass 스토리지라 소액과금도 발생한다.
