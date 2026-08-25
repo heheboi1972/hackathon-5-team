@@ -40,7 +40,7 @@
   - 복호화 지점이 3곳 → 4곳으로 늘어난 것을 TRD §4.1에 명시
   - → 반영됨: `term_count_cache`, `services/term_search.py`, `tools/count_term.py`, `prompts/chat_intent.md`, `agents/chat_supervisor.py`, Intent 계약, API_SPEC §6.1·§8, REQUIREMENTS FR-006·P-3·P-5, TRD §4.1·§5.3, TC-API-008-11~17, TASKS 3-1b, `tests/test_term_search.py`
 
-### A4. [ ] 담당 재배분
+### A4. [x] 담당 재배분
 - **문제**: 윤석 17.5건(34%), Phase 2 `2-1→2-2`, `2-3→2-4` 직렬 + Phase 3 Supervisor 2개·큐까지 크리티컬 패스 전부 집중.
 - **제안**: 2-1 auth → 시여 / 3-12 Qdrant 삭제 → 윤아 / 4-2 OpenShift 통합 테스트 → 해찬 / 4-5 Mock 백업 점검 → 형준. 결과: 윤석 14(27%), 시여 10, 윤아 11, 해찬 11, 형준 5.5
 - **영향**: `TASKS.md` §5~7, §10
