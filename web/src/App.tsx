@@ -20,6 +20,10 @@ export default function App() {
         element={USE_MOCK ? <Timeline /> : <Navigate to="/onboarding" replace />}
       />
       <Route path="/upload" element={<Upload />} />
+      <Route
+        path="/report"
+        element={USE_MOCK ? <Report /> : <Navigate to="/onboarding" replace />}
+      />
       <Route path="/reports/:week" element={<Report />} />
       <Route path="/review" element={<Review />} />
       <Route path="/settings" element={<Settings />} />
