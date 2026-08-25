@@ -83,6 +83,7 @@ _Q_STRONG_END = re.compile(
 )
 _Q_HESITATE = re.compile(r"까\s*말까" + _TRAIL)
 _EXCLAIM_END = re.compile(r"![\s~ㅋㅎ]*$")
+_Q_FALSE_POSITIVE = {"그니까", "그러니까", "아까"}  # "까"로 끝나지만 질문이 아닌 흔한 예외
 
 # 본문에서 제거할 제어문자 (링크 미리보기 흔적 등)
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -97,6 +98,9 @@ def classify(body: str) -> str:
 
 def is_question(body: str) -> bool:
     b = body.rstrip()
+    core = re.sub(r"[\s~ㅋㅎ]+$", "", b)
+    if core in _Q_FALSE_POSITIVE:  # "그니까"/"아까" 등 오탐 예외 처리
+        return False
     if _Q_MARK.search(b):  # (1)
         return True
     if _EXCLAIM_END.search(b):  # (4)
