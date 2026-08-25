@@ -8,7 +8,10 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM docker.io/library/nginx:alpine
+# nginx-unprivileged: OpenShift 는 컨테이너를 임의의 non-root UID 로 돌린다.
+# 기본 nginx 이미지는 /var/cache/nginx 에 못 쓰고(Permission denied) 80 포트도 못 연다(<1024).
+# 이 이미지는 8080 을 쓰고 필요한 디렉터리 권한이 gid 0 에 열려 있어 그대로 뜬다.
+FROM docker.io/nginxinc/nginx-unprivileged:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+EXPOSE 8080
