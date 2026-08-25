@@ -20,6 +20,7 @@ from .services.lexicon import BuildLexiconService
 from .services.knowledge import Knowledge, load_knowledge
 from .services.postgres_service import PostgresService
 from .services.qdrant_service import QdrantService
+from .services.term_search import TermSearchService
 from .tools.get_suggestion_templates import get_suggestion_templates
 from .tools.search_conversation import search_conversation
 from .tools.search_knowledge import search_knowledge
@@ -39,6 +40,7 @@ class Container:
     lexicon: BuildLexiconService
     report_supervisor: ReportSupervisor
     report_jobs: ReportJobHandler
+    term_search: TermSearchService
     postgres_up: bool = False
     qdrant_up: bool = False
     # TODO(윤석): agents = {select, interpret, suggest, safety}, report_supervisor, chat_supervisor
@@ -88,6 +90,7 @@ async def build_container(settings: Settings) -> Container:
     safety = SafetyAgent(ai)
     supervisor = ReportSupervisor(select, interpret, suggest, safety)
     report_jobs = ReportJobHandler(pg, supervisor, max_concurrency=3)
+    term_search = TermSearchService(pg, cipher)
     jobs.register("report_backfill", report_jobs)
     jobs.register("report_single", report_jobs)
     c = Container(
@@ -101,6 +104,7 @@ async def build_container(settings: Settings) -> Container:
         lexicon=lexicon,
         report_supervisor=supervisor,
         report_jobs=report_jobs,
+        term_search=term_search,
     )
 
     # 저장소가 아직 안 떴어도 앱은 뜬다 — /health/ready 가 503으로 알려줌

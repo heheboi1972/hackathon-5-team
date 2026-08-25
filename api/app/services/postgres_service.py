@@ -531,6 +531,117 @@ class PostgresService:
                 (total, job_id),
             )
 
+    # ----------------------------------------------------------- term count
+
+    async def get_term_source_version(self, couple_id: UUID) -> int:
+        async with self.pool.connection() as conn:
+            row = await (
+                await conn.execute(
+                    "SELECT coalesce(max(message_id), 0) FROM messages WHERE couple_id=%s",
+                    (couple_id,),
+                )
+            ).fetchone()
+            return int(row[0])
+
+    async def get_term_count_cache(
+        self,
+        couple_id: UUID,
+        term: str,
+        *,
+        start: datetime | None,
+        end: datetime | None,
+        source_version: int,
+    ) -> dict[str, Any] | None:
+        async with self.pool.connection() as conn:
+            row = await (
+                await conn.execute(
+                    """
+                    SELECT result FROM term_count_cache
+                     WHERE couple_id=%s AND term=%s
+                       AND range_start IS NOT DISTINCT FROM %s
+                       AND range_end IS NOT DISTINCT FROM %s
+                       AND source_version=%s
+                    """,
+                    (couple_id, term, start, end, source_version),
+                )
+            ).fetchone()
+            return dict(row[0]) if row else None
+
+    async def get_term_search_source(
+        self,
+        couple_id: UUID,
+        *,
+        start: datetime | None,
+        end: datetime | None,
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """동일 repeatable-read snapshot의 version과 암호문만 반환한다."""
+        filters = ["couple_id=%s", "msg_type='text'"]
+        params: list[Any] = [couple_id]
+        if start is not None:
+            filters.append("sent_at >= %s")
+            params.append(start)
+        if end is not None:
+            filters.append("sent_at <= %s")
+            params.append(end)
+        async with self.pool.connection() as conn, conn.transaction():
+            await conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            version_row = await (
+                await conn.execute(
+                    "SELECT coalesce(max(message_id), 0) FROM messages WHERE couple_id=%s",
+                    (couple_id,),
+                )
+            ).fetchone()
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT sent_at, body_encrypted FROM messages
+                     WHERE {' AND '.join(filters)}
+                     ORDER BY sent_at, message_id
+                    """,
+                    params,
+                )
+                rows = list(await cur.fetchall())
+        return int(version_row[0]), rows
+
+    async def save_term_count_cache(
+        self,
+        couple_id: UUID,
+        term: str,
+        *,
+        start: datetime | None,
+        end: datetime | None,
+        source_version: int,
+        result: dict[str, Any],
+    ) -> None:
+        async with self.pool.connection() as conn, conn.transaction():
+            updated = await conn.execute(
+                """
+                UPDATE term_count_cache
+                   SET result=%s, source_version=%s, created_at=now()
+                 WHERE couple_id=%s AND term=%s
+                   AND range_start IS NOT DISTINCT FROM %s
+                   AND range_end IS NOT DISTINCT FROM %s
+                """,
+                (Jsonb(result), source_version, couple_id, term, start, end),
+            )
+            if updated.rowcount == 0:
+                await conn.execute(
+                    """
+                    INSERT INTO term_count_cache
+                        (couple_id, term, range_start, range_end, result, source_version)
+                    VALUES (%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (couple_id, term, start, end, Jsonb(result), source_version),
+                )
+
+    async def invalidate_term_count_cache(self, couple_id: UUID) -> int:
+        async with self.pool.connection() as conn:
+            deleted = await conn.execute(
+                "DELETE FROM term_count_cache WHERE couple_id=%s", (couple_id,)
+            )
+            return deleted.rowcount
+
     # -------------------------------------------------------------- reports
 
     async def get_report_job_weeks(self, job: dict[str, Any]) -> list[dict[str, Any]]:
@@ -892,9 +1003,10 @@ class PostgresService:
                             for t in term_rows
                         ],
                     )
-                await cur.execute(
-                    "DELETE FROM term_count_cache WHERE couple_id=%s", (couple_id,)
-                )
+                if new_messages:
+                    await cur.execute(
+                        "DELETE FROM term_count_cache WHERE couple_id=%s", (couple_id,)
+                    )
 
                 if changed:
                     await cur.executemany(
