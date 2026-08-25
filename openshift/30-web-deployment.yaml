@@ -1,1 +1,78 @@
-# 역할: Web Deployment (참조: SCAFFOLD §2)  # TODO: 해찬
+# 역할: Web Deployment + Service (+ api 별칭 Service) (참조: SCAFFOLD §2)
+#
+# 이미지는 3-11 Tekton 파이프라인이 만든다. api 와 같은 이유로 imagePullPolicy: Always —
+# 같은 :latest 태그로 다시 밀어도 롤아웃이 안 트리거되는 함정을 피한다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: couple-report-web
+  namespace: couple-report
+  labels:
+    app: couple-report-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: couple-report-web
+  template:
+    metadata:
+      labels:
+        app: couple-report-web
+    spec:
+      containers:
+        - name: web
+          image: image-registry.openshift-image-registry.svc:5000/couple-report/couple-report-web:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              # 8080 인 이유: 이미지가 nginx-unprivileged 다. OpenShift 는 임의의 non-root UID 로
+              # 돌리는데 기본 nginx 는 /var/cache/nginx 쓰기와 80 포트 바인딩이 둘 다 막혀 크래시한다.
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: couple-report-web
+  namespace: couple-report
+  labels:
+    app: couple-report-web
+spec:
+  selector:
+    app: couple-report-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+# api 별칭 Service — 이름만 다르고 가리키는 파드는 couple-report-api 와 같다.
+#
+# 왜 필요한가: web/nginx.conf 가 `proxy_pass http://api:8000` 으로 잡혀 있다. 이건
+# docker-compose 의 서비스명이라 로컬에서는 맞지만, OpenShift 의 Service 명은
+# `couple-report-api` 라 그대로 두면 nginx 가 upstream 을 못 찾아 /api/ 요청이 전부 502 가 된다.
+#
+# 고르는 방법이 셋 있었다: (1) nginx.conf 를 OpenShift 이름으로 바꾸기 → 로컬 compose 가 깨진다,
+# (2) OpenShift Service 명을 `api` 로 바꾸기 → Route·Deployment 참조를 다 바꿔야 하고 이름이 모호해진다,
+# (3) 별칭 Service 하나 추가 → 두 환경이 **같은 nginx.conf** 로 돌아간다. (3)을 택했다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: couple-report
+  labels:
+    app: couple-report-api
+spec:
+  selector:
+    app: couple-report-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

@@ -1,0 +1,79 @@
+# 역할: api 이미지 빌드 파이프라인 (TASKS 3-11)
+#
+# **CONTEXT 는 반드시 저장소 루트(`.`)다** — Dockerfile 이 `COPY data ./data` 로 `data/knowledge`
+# (지식 문서·템플릿·감성 시드)를 가져가기 때문. `CONTEXT=api` 로 두면 COPY 가 전부 실패한다 (ISSUE A6).
+# 그래서 DOCKERFILE 은 루트 기준 경로인 `api/Dockerfile` 이다.
+#
+# 배포(rollout)는 여기 없다 — 이 파이프라인은 **빌드·push 까지**다. Deployment 적용은 4-1.
+# `20-api-deployment.yaml` 이 `imagePullPolicy: Always` 라서, 같은 :latest 태그로 다시 밀어도
+# 롤아웃만 걸면(`oc rollout restart deploy/couple-report-api`) 새 이미지를 받아간다.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: couple-report-api-build
+  namespace: couple-report
+spec:
+  params:
+    - name: git-url
+      type: string
+      default: https://github.com/heheboi1972/hackathon-5-team.git
+    - name: git-revision
+      type: string
+      default: main
+    - name: image
+      type: string
+      default: image-registry.openshift-image-registry.svc:5000/couple-report/couple-report-api:latest
+    - name: web-image
+      type: string
+      default: image-registry.openshift-image-registry.svc:5000/couple-report/couple-report-web:latest
+  workspaces:
+    - name: shared
+  results:
+    - name: commit
+      value: $(tasks.clone.results.commit)
+  tasks:
+    - name: clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: shared
+    - name: build
+      runAfter: [clone]
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: $(params.image)
+        - name: DOCKERFILE
+          value: api/Dockerfile
+        - name: CONTEXT
+          value: .
+      workspaces:
+        - name: source
+          workspace: shared
+    # web 은 api 와 달리 컨텍스트가 `web/` 이다 — Dockerfile 이 package.json·src 만 COPY 하고
+    # 저장소 루트의 것을 안 쓰기 때문. api 처럼 루트로 두면 node_modules 없이 전체 트리가
+    # 빌드 컨텍스트로 올라가 느려지기만 한다.
+    #
+    # clone 뒤에 붙지만 build 와는 순서를 묶지 않았다(runAfter 가 clone 뿐) — 서로 안 겹쳐서
+    # Tekton 이 두 빌드를 동시에 돌린다.
+    - name: build-web
+      runAfter: [clone]
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: $(params.web-image)
+        - name: DOCKERFILE
+          value: web/Dockerfile
+        - name: CONTEXT
+          value: web
+      workspaces:
+        - name: source
+          workspace: shared

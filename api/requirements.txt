@@ -14,4 +14,3 @@ bcrypt==4.0.1
 cryptography==44.0.0
 python-multipart==0.0.20
 opentelemetry-api==1.29.0
-instana==3.2.0

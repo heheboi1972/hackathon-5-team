@@ -1,5 +1,6 @@
 // 역할: 업로드 — 드롭 → 이름 매핑 → 진행률 (참조: FR-002, API_SPEC §3, TRD §6.2) — 시여 담당
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { ApiClientError, api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -255,6 +256,11 @@ export default function Upload() {
             새 메시지 {result.parsed.new_messages.toLocaleString()}개 · 세션 {result.parsed.session_count.toLocaleString()}개 ·
             리포트 {result.report_jobs.total}주
           </p>
+          {stage === "success" && (
+            <Link to="/timeline" className="mt-4 inline-flex font-medium text-rose-600 hover:underline">
+              타임라인 확인하기 →
+            </Link>
+          )}
         </Card>
       )}
 

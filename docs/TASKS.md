@@ -137,7 +137,7 @@ graph TD
 | 2-8 | 업로드 화면 (드롭 → 이름 매핑 → 진행률) | 시여 | — | 1-4 |
 | 2-9 | 타임라인 화면 (Mock fixture로 먼저) | 시여 | — | 1-4 |
 | 2-10 | api Deployment + Service + Route + Secret/ConfigMap (서비스명 `couple-report-api`). 메모: 이미지에 `data/` 포함됨(빌드 컨텍스트 = repo 루트, ISSUE A6) — Deployment 에 별도 볼륨 불필요 | 해찬 | — | 1-6 |
-| 2-13 | Instana agent 존재 확인 (DaemonSet) + `INSTANA_AGENT_HOST` 값 확보 | 해찬 | — | 1-V5 |
+| 2-13 | ~~Instana agent 존재 확인~~ **완료 — 없음 확인됨 (ISSUE D3)**. `execution_trace`로 대체 | 해찬 | — | 1-V5 |
 | 2-11 | 제안 템플릿 풀 20~30개 작성 (지표 5 × 방향; `initiation_*` 없음) | 윤아 | — | — |
 | 2-12 | 에이전트 4개 instructions 초안 + 검수 규칙표 | 윤아 | — | 0-6 |
 
@@ -149,7 +149,7 @@ graph TD
 
 | ID | 작업 | 담당 | TC | 의존 |
 |---|---|---|---|---|
-| 3-1 | 툴: search_conversation, get_metrics, get_report, search_knowledge(dict), get_suggestion_templates(dict) | 윤석 | — | 2-6, 2-4 |
+| 3-1 | ~~툴: search_conversation, get_metrics, get_report, search_knowledge(dict), get_suggestion_templates(dict)~~ **완료** — 해찬이 이어받음. 기준선은 조회 시점 계산(`metrics.metrics_from_stored`), 기간 검색은 청크 payload 시각으로 Qdrant 필터 (ISSUE C11) | ~~윤석~~ 해찬 | test_tools.py | 2-6, 2-4 |
 | 3-1a | `build_lexicon` 잡 (`services/lexicon.py`): 빈도 상위 단어+예시 → LLM 분류·canonical → `couple_lexicon` append → `weekly_terms` 재집계. 옵션(C6): 표시 후보 문맥 검증 | 윤석 + 윤아(프롬프트) | TC-METRIC-007 | 1-8, 2-3 |
 | 3-2 | 지식 문서·템플릿 작성 완료 (`data/knowledge`, 적재 없음 — 메모리 로드) | 윤아 | — | 2-11, 1-7 |
 | 3-3 | 에이전트 1~4 구현 (**4개 병렬 가능** — I/O 모델은 2-12에서 확정. Mock LLM로 흐름 연결 → 실 LLM). 메모: 코드가 이상치·delta 상위 3 선별하면 select 호출 제거 가능 (C1, 윤석·윤아 합의) | 윤석 + 윤아 | TC-AGENT-001~004 (수동 확인) | 2-12, 3-1 |
@@ -177,7 +177,7 @@ graph TD
 | 4-3 | 금지 표현 regex 전 리포트 스캔 | 윤아 | TC-API-005-9 |
 | 4-4 | 데모 데이터 준비 (동의받은 커플 1쌍 또는 합성) | 형준 | — |
 | 4-5 | Mock 모드 백업 경로 점검 | 윤석 | TC-API-008-10 |
-| 4-6 | Instana에서 데모 시나리오 1회 트레이스 확인 (TRD §9.1 질문 1~5) | 해찬 + 윤석 | — |
+| 4-6 | ~~Instana에서 트레이스 확인~~ **스킵 (ISSUE D3, agent 없음)**. `execution_trace` 조회로 TRD §9.1 질문 1~3 확인 | 해찬 + 윤석 | — |
 
 ---
 

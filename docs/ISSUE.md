@@ -40,7 +40,7 @@
   - 복호화 지점이 3곳 → 4곳으로 늘어난 것을 TRD §4.1에 명시
   - → 반영됨: `term_count_cache`, `services/term_search.py`, `tools/count_term.py`, `prompts/chat_intent.md`, `agents/chat_supervisor.py`, Intent 계약, API_SPEC §6.1·§8, REQUIREMENTS FR-006·P-3·P-5, TRD §4.1·§5.3, TC-API-008-11~17, TASKS 3-1b, `tests/test_term_search.py`
 
-### A4. [ ] 담당 재배분
+### A4. [x] 담당 재배분
 - **문제**: 윤석 17.5건(34%), Phase 2 `2-1→2-2`, `2-3→2-4` 직렬 + Phase 3 Supervisor 2개·큐까지 크리티컬 패스 전부 집중.
 - **제안**: 2-1 auth → 시여 / 3-12 Qdrant 삭제 → 윤아 / 4-2 OpenShift 통합 테스트 → 해찬 / 4-5 Mock 백업 점검 → 형준. 결과: 윤석 14(27%), 시여 10, 윤아 11, 해찬 11, 형준 5.5
 - **영향**: `TASKS.md` §5~7, §10
@@ -191,6 +191,13 @@
 - 할 것: `Highlight` 에 Pydantic validator — 각 항목이 `.`/`요`/`다` 로 끝나지 않고 길이 상한(40자). 위반 시 리포트 생성 단계에서 터져 화면까지 안 샌다 (LLM 출력 Pydantic 검증 실패 → 1회 재요청, TRD §1)
 - 파일: `models/api.py`, `prompts/interpret.md`, TC-AGENT-002
 
+### C11. [x] Qdrant payload 에 시각이 없어 챗봇 기간 검색이 불가능했다 (해찬, 3-1)
+- 2-6 의 point payload 는 `{couple_id, session_id, chunk_idx, point_key}` 뿐이라 **시각 정보가 없었다.** 그런데 API_SPEC §8 의 `search_conversation` 은 `(couple_id, query, start?, end?, k=8)` — "지난달에 제주도 얘기" 같은 기간 한정 질문이 계약에 들어 있다.
+- 검색 후 Postgres 에서 거르는 방법도 있지만, 그러면 **전체 기간에서 top-k 를 뽑고 나중에 버리는** 꼴이라 범위 안에 좋은 결과가 있어도 0건이 나올 수 있다.
+- **결정**: payload 에 청크 자신의 `started_at`·`ended_at`(epoch 초)을 넣고 Qdrant 필터로 거른 뒤 top-k 를 뽑는다. 세션 단위가 아니라 **청크 단위** 범위라 긴 세션에서도 범위 밖 구간이 딸려오지 않는다. 본문·발화자는 여전히 payload 에 넣지 않는다(프라이버시 — 인용 카드는 Postgres 복호화로 조립).
+- 기존 데이터 영향 없음: point id 가 결정론이라 `embed_sessions` 잡을 다시 돌리면 같은 id 로 덮어써진다. 실데이터 임베딩 전이라 재적재도 불필요.
+- 파일: `services/embed_sessions.py`(build_points), `services/qdrant_service.py`(search_conversation), `tools/search_conversation.py`
+
 ### C10. [ ] 교육용 클러스터 수명 · 발표 후 데이터 정리 (해찬)
 - OpenShift 클러스터(`c100-e.us-south.containers.cloud.ibm.com`)는 교육 기간에 발급받은 IBM Cloud ROKS 샌드박스. 발표(해커톤 마감)까지는 유지될 것으로 추정하지만, 강사·운영 쪽의 확정 공지는 아직 없음.
 - `postgres-data`·`qdrant-storage` PVC(각 2Gi, [10-postgres-statefulset.yaml](../openshift/10-postgres-statefulset.yaml)·[11-qdrant-statefulset.yaml](../openshift/11-qdrant-statefulset.yaml))는 실제 카톡 대화(암호화 저장)를 담게 되므로, 클러스터가 예고 없이 회수되면 발표 직전 서비스 중단 리스크가 있고 동적 StorageClass 스토리지라 소액과금도 발생한다.
@@ -213,9 +220,17 @@
 - 파일: `TRD` §4.2, `scripts/seed_knowledge.py`, `SEED_KNOWLEDGE_ON_START`, TASKS 3-2
 - **결정**: **메모리 dict.** `data/knowledge/*.md`·`templates.json`을 `container.py`에서 앱 시작 시 `{(metric, direction): [...]}`로 로드. `search_knowledge`·`get_suggestion_templates`는 dict 조회(시그니처 유지, `query`는 무시). 삭제: `scripts/seed_knowledge.py`, `.env.example`/`config.py`의 `SEED_KNOWLEDGE_ON_START`·`QDRANT_COLLECTION_KNOWLEDGE`, `qdrant_service.ensure_collections`의 컬렉션 B, `TRD` §4.2 컬렉션 B 행. TASKS 3-2는 "문서·템플릿 작성"만 남김(적재 없음). Qdrant는 컬렉션 A만. 자유 질의 검색이 필요해지면 그때 재도입.
 
-### D3. [ ] Instana/OTel (해찬)
+### D3. [x] Instana/OTel (해찬)
 - 클러스터에 agent DaemonSet 없으면 전부 헛일. 1-V5 결과 후 결정. 없으면 `execution_trace` JSONB만 남김.
-- **결정** (1-V5 후):
+- **검증 (2026-08-24)**: 1-V5 완료 후 클러스터 전체를 직접 확인.
+  1. `oc get daemonsets --all-namespaces` — 17개 전부 표준 OpenShift/IBM Cloud 인프라(calico-node, konnectivity-agent, dns-default 등). Instana 관련 0건
+  2. `oc get pods --all-namespaces | grep instana` — 0건
+  3. Instana 표준 에이전트 포트(42699)로 노드 hostIP 직접 연결 시도 → `Connection refused` (방화벽 차단이면 timeout이 났을 것 — refused는 그 포트에 듣는 프로세스 자체가 없다는 뜻이라 결정적 증거)
+  4. 로그인 가능한 Instana 계정(`obs-bigdatalearning.instana.io`)이 있었으나, 팀 인프라용이 아니라 교육 과정 실습(개인 초대) 계정으로 확인됨 — 해커톤 클러스터 자체와는 별개
+- **결정**: **없음. `execution_trace`만 사용.** NFR-005는 이미 `reports.execution_trace` JSONB + `trace_id`만 요구해서 코드 변경 없음.
+  - 정리: `TRD` §9.1 계측 계획(자동 계측·에이전트/LLM/툴 스팬·EUM)은 **보류 표시**로 남김(에이전트가 생기면 재사용, 삭제하지 않음). `api/requirements.txt` 의 `instana==3.2.0` 제거(`AUTOWRAPT_BOOTSTRAP` 빈 값이라 원래도 비활성 — 죽은 의존성). `opentelemetry-api` 는 유지(에이전트 없이도 no-op으로 동작, 가벼움). `config.py` 의 `instana_agent_host`·`instana_service_name` 필드 제거. `.env.example` 주석 정정. `openshift/00-namespace-secret.yaml` ConfigMap 의 `INSTANA_SERVICE_NAME` 제거(보낼 곳이 없는 값)
+  - TASKS 2-13은 이 검증으로 완료 처리. 4-6("Instana에서 트레이스 확인")은 전제가 없어져 스킵 — 리뷰 시 `execution_trace` 조회로 대체
+  - 영향: `docs/TRD.md` §9.1, `api/requirements.txt`, `api/app/config.py`, `.env.example`, `openshift/00-namespace-secret.yaml`, `docs/TASKS.md` 2-13·4-6
 
 ### D4. [→] `ReviewMetrics.range/baseline: dict[str, Any]` (윤석+시여)
 - 돌아보기 화면(가장 늦게 확정)에 타입이 없어 프론트·백이 각자 추측. Phase 3 전까지 `WeekSummary` 서브셋 모델로 고정.

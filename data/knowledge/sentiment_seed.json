@@ -1,17 +1,41 @@
 {
-  "_comment": "공용 감성 시드 사전 (ISSUE A1). 커플 첫 업로드 시 couple_lexicon 에 source='seed' 로 들어가고, Phase 3 build_lexicon 잡이 커플별 단어를 LLM 으로 보강한다. 문자열은 term=canonical, 객체는 철자 변형 → canonical 매핑. 동의어는 묶지 않는다 (A5). 편집: 윤아",
+  "_comment": "공용 감성 시드 사전 (ISSUE A1). 커플 첫 업로드 시 couple_lexicon 에 source='seed' 로 들어가고, Phase 3 build_lexicon 잡이 커플별 단어를 LLM 으로 보강한다. 문자열은 term=canonical, 객체는 철자 변형 → canonical 매핑. 동의어는 묶지 않는다 (A5). 편집: 윤아 (1-8, 2026-08-24 — 활용형(~해/~았어/었어) 변형 누락 보강 + 커플 대화 흔한 단어 추가).",
   "pos": [
     "좋아", {"term": "조아", "canonical": "좋아"}, {"term": "좋앙", "canonical": "좋아"}, {"term": "조아요", "canonical": "좋아"},
-    "고마워", {"term": "고마웡", "canonical": "고마워"}, "감사",
-    "사랑해", {"term": "사랑행", "canonical": "사랑해"}, "사랑",
+    "고마워", {"term": "고마웡", "canonical": "고마워"}, {"term": "고마웠어", "canonical": "고마워"}, {"term": "고맙다", "canonical": "고마워"}, {"term": "고마와", "canonical": "고마워"}, "감사",
+    "사랑해", {"term": "사랑행", "canonical": "사랑해"}, {"term": "사랑했어", "canonical": "사랑해"}, "사랑",
     "보고싶어", {"term": "보고싶", "canonical": "보고싶어"},
-    "행복", "재밌", "재미있", "웃겨", "귀여워", {"term": "귀엽", "canonical": "귀여워"},
-    "예뻐", "이뻐", "멋져", "최고", "대박", "짱", "좋다", "좋네", "기대", "설레", "편해", "든든", "응원", "축하", "잘했어", "고생했어", "수고했어"
+    "행복", {"term": "행복해", "canonical": "행복"}, {"term": "행복했어", "canonical": "행복"},
+    "재밌", "재미있", {"term": "재밌었어", "canonical": "재밌"}, {"term": "꿀잼", "canonical": "재밌"},
+    "웃겨", "귀여워", {"term": "귀엽", "canonical": "귀여워"},
+    "예뻐", "이뻐", {"term": "존예", "canonical": "예뻐"},
+    "멋져", {"term": "존잘", "canonical": "멋져"},
+    "최고", "대박", "짱", "좋다", "좋네", "기대", "설레", {"term": "설렜어", "canonical": "설레"},
+    "편해", {"term": "편했어", "canonical": "편해"},
+    "든든", "응원", {"term": "화이팅", "canonical": "응원"}, {"term": "파이팅", "canonical": "응원"},
+    "축하", "잘했어", "고생했어", "수고했어",
+    "다행", {"term": "다행이야", "canonical": "다행"},
+    "안심", "감동", "뿌듯", {"term": "뿌듯해", "canonical": "뿌듯"}
   ],
   "neg": [
-    "짜증", {"term": "짱나", "canonical": "짜증"}, {"term": "짜증나", "canonical": "짜증"},
+    "짜증", {"term": "짱나", "canonical": "짜증"}, {"term": "짜증나", "canonical": "짜증"}, {"term": "짜증났어", "canonical": "짜증"}, {"term": "짜증남", "canonical": "짜증"},
     "피곤", {"term": "피곤해", "canonical": "피곤"}, {"term": "피곤하", "canonical": "피곤"},
-    "힘들", {"term": "힘들어", "canonical": "힘들"}, {"term": "힘드", "canonical": "힘들"},
-    "슬퍼", "우울", "불안", "걱정", "속상", "서운", "화나", "화났", "싫어", "싫다", "지쳐", "지친", "외로", "답답", "스트레스", "아파", "아프"
+    "힘들", {"term": "힘들어", "canonical": "힘들"}, {"term": "힘드", "canonical": "힘들"}, {"term": "힘들었어", "canonical": "힘들"},
+    "슬퍼", {"term": "슬펐어", "canonical": "슬퍼"},
+    "우울",
+    "불안", {"term": "불안해", "canonical": "불안"}, {"term": "불안했어", "canonical": "불안"},
+    "걱정",
+    "속상", {"term": "속상해", "canonical": "속상"}, {"term": "속상했어", "canonical": "속상"},
+    "서운", {"term": "서운해", "canonical": "서운"}, {"term": "서운했어", "canonical": "서운"},
+    "화나", "화났", {"term": "화났어", "canonical": "화나"}, {"term": "빡쳐", "canonical": "화나"},
+    "싫어", "싫다", {"term": "싫었어", "canonical": "싫어"},
+    "지쳐", "지친", {"term": "지쳤어", "canonical": "지쳐"},
+    "외로", {"term": "외로워", "canonical": "외로"}, {"term": "외로웠어", "canonical": "외로"},
+    "답답", {"term": "답답해", "canonical": "답답"}, {"term": "답답했어", "canonical": "답답"},
+    "스트레스",
+    "아파", "아프", {"term": "아팠어", "canonical": "아파"}, {"term": "아푸다", "canonical": "아파"}, {"term": "아퍼", "canonical": "아파"},
+    "미안해", {"term": "미안", "canonical": "미안해"},
+    "삐졌어", {"term": "삐짐", "canonical": "삐졌어"},
+    "질투", "무서워", "지겨워"
   ]
 }

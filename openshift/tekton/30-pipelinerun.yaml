@@ -1,0 +1,29 @@
+# 역할: 파이프라인 실행 템플릿 (TASKS 3-11)
+#
+# 실행: `oc create -f openshift/tekton/30-pipelinerun.yaml`
+#   (apply 가 아니라 create — generateName 이라 매번 새 실행이 만들어진다)
+# 확인: `oc get pipelinerun -n couple-report`
+#       `oc logs -f -l tekton.dev/pipelineRun=<이름> -n couple-report --all-containers`
+#
+# serviceAccountName: pipeline — Pipelines 오퍼레이터가 만들어 둔 SA 로,
+# 내부 레지스트리 push 권한(system:image-builder)과 buildah 에 필요한 SCC 를 이미 갖고 있다.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: couple-report-api-build-
+  namespace: couple-report
+spec:
+  pipelineRef:
+    name: couple-report-api-build
+  taskRunTemplate:
+    serviceAccountName: pipeline
+  workspaces:
+    - name: shared
+      # 실행마다 PVC 를 만들고 끝나면 지운다 — 빌드 사이에 남길 상태가 없다.
+      # 10Gi 인 이유: ibmc-vpc-block-10iops-tier 의 최소 용량이 10Gi 라 그보다 작게 요청해도 10Gi 로 잡힌다.
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 10Gi
