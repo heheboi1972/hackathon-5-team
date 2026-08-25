@@ -19,6 +19,65 @@ from ..services.ai_service import AIService
 from .base import AgentBase, AgentOutputError, maybe_await
 
 Tool = Callable[..., Any]
+
+# watsonx json_schema 구조화 출력 (2-6b 실측 10/10, 2026-08-25 윤아 — 3-7).
+# evidence/sources가 프롬프트 지시만으로는 가끔 문자열로 축약되던 문제를 API 레벨에서 막는다.
+# scripts/2-6b_response_format_test.py 와 동일한 스키마 — InterpretOutput 실제 필드와 1:1.
+_RESPONSE_FORMAT: dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "interpret_output",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "highlights": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "observation": {"type": "string"},
+                            "interpretations": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "minItems": 2,
+                            },
+                            "evidence": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "session_id": {"type": "integer"},
+                                        "at": {"type": "string"},
+                                        "snippet": {"type": "string"},
+                                    },
+                                    "required": ["session_id", "at", "snippet"],
+                                    "additionalProperties": False,
+                                },
+                            },
+                            "sources": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "doc": {"type": "string"},
+                                        "section": {"type": "string"},
+                                    },
+                                    "required": ["doc", "section"],
+                                    "additionalProperties": False,
+                                },
+                            },
+                        },
+                        "required": ["observation", "interpretations", "evidence", "sources"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["highlights"],
+            "additionalProperties": False,
+        },
+    },
+}
 _KOREAN_RE = re.compile(r"[가-힣]")
 _DIGIT_RE = re.compile(r"\d")
 _PERSON_RE = re.compile(r"(?:\b[AB]\s*(?:가|이|는|은|의|님|씨)\b|상대방|파트너|누가\s*더|한\s*쪽)")
@@ -166,7 +225,10 @@ class InterpretAgent(AgentBase):
                 output = _mock_output(model, evidence, knowledge)
             else:
                 output = await self.generate_validated(
-                    tool_payload, InterpretOutput, mock_key="interpret"
+                    tool_payload,
+                    InterpretOutput,
+                    mock_key="interpret",
+                    response_format=_RESPONSE_FORMAT,
                 )
             _validate_language(output)
             _validate_grounding(output, evidence, knowledge)

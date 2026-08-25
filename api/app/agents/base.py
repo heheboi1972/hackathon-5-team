@@ -89,7 +89,11 @@ class AgentBase:
         *,
         mock_key: str,
         max_tokens: int = 2000,
+        response_format: dict[str, Any] | None = None,
     ) -> OutputT:
+        """`response_format`: watsonx json_schema 구조화 출력 (2-6b 실측 10/10, 2026-08-25 윤아).
+        evidence/sources 처럼 "항상 객체 형태"가 깨지면 안 되는 출력에서, 프롬프트 지시만으로는
+        재현성 있게 못 막던 문자열 축약을 API 레벨에서 막는다. mock provider에선 무시됨."""
         messages = [
             {"role": "system", "content": self.prompt()},
             {"role": "user", "content": _json(payload)},
@@ -98,7 +102,10 @@ class AgentBase:
         for attempt in range(2):
             try:
                 raw = await self.ai.generate_json(
-                    messages, max_tokens=max_tokens, mock_key=mock_key
+                    messages,
+                    max_tokens=max_tokens,
+                    mock_key=mock_key,
+                    response_format=response_format,
                 )
                 return output_model.model_validate(raw)
             except (AIServiceError, ValidationError, TypeError, ValueError) as exc:
