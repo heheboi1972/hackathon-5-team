@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -307,6 +307,104 @@ class PostgresService:
                 (user_id, user_id, couple_id),
             )
             return await cur.fetchone()
+
+    # -------------------------------------------------------------- timeline
+
+    async def get_timeline(
+        self,
+        couple_id: UUID,
+        *,
+        from_: date | None = None,
+        to: date | None = None,
+    ) -> list[dict[str, Any]]:
+        """weekly_metrics 저장형을 Timeline 투영 입력으로 조립한다."""
+        filters = ["wm.couple_id = %s"]
+        params: list[Any] = [couple_id]
+        if from_ is not None:
+            filters.append("wm.week_start >= %s")
+            params.append(from_)
+        if to is not None:
+            filters.append("wm.week_start <= %s")
+            params.append(to)
+
+        async with (
+            self.pool.connection() as conn,
+            conn.cursor(row_factory=dict_row) as cur,
+        ):
+            await cur.execute(
+                f"""
+                SELECT wm.week_start,
+                       wm.summary,
+                       jsonb_array_length(wm.outliers) AS outlier_count,
+                       coalesce(r.status, 'pending') AS report_status
+                  FROM weekly_metrics wm
+                  LEFT JOIN reports r
+                    ON r.couple_id = wm.couple_id
+                   AND r.week_start = wm.week_start
+                 WHERE {' AND '.join(filters)}
+                 ORDER BY wm.week_start ASC
+                """,
+                params,
+            )
+            rows = list(await cur.fetchall())
+            if not rows:
+                return []
+
+            first_week = rows[0]["week_start"]
+            last_week = rows[-1]["week_start"]
+            await cur.execute(
+                """
+                SELECT week_start, sender, canonical, polarity, count
+                  FROM weekly_terms
+                 WHERE couple_id = %s
+                   AND week_start >= %s
+                   AND week_start <= %s
+                   AND count >= 3
+                 ORDER BY week_start, sender, polarity, count DESC, canonical
+                """,
+                (couple_id, first_week, last_week),
+            )
+            term_rows = await cur.fetchall()
+
+            await cur.execute(
+                """
+                SELECT at, kind, label
+                  FROM events
+                 WHERE couple_id = %s
+                   AND at >= %s
+                   AND at < %s
+                 ORDER BY at, event_id
+                """,
+                (couple_id, first_week, last_week + timedelta(days=7)),
+            )
+            event_rows = await cur.fetchall()
+
+        terms_by_week: dict[date, dict[str, dict[str, list[dict[str, Any]]]]] = {}
+        for term in term_rows:
+            sender_terms = terms_by_week.setdefault(term["week_start"], {}).setdefault(
+                term["sender"], {"pos": [], "neg": []}
+            )
+            polarity_terms = sender_terms[term["polarity"]]
+            if len(polarity_terms) < 3:
+                polarity_terms.append(
+                    {"canonical": term["canonical"], "count": term["count"]}
+                )
+
+        events_by_week: dict[date, list[dict[str, Any]]] = {}
+        for event in event_rows:
+            week_start = event["at"] - timedelta(days=event["at"].weekday())
+            events_by_week.setdefault(week_start, []).append(
+                {"at": event["at"], "kind": event["kind"], "label": event["label"]}
+            )
+
+        return [
+            {
+                **row,
+                "weekly_terms": terms_by_week.get(row["week_start"], {}),
+                "events": events_by_week.get(row["week_start"], []),
+            }
+            for row in rows
+        ]
 
     async def dissolve_couple(self, couple_id: UUID, user_id: UUID) -> None:
         async with self.pool.connection() as conn, conn.transaction():
