@@ -23,6 +23,9 @@ spec:
     - name: image
       type: string
       default: image-registry.openshift-image-registry.svc:5000/couple-report/couple-report-api:latest
+    - name: web-image
+      type: string
+      default: image-registry.openshift-image-registry.svc:5000/couple-report/couple-report-web:latest
   workspaces:
     - name: shared
   results:
@@ -51,6 +54,26 @@ spec:
           value: api/Dockerfile
         - name: CONTEXT
           value: .
+      workspaces:
+        - name: source
+          workspace: shared
+    # web 은 api 와 달리 컨텍스트가 `web/` 이다 — Dockerfile 이 package.json·src 만 COPY 하고
+    # 저장소 루트의 것을 안 쓰기 때문. api 처럼 루트로 두면 node_modules 없이 전체 트리가
+    # 빌드 컨텍스트로 올라가 느려지기만 한다.
+    #
+    # clone 뒤에 붙지만 build 와는 순서를 묶지 않았다(runAfter 가 clone 뿐) — 서로 안 겹쳐서
+    # Tekton 이 두 빌드를 동시에 돌린다.
+    - name: build-web
+      runAfter: [clone]
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: $(params.web-image)
+        - name: DOCKERFILE
+          value: web/Dockerfile
+        - name: CONTEXT
+          value: web
       workspaces:
         - name: source
           workspace: shared
