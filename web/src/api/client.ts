@@ -1,6 +1,6 @@
 // 역할: fetch 래퍼 — 토큰 주입, 에러 → {code, message} 파싱, USE_MOCK 분기 (참조: TRD §2.2, §6.4)
 // 컴포넌트에서 직접 fetch 금지 — 반드시 이 모듈 경유 (SCAFFOLD §2)
-import type { ApiError } from "./types";
+import type { ApiError, NoteCreateRequest, NoteResponse, ReviewResponse } from "./types";
 
 const USE_MOCK =
   import.meta.env.VITE_USE_MOCK === "true" || import.meta.env.USE_MOCK === "true";
@@ -54,6 +54,55 @@ const MOCK_ROUTES: [RegExp, string, MockLoader][] = [
   [/^\/health\/ready$/, "GET", () => import("./mock/health_ready.json")],
 ];
 
+function rangesOverlap(
+  itemStart: string,
+  itemEnd: string,
+  selectedStart: string,
+  selectedEnd: string,
+): boolean {
+  const itemStartTime = Date.parse(itemStart);
+  const itemEndTime = Date.parse(itemEnd);
+  const selectedStartTime = Date.parse(selectedStart);
+  const selectedEndTime = Date.parse(selectedEnd);
+
+  if (![itemStartTime, itemEndTime, selectedStartTime, selectedEndTime].every(Number.isFinite)) {
+    return true;
+  }
+  return itemStartTime <= selectedEndTime && itemEndTime >= selectedStartTime;
+}
+
+function alignReviewMockToRequest(path: string, review: ReviewResponse): ReviewResponse {
+  const params = new URL(path, "http://mock.local").searchParams;
+  const start = params.get("start");
+  const end = params.get("end");
+  if (!start || !end) return review;
+
+  return {
+    ...review,
+    range: { start, end },
+    sessions: review.sessions.filter((session) =>
+      rangesOverlap(session.started_at, session.ended_at, start, end),
+    ),
+    notes: review.notes.filter((note) => {
+      const noteStart = note.range_start ?? note.created_at;
+      const noteEnd = note.range_end ?? noteStart;
+      return rangesOverlap(noteStart, noteEnd, start, end);
+    }),
+  };
+}
+
+function alignNoteMockToRequest(body: unknown, note: NoteResponse): NoteResponse {
+  if (typeof body !== "object" || body === null) return note;
+  const payload = body as Partial<NoteCreateRequest>;
+  return {
+    ...note,
+    body: typeof payload.body === "string" ? payload.body : note.body,
+    range_start:
+      typeof payload.range_start === "string" ? payload.range_start : note.range_start,
+    range_end: typeof payload.range_end === "string" ? payload.range_end : note.range_end,
+  };
+}
+
 async function mockResponse<T>(path: string, method: string, body?: unknown): Promise<T> {
   const pathname = path.split("?", 1)[0];
 
@@ -77,7 +126,14 @@ async function mockResponse<T>(path: string, method: string, body?: unknown): Pr
   for (const [re, routeMethod, load] of MOCK_ROUTES) {
     if (routeMethod !== method || !re.test(pathname)) continue;
     const response = await load();
-    return (response?.default ?? undefined) as T;
+    const fixture = response?.default ?? undefined;
+    if (method === "GET" && /\/review$/.test(pathname)) {
+      return alignReviewMockToRequest(path, fixture as ReviewResponse) as T;
+    }
+    if (method === "POST" && /\/notes$/.test(pathname)) {
+      return alignNoteMockToRequest(body, fixture as NoteResponse) as T;
+    }
+    return fixture as T;
   }
   throw new ApiClientError(404, "NOT_FOUND", `mock 없음: ${method} ${path}`);
 }

@@ -17,8 +17,8 @@ export interface ApiError {
 
 /** 커플 합산 + 요청자 본인 값. 상대 값은 응답에 담기지 않는다 (P-3 예외, ISSUE B3) */
 export interface CoupleMine {
-  couple?: number | null;
-  mine?: number | null;
+  couple: number | null;
+  mine: number | null;
 }
 
 // ---------------------------------------------------------------- 1. 인증 (FR-000)
@@ -241,14 +241,29 @@ export interface NoteResponse {
   created_at: string;
 }
 
+export interface RangeMetrics {
+  question_rate: CoupleMine;
+  reply_gap_median_min: CoupleMine;
+  message_count: number;
+}
+
+export interface BaselineMetrics {
+  weeks: number;
+  question_rate: CoupleMine;
+  reply_gap_median_min: CoupleMine;
+  message_count: number | null;
+}
+
+export interface ReviewMetrics {
+  range: RangeMetrics;
+  baseline: BaselineMetrics;
+  comment: string;
+}
+
 export interface ReviewResponse {
   range: { start: string; end: string };
   sessions: SessionInfo[];
-  // 값은 CoupleMine 형태 (+ range.session_length_median, baseline.weeks 는 스칼라). 타입 고정은 ISSUE D4
-  metrics: {
-    range: Record<string, unknown>;
-    baseline: Record<string, unknown>;
-  };
+  metrics: ReviewMetrics;
   notes: NoteResponse[];
 }
 

@@ -5,57 +5,18 @@ import { ApiClientError, api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
-import type { NoteCreateRequest, NoteResponse, ReviewResponse } from "../api/types";
+import type {
+  BaselineMetrics,
+  CoupleMine,
+  NoteCreateRequest,
+  NoteResponse,
+  RangeMetrics,
+  ReviewResponse,
+} from "../api/types";
 
 const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
 const REVIEW_BASE_PATH = `/api/couples/${COUPLE_ID}/review`;
 const NOTES_PATH = `/api/couples/${COUPLE_ID}/notes`;
-
-type MetricValue = {
-  couple?: unknown;
-  mine?: unknown;
-};
-
-type MetricGroup = Record<string, unknown>;
-
-type MetricConfig = {
-  key: string;
-  label: string;
-  description: string;
-  unit: "percent" | "chars" | "minutes" | "messages";
-  people: boolean;
-};
-
-const METRICS: MetricConfig[] = [
-  {
-    key: "question_rate",
-    label: "질문 비율",
-    description: "대화 중 질문이 차지한 비율",
-    unit: "percent",
-    people: true,
-  },
-  {
-    key: "message_length_median",
-    label: "메시지 길이",
-    description: "메시지 하나의 중간 길이",
-    unit: "chars",
-    people: true,
-  },
-  {
-    key: "reply_gap_median_min",
-    label: "답장 시간",
-    description: "메시지 사이 중간 답장 간격",
-    unit: "minutes",
-    people: true,
-  },
-  {
-    key: "session_length_median",
-    label: "세션 길이",
-    description: "세션 하나의 중간 메시지 수",
-    unit: "messages",
-    people: false,
-  },
-];
 
 function toDateInputValue(date: Date): string {
   const year = date.getFullYear();
@@ -91,25 +52,19 @@ function getRangeError(start: string, end: string): string | null {
   return null;
 }
 
-function getMetricValue(group: MetricGroup | undefined, key: string): MetricValue | number | null {
-  const value = group?.[key];
-  if (typeof value === "number" || value === null) return value;
-  if (typeof value === "object" && value !== null) return value as MetricValue;
-  return null;
+function formatPercent(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return `${(value * 100).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}%`;
 }
 
-function numberValue(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+function formatMinutes(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return `${value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })}분`;
 }
 
-function formatMetric(value: unknown, unit: MetricConfig["unit"]): string {
-  const number = numberValue(value);
-  if (number === null) return "-";
-  const formatted = number.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
-  if (unit === "percent") return `${(number * 100).toFixed(1)}%`;
-  if (unit === "chars") return `${formatted}자`;
-  if (unit === "minutes") return `${formatted}분`;
-  return `${formatted}개`;
+function formatCount(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return `${Math.round(value).toLocaleString("ko-KR")}개`;
 }
 
 function formatDateTime(value: string): string {
@@ -137,56 +92,93 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "요청을 처리하지 못했어요.";
 }
 
-function MetricCard({ config, range, baseline }: {
-  config: MetricConfig;
-  range: MetricGroup;
-  baseline: MetricGroup;
-}) {
-  const rangeValue = getMetricValue(range, config.key);
-  const baselineValue = getMetricValue(baseline, config.key);
-  const rangePair = typeof rangeValue === "object" && rangeValue !== null ? rangeValue : null;
-  const baselinePair = typeof baselineValue === "object" && baselineValue !== null ? baselineValue : null;
+type PairFormatter = (value: number | null) => string;
 
+function CoupleMineCell({ value, format }: { value: CoupleMine; format: PairFormatter }) {
   return (
-    <Card>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-gray-900">{config.label}</h3>
-          <p className="mt-1 text-xs text-gray-500">{config.description}</p>
-        </div>
-        <Badge tone="neutral">선택 기간 vs 기준선</Badge>
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {config.people ? (
-          <>
-            <MetricValue label="우리" value={rangePair?.couple} baseline={baselinePair?.couple} unit={config.unit} />
-            <MetricValue label="나" value={rangePair?.mine} baseline={baselinePair?.mine} unit={config.unit} />
-          </>
-        ) : (
-          <MetricValue
-            label="전체"
-            value={rangeValue}
-            baseline={baselineValue}
-            unit={config.unit}
-          />
-        )}
-      </div>
-    </Card>
+    <div className="space-y-1 rounded-lg bg-gray-50 px-2 py-2.5 sm:px-3">
+      <p className="flex items-baseline justify-between gap-1 text-xs text-gray-500">
+        <span>우리</span>
+        <strong className="text-sm font-semibold text-gray-900 sm:text-base">{format(value.couple)}</strong>
+      </p>
+      <p className="flex items-baseline justify-between gap-1 text-xs text-gray-500">
+        <span>나</span>
+        <strong className="text-sm font-semibold text-gray-900 sm:text-base">{format(value.mine)}</strong>
+      </p>
+    </div>
   );
 }
 
-function MetricValue({ label, value, baseline, unit }: {
+function PairMetricRow({
+  label,
+  description,
+  range,
+  baseline,
+  format,
+}: {
   label: string;
-  value: unknown;
-  baseline: unknown;
-  unit: MetricConfig["unit"];
+  description: string;
+  range: CoupleMine;
+  baseline: CoupleMine;
+  format: PairFormatter;
 }) {
   return (
-    <div className="rounded-lg bg-gray-50 p-3">
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 text-xl font-bold text-gray-900">{formatMetric(value, unit)}</p>
-      <p className="mt-1 text-xs text-gray-500">기준선 {formatMetric(baseline, unit)}</p>
+    <div role="row" className="grid grid-cols-[minmax(4.75rem,0.8fr)_minmax(6.5rem,1fr)_minmax(6.5rem,1fr)] gap-2 border-t py-3">
+      <div role="rowheader" className="self-center">
+        <p className="text-sm font-semibold text-gray-900">{label}</p>
+        <p className="mt-0.5 hidden text-xs text-gray-500 sm:block">{description}</p>
+      </div>
+      <div role="cell"><CoupleMineCell value={range} format={format} /></div>
+      <div role="cell"><CoupleMineCell value={baseline} format={format} /></div>
     </div>
+  );
+}
+
+function CountCell({ value }: { value: number | null }) {
+  return (
+    <div className="flex min-h-[4.25rem] items-center justify-end rounded-lg bg-gray-50 px-2 py-2.5 sm:px-3">
+      <strong className="text-lg font-bold text-gray-900 sm:text-xl">{formatCount(value)}</strong>
+    </div>
+  );
+}
+
+function MetricsComparison({ range, baseline }: { range: RangeMetrics; baseline: BaselineMetrics }) {
+  const baselineLabel = `평소 · 지난 ${baseline.weeks.toLocaleString("ko-KR")}주`;
+
+  return (
+    <Card>
+      <div role="table" aria-label="선택 구간과 평소 지표 비교">
+        <div role="row" className="grid grid-cols-[minmax(4.75rem,0.8fr)_minmax(6.5rem,1fr)_minmax(6.5rem,1fr)] gap-2 pb-3">
+          <div role="columnheader" />
+          <div role="columnheader" className="text-center text-sm font-semibold text-rose-600">이 구간</div>
+          <div role="columnheader" className="text-center text-xs font-semibold text-gray-600 sm:text-sm">
+            {baselineLabel}
+          </div>
+        </div>
+        <PairMetricRow
+          label="질문 비율"
+          description="대화 중 질문 비율"
+          range={range.question_rate}
+          baseline={baseline.question_rate}
+          format={formatPercent}
+        />
+        <PairMetricRow
+          label="답장 시간"
+          description="답장 간격 중앙값"
+          range={range.reply_gap_median_min}
+          baseline={baseline.reply_gap_median_min}
+          format={formatMinutes}
+        />
+        <div role="row" className="grid grid-cols-[minmax(4.75rem,0.8fr)_minmax(6.5rem,1fr)_minmax(6.5rem,1fr)] gap-2 border-t pt-3">
+          <div role="rowheader" className="self-center">
+            <p className="text-sm font-semibold text-gray-900">총 메시지 수</p>
+            <p className="mt-0.5 hidden text-xs text-gray-500 sm:block">커플 전체</p>
+          </div>
+          <div role="cell"><CountCell value={range.message_count} /></div>
+          <div role="cell"><CountCell value={baseline.message_count} /></div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -264,7 +256,7 @@ export default function Review() {
   };
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-8">
+    <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
       <header className="space-y-2">
         <p className="text-sm font-medium text-rose-600">선택한 대화 돌아보기</p>
         <h1 className="text-2xl font-bold text-gray-900">이 구간을 돌아봐요</h1>
@@ -323,20 +315,12 @@ export default function Review() {
                 <h2 id="metrics-heading" className="text-lg font-semibold text-gray-900">지표와 기준선</h2>
                 <p className="mt-1 text-sm text-gray-600">{formatDateRange(data.range.start, data.range.end)}</p>
               </div>
-              <Badge tone="neutral">
-                기준선 · 최근 {numberValue((data.metrics.baseline as MetricGroup).weeks) ?? "-"}주 평균
-              </Badge>
+              <Badge tone="neutral">평소와 비교</Badge>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {METRICS.map((config) => (
-                <MetricCard
-                  key={config.key}
-                  config={config}
-                  range={data.metrics.range as MetricGroup}
-                  baseline={data.metrics.baseline as MetricGroup}
-                />
-              ))}
-            </div>
+            <MetricsComparison range={data.metrics.range} baseline={data.metrics.baseline} />
+            <Card className="border-rose-100 bg-rose-50/50">
+              <p className="text-sm font-medium text-rose-800">{data.metrics.comment}</p>
+            </Card>
           </section>
 
           {data.sessions.length === 0 && (
