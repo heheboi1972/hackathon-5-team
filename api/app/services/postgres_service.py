@@ -275,12 +275,12 @@ class PostgresService:
                        (SELECT count(*) FROM weekly_metrics w WHERE w.couple_id=c.couple_id) AS weeks_available,
                        (SELECT count(*) FROM messages m WHERE m.couple_id=c.couple_id) AS message_count,
                        j.job_id AS active_job_id, j.kind AS active_job_kind,
-                       j.progress_done AS active_job_done, j.progress_total AS active_job_total
+                       j.done AS active_job_done, j.total AS active_job_total
                   FROM couples c
                   JOIN users ua ON ua.user_id = c.user_a
                   LEFT JOIN users ub ON ub.user_id = c.user_b
                   LEFT JOIN LATERAL (
-                    SELECT job_id, kind, progress_done, progress_total FROM jobs
+                    SELECT job_id, kind, done, total FROM jobs
                      WHERE couple_id=c.couple_id AND status IN ('queued','running')
                      ORDER BY created_at DESC LIMIT 1
                   ) j ON true
