@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from copy import deepcopy
 from typing import Any
 from uuid import uuid4
@@ -37,9 +38,11 @@ class ReportGenerationError(RuntimeError):
 
 
 def _step(name: str, status: str, input_summary: dict[str, Any] | None = None,
-          output_summary: dict[str, Any] | None = None, error: str | None = None) -> dict[str, Any]:
+          output_summary: dict[str, Any] | None = None, error: str | None = None,
+          duration_ms: float | None = None) -> dict[str, Any]:
     return {"step": name, "status": status, "input": input_summary or {},
-            "output": output_summary or {}, "error": error}
+            "output": output_summary or {}, "error": error,
+            "duration_ms": round(duration_ms, 1) if duration_ms is not None else None}
 
 
 def _outlier_signals(outliers: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -126,16 +129,19 @@ class ReportSupervisor:
         try:
             current_step = "select"
             metric_signals = agent_metric_input(metrics)
+            t0 = time.monotonic()
             selected = await self.select.run(SelectInput(
                 metrics=metric_signals, outliers=_outlier_signals(outliers)))
             trace.append(_step("select", "ok", {"metric_count": len(metric_signals),
                                                  "outlier_count": len(outliers)},
-                               {"candidate_count": len(selected.candidates)}))
+                               {"candidate_count": len(selected.candidates)},
+                               duration_ms=(time.monotonic() - t0) * 1000))
             magnitude = {item["metric"]: item["magnitude"] for item in metric_signals}
             highlights, suggestions = [], []
             for index, candidate in enumerate(selected.candidates, 1):
                 highlight_id = f"h{index}"
                 current_step = "interpret"
+                t0 = time.monotonic()
                 interpreted = await self.interpret.run(InterpretInput(
                     couple_id=row["couple_id"], metric=candidate.metric,
                     direction=candidate.direction, magnitude=magnitude.get(candidate.metric, "clear"),
@@ -144,8 +150,10 @@ class ReportSupervisor:
                     highlights.append({"id": highlight_id, "metric": candidate.metric,
                                        **output.model_dump(mode="json"), "sentiment": "neutral"})
                 trace.append(_step("interpret", "ok", {"metric": candidate.metric},
-                                   {"highlight_count": len(interpreted.highlights)}))
+                                   {"highlight_count": len(interpreted.highlights)},
+                                   duration_ms=(time.monotonic() - t0) * 1000))
                 current_step = "suggest"
+                t0 = time.monotonic()
                 suggested = await self.suggest.run(SuggestInput(
                     metric=candidate.metric, direction=candidate.direction,
                     magnitude=magnitude.get(candidate.metric, "clear"),
@@ -154,14 +162,17 @@ class ReportSupervisor:
                     suggestions.append({"id": f"s{len(suggestions) + 1}",
                                         **output.model_dump(mode="json")})
                 trace.append(_step("suggest", "ok", {"metric": candidate.metric},
-                                   {"suggestion_count": len(suggested.suggestions)}))
+                                   {"suggestion_count": len(suggested.suggestions)},
+                                   duration_ms=(time.monotonic() - t0) * 1000))
             current_step = "safety"
+            t0 = time.monotonic()
             safety = await self.safety.run(SafetyInput(highlights=highlights,
                                                        suggestions=suggestions,
                                                        moments=base["moments"]))
             highlights, suggestions = _apply_rewrites(highlights, suggestions, safety.rewritten)
             trace.append(_step("safety", "ok", {"sentence_groups": len(highlights) + len(suggestions)},
-                               {"passed": safety.passed, "rewrite_count": len(safety.rewritten)}))
+                               {"passed": safety.passed, "rewrite_count": len(safety.rewritten)},
+                               duration_ms=(time.monotonic() - t0) * 1000))
             report = {**base, "status": "generated", "highlights": highlights,
                       "suggestions": suggestions, "safety": safety.model_dump(mode="json")}
             return {"status": "generated", "report": report, "trace_id": trace_id,
