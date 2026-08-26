@@ -275,12 +275,12 @@ class PostgresService:
                        (SELECT count(*) FROM weekly_metrics w WHERE w.couple_id=c.couple_id) AS weeks_available,
                        (SELECT count(*) FROM messages m WHERE m.couple_id=c.couple_id) AS message_count,
                        j.job_id AS active_job_id, j.kind AS active_job_kind,
-                       j.done AS active_job_done, j.total AS active_job_total
+                       j.progress_done AS active_job_done, j.progress_total AS active_job_total
                   FROM couples c
                   JOIN users ua ON ua.user_id = c.user_a
                   LEFT JOIN users ub ON ub.user_id = c.user_b
                   LEFT JOIN LATERAL (
-                    SELECT job_id, kind, done, total FROM jobs
+                    SELECT job_id, kind, progress_done, progress_total FROM jobs
                      WHERE couple_id=c.couple_id AND status IN ('queued','running')
                      ORDER BY created_at DESC LIMIT 1
                   ) j ON true
@@ -407,6 +407,131 @@ class PostgresService:
             for row in rows
         ]
 
+    # --------------------------------------------------------------- review
+
+    async def get_review_data(
+        self,
+        couple_id: UUID,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        session_id: int | None = None,
+    ) -> dict[str, Any] | None:
+        """review 계산에 필요한 원시 행만 반환한다.
+
+        날짜 범위는 기존 review의 양 끝 포함 조건을 유지한다. baseline은 선택
+        시작 직전 최대 8주이며, 서비스가 비율/중앙값과 응답 저장형을 계산한다.
+        (윤석, 2026-08-25, TASKS 3-9)
+        """
+        async with (
+            self.pool.connection() as conn,
+            conn.cursor(row_factory=dict_row) as cur,
+        ):
+            if session_id is not None:
+                await cur.execute(
+                    """
+                    SELECT session_id, started_at, ended_at, initiator, msg_count
+                      FROM sessions
+                     WHERE couple_id = %s AND session_id = %s
+                    """,
+                    (couple_id, session_id),
+                )
+                selected = await cur.fetchone()
+                if selected is None:
+                    return None
+                sessions = [selected]
+                range_start = selected["started_at"]
+                range_end = selected["ended_at"]
+                await cur.execute(
+                    """
+                    SELECT session_id, sender, sent_at, body_len, is_question
+                      FROM messages
+                     WHERE couple_id = %s AND session_id = %s
+                     ORDER BY sent_at, message_id
+                    """,
+                    (couple_id, session_id),
+                )
+            else:
+                if start is None or end is None:
+                    raise ValueError("날짜 review에는 start와 end가 필요합니다")
+                range_start, range_end = start, end
+                await cur.execute(
+                    """
+                    SELECT session_id, started_at, ended_at, initiator, msg_count
+                      FROM sessions
+                     WHERE couple_id = %s
+                       AND started_at <= %s AND ended_at >= %s
+                     ORDER BY started_at, session_id
+                    """,
+                    (couple_id, end, start),
+                )
+                sessions = list(await cur.fetchall())
+                await cur.execute(
+                    """
+                    SELECT session_id, sender, sent_at, body_len, is_question
+                      FROM messages
+                     WHERE couple_id = %s AND sent_at >= %s AND sent_at <= %s
+                     ORDER BY sent_at, message_id
+                    """,
+                    (couple_id, start, end),
+                )
+            messages = list(await cur.fetchall())
+
+            baseline_floor = range_start - timedelta(weeks=8)
+            await cur.execute(
+                """
+                SELECT session_id, sender, sent_at, body_len, is_question
+                  FROM messages
+                 WHERE couple_id = %s AND sent_at >= %s AND sent_at < %s
+                 ORDER BY sent_at, message_id
+                """,
+                (couple_id, baseline_floor, range_start),
+            )
+            baseline_messages = list(await cur.fetchall())
+            baseline_start = (
+                max(baseline_floor, baseline_messages[0]["sent_at"])
+                if baseline_messages
+                else baseline_floor
+            )
+
+            await cur.execute(
+                """
+                SELECT session_id, started_at, ended_at, initiator, msg_count
+                  FROM sessions
+                 WHERE couple_id = %s AND started_at >= %s AND ended_at < %s
+                 ORDER BY started_at, session_id
+                """,
+                (couple_id, baseline_start, range_start),
+            )
+            baseline_sessions = list(await cur.fetchall())
+
+            await cur.execute(
+                """
+                SELECT n.note_id,
+                       CASE WHEN n.author = c.user_a THEN 'a'
+                            WHEN n.author = c.user_b THEN 'b' END AS author,
+                       n.body, n.range_start, n.range_end, n.created_at
+                  FROM notes n
+                  JOIN couples c ON c.couple_id = n.couple_id
+                 WHERE n.couple_id = %s
+                   AND n.range_start <= %s AND n.range_end >= %s
+                 ORDER BY n.created_at, n.note_id
+                """,
+                (couple_id, range_end, range_start),
+            )
+            notes = list(await cur.fetchall())
+
+        return {
+            "range_start": range_start,
+            "range_end": range_end,
+            "baseline_start": baseline_start,
+            "sessions": sessions,
+            "messages": messages,
+            "baseline_messages": baseline_messages,
+            "baseline_sessions": baseline_sessions,
+            "notes": notes,
+        }
+
     async def dissolve_couple(self, couple_id: UUID, user_id: UUID) -> None:
         async with self.pool.connection() as conn, conn.transaction():
             await self._lock(conn, couple_id)
@@ -436,16 +561,17 @@ class PostgresService:
             )
             return cur.rowcount
 
-    async def create_job(self, couple_id: UUID, kind: str, total: int = 0) -> UUID:
+    async def create_job(self, couple_id: UUID, kind: str, total: int = 0,
+                         payload: dict[str, Any] | None = None) -> UUID:
         initial = "done" if total == 0 else "queued"
         async with self.pool.connection() as conn:
             row = await (
                 await conn.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, total)
-                    VALUES (%s, %s, %s, %s) RETURNING job_id
+                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    VALUES (%s, %s, %s, %s, %s) RETURNING job_id
                     """,
-                    (couple_id, kind, initial, total),
+                    (couple_id, kind, initial, total, Jsonb(payload or {})),
                 )
             ).fetchone()
             return row[0]
@@ -459,7 +585,9 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT j.job_id, j.kind, j.status, j.total, j.done, j.failed, j.current_week
+                SELECT j.job_id, j.kind, j.status,
+                       j.progress_total AS total, j.progress_done AS done,
+                       j.progress_failed AS failed, j.current_week
                   FROM jobs j JOIN couples c ON c.couple_id=j.couple_id
                  WHERE j.job_id=%s AND (c.user_a=%s OR c.user_b=%s)
                 """,
@@ -500,7 +628,8 @@ class PostgresService:
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                UPDATE jobs SET done=%s, failed=%s, current_week=%s, updated_at=now()
+                UPDATE jobs SET progress_done=%s, progress_failed=%s,
+                       current_week=%s, updated_at=now()
                  WHERE job_id=%s
                 """,
                 (done, failed, current_week, job_id),
@@ -512,13 +641,234 @@ class PostgresService:
                 """
                 UPDATE jobs
                    SET status=%s, error=%s,
-                       done=CASE WHEN %s IS NULL THEN total ELSE done END,
-                       failed=CASE WHEN %s IS NULL THEN failed ELSE greatest(failed, 1) END,
+                       progress_done=CASE WHEN %s IS NULL THEN progress_total ELSE progress_done END,
+                       progress_failed=CASE WHEN %s IS NULL THEN progress_failed ELSE greatest(progress_failed, 1) END,
                        updated_at=now()
                  WHERE job_id=%s
                 """,
                 ("done" if error is None else "failed", error, error, error, job_id),
             )
+
+    async def set_job_total(self, job_id: UUID, total: int) -> None:
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                "UPDATE jobs SET progress_total=%s, updated_at=now() WHERE job_id=%s",
+                (total, job_id),
+            )
+
+    # ----------------------------------------------------------- term count
+
+    async def get_term_source_version(self, couple_id: UUID) -> int:
+        async with self.pool.connection() as conn:
+            row = await (
+                await conn.execute(
+                    "SELECT coalesce(max(message_id), 0) FROM messages WHERE couple_id=%s",
+                    (couple_id,),
+                )
+            ).fetchone()
+            return int(row[0])
+
+    async def get_term_count_cache(
+        self,
+        couple_id: UUID,
+        term: str,
+        *,
+        start: datetime | None,
+        end: datetime | None,
+        source_version: int,
+    ) -> dict[str, Any] | None:
+        async with self.pool.connection() as conn:
+            row = await (
+                await conn.execute(
+                    """
+                    SELECT result FROM term_count_cache
+                     WHERE couple_id=%s AND term=%s
+                       AND range_start IS NOT DISTINCT FROM %s
+                       AND range_end IS NOT DISTINCT FROM %s
+                       AND source_version=%s
+                    """,
+                    (couple_id, term, start, end, source_version),
+                )
+            ).fetchone()
+            return dict(row[0]) if row else None
+
+    async def get_term_search_source(
+        self,
+        couple_id: UUID,
+        *,
+        start: datetime | None,
+        end: datetime | None,
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """동일 repeatable-read snapshot의 version과 암호문만 반환한다."""
+        filters = ["couple_id=%s", "msg_type='text'"]
+        params: list[Any] = [couple_id]
+        if start is not None:
+            filters.append("sent_at >= %s")
+            params.append(start)
+        if end is not None:
+            filters.append("sent_at <= %s")
+            params.append(end)
+        async with self.pool.connection() as conn, conn.transaction():
+            await conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            version_row = await (
+                await conn.execute(
+                    "SELECT coalesce(max(message_id), 0) FROM messages WHERE couple_id=%s",
+                    (couple_id,),
+                )
+            ).fetchone()
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT sent_at, body_encrypted FROM messages
+                     WHERE {' AND '.join(filters)}
+                     ORDER BY sent_at, message_id
+                    """,
+                    params,
+                )
+                rows = list(await cur.fetchall())
+        return int(version_row[0]), rows
+
+    async def save_term_count_cache(
+        self,
+        couple_id: UUID,
+        term: str,
+        *,
+        start: datetime | None,
+        end: datetime | None,
+        source_version: int,
+        result: dict[str, Any],
+    ) -> None:
+        async with self.pool.connection() as conn, conn.transaction():
+            updated = await conn.execute(
+                """
+                UPDATE term_count_cache
+                   SET result=%s, source_version=%s, created_at=now()
+                 WHERE couple_id=%s AND term=%s
+                   AND range_start IS NOT DISTINCT FROM %s
+                   AND range_end IS NOT DISTINCT FROM %s
+                """,
+                (Jsonb(result), source_version, couple_id, term, start, end),
+            )
+            if updated.rowcount == 0:
+                await conn.execute(
+                    """
+                    INSERT INTO term_count_cache
+                        (couple_id, term, range_start, range_end, result, source_version)
+                    VALUES (%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (couple_id, term, start, end, Jsonb(result), source_version),
+                )
+
+    async def invalidate_term_count_cache(self, couple_id: UUID) -> int:
+        async with self.pool.connection() as conn:
+            deleted = await conn.execute(
+                "DELETE FROM term_count_cache WHERE couple_id=%s", (couple_id,)
+            )
+            return deleted.rowcount
+
+    # -------------------------------------------------------------- reports
+
+    async def get_report_job_weeks(self, job: dict[str, Any]) -> list[dict[str, Any]]:
+        payload = job.get("payload") or {}
+        weeks = payload.get("weeks") or []
+        filters = ["wm.couple_id=%s"]
+        params: list[Any] = [job["couple_id"]]
+        if weeks:
+            filters.append("wm.week_start = ANY(%s::date[])")
+            params.append(weeks)
+        async with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                f"""
+                SELECT wm.couple_id, wm.week_start, wm.summary, wm.metrics, wm.outliers,
+                       wm.summary_hash, r.summary_hash AS report_summary_hash,
+                       r.status AS report_status
+                  FROM weekly_metrics wm
+                  LEFT JOIN reports r USING (couple_id, week_start)
+                 WHERE {' AND '.join(filters)}
+                 ORDER BY wm.week_start DESC
+                """,
+                params,
+            )
+            rows = [dict(row) for row in await cur.fetchall()]
+        for row in rows:
+            row["weekly_terms"] = await self._report_terms(row["couple_id"], row["week_start"])
+        return rows
+
+    async def _report_terms(self, couple_id: UUID, week_start: date) -> dict[str, Any]:
+        result = {"a": {"pos": [], "neg": []}, "b": {"pos": [], "neg": []}}
+        async with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                """
+                SELECT sender, canonical, sentiment, count FROM (
+                    SELECT sender, canonical, sentiment, count,
+                           row_number() OVER (
+                               PARTITION BY sender, sentiment
+                               ORDER BY count DESC, canonical
+                           ) AS rank
+                      FROM weekly_terms
+                     WHERE couple_id=%s AND week_start=%s
+                       AND sentiment IN ('pos','neg') AND count >= 3
+                ) ranked
+                 WHERE rank <= 3 ORDER BY sender, sentiment, count DESC, canonical
+                """,
+                (couple_id, week_start),
+            )
+            for row in await cur.fetchall():
+                result[row["sender"]][row["sentiment"]].append(
+                    {"canonical": row["canonical"], "count": row["count"]})
+        return result
+
+    async def get_report_record(self, couple_id: UUID, week_start: date) -> dict[str, Any] | None:
+        async with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                """
+                SELECT wm.summary, wm.metrics, coalesce(r.status, 'pending') AS status,
+                       coalesce(r.report_json, '{}'::jsonb) AS report_json
+                  FROM weekly_metrics wm LEFT JOIN reports r USING (couple_id, week_start)
+                 WHERE wm.couple_id=%s AND wm.week_start=%s
+                """,
+                (couple_id, week_start),
+            )
+            row = await cur.fetchone()
+        if row is None:
+            return None
+        stored = dict(row["report_json"] or {})
+        stored.update({"status": row["status"], "summary": stored.get("summary", row["summary"]),
+                       "metrics": stored.get("metrics", {} if row["status"] == "pending" else row["metrics"]),
+                       "highlights": stored.get("highlights", []),
+                       "suggestions": stored.get("suggestions", []),
+                       "moments": stored.get("moments", []),
+                       "safety": stored.get("safety")})
+        stored["weekly_terms"] = stored.get("weekly_terms") or await self._report_terms(couple_id, week_start)
+        return stored
+
+    async def save_report(self, couple_id: UUID, week_start: date, status: str,
+                          report_json: dict[str, Any], summary_hash: str | None) -> None:
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO reports (couple_id, week_start, status, report_json, summary_hash, generated_at)
+                VALUES (%s,%s,%s,%s,%s,now())
+                ON CONFLICT (couple_id, week_start) DO UPDATE SET
+                    status=excluded.status, report_json=excluded.report_json,
+                    summary_hash=excluded.summary_hash, generated_at=excluded.generated_at
+                """,
+                (couple_id, week_start, status, Jsonb(report_json), summary_hash),
+            )
+
+    async def save_report_failure(self, couple_id: UUID, week_start: date, trace_id: str,
+                                  execution_trace: list[dict[str, Any]], error: str,
+                                  summary_hash: str | None) -> None:
+        await self.save_report(
+            couple_id, week_start, "failed",
+            {"status": "failed", "trace_id": trace_id, "execution_trace": execution_trace,
+             "error": error[:1000]}, summary_hash,
+        )
+
+    async def create_report_job(self, couple_id: UUID, week_start: date) -> UUID:
+        return await self.create_job(couple_id, "report_single", 1,
+                                     {"weeks": [week_start.isoformat()]})
 
     # --------------------------------------------------------------- upload
 
@@ -815,17 +1165,20 @@ class PostgresService:
                 if weeks:
                     await cur.executemany(
                         """
-                        INSERT INTO weekly_metrics (couple_id, week_start, summary, summary_hash, outliers)
-                        VALUES (%s,%s,%s,%s,%s)
+                        INSERT INTO weekly_metrics
+                            (couple_id, week_start, summary, metrics, summary_hash, outliers)
+                        VALUES (%s,%s,%s,%s,%s,%s)
                         ON CONFLICT (couple_id, week_start) DO UPDATE SET
-                            summary=excluded.summary, summary_hash=excluded.summary_hash,
-                            outliers=excluded.outliers, updated_at=now()
+                            summary=excluded.summary, metrics=excluded.metrics,
+                            summary_hash=excluded.summary_hash, outliers=excluded.outliers,
+                            computed_at=now()
                         """,
                         [
                             (
                                 couple_id,
                                 w["week_start"],
                                 Jsonb(w["summary"]),
+                                Jsonb(w.get("metrics", {})),
                                 w["summary_hash"],
                                 Jsonb(w["outliers"]),
                             )
@@ -856,17 +1209,19 @@ class PostgresService:
                             for t in term_rows
                         ],
                     )
-                await cur.execute(
-                    "DELETE FROM term_count_cache WHERE couple_id=%s", (couple_id,)
-                )
+                if new_messages:
+                    await cur.execute(
+                        "DELETE FROM term_count_cache WHERE couple_id=%s", (couple_id,)
+                    )
 
                 if changed:
                     await cur.executemany(
                         """
-                        INSERT INTO reports (couple_id, week_start, status)
-                        VALUES (%s,%s,'pending')
+                        INSERT INTO reports (couple_id, week_start, status, report_json)
+                        VALUES (%s,%s,'pending','{}'::jsonb)
                         ON CONFLICT (couple_id, week_start) DO UPDATE SET
-                            status='pending', report=NULL, execution_trace=NULL, updated_at=now()
+                            status='pending', report_json='{}'::jsonb, summary_hash=NULL,
+                            generated_at=NULL
                         """,
                         [(couple_id, week_start) for week_start in changed],
                     )
@@ -875,26 +1230,27 @@ class PostgresService:
                 report_total = len(changed)
                 await cur.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, total)
-                    VALUES (%s,'embed_sessions',%s,%s) RETURNING job_id
+                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    VALUES (%s,'embed_sessions',%s,%s,'{}'::jsonb) RETURNING job_id
                     """,
                     (couple_id, "queued" if embed_total else "done", embed_total),
                 )
                 embed_job_id = (await cur.fetchone())[0]
                 await cur.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, total)
-                    VALUES (%s,'report_backfill',%s,%s) RETURNING job_id
+                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    VALUES (%s,'report_backfill',%s,%s,%s) RETURNING job_id
                     """,
-                    (couple_id, "queued" if report_total else "done", report_total),
+                    (couple_id, "queued" if report_total else "done", report_total,
+                     Jsonb({"weeks": [week.isoformat() for week in changed]})),
                 )
                 report_job_id = (await cur.fetchone())[0]
 
                 if new_messages:
                     await cur.execute(
                         """
-                        INSERT INTO jobs (couple_id, kind, status, total)
-                        VALUES (%s,'build_lexicon','queued',1)
+                        INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                        VALUES (%s,'build_lexicon','queued',1,'{}'::jsonb)
                         """,
                         (couple_id,),
                     )

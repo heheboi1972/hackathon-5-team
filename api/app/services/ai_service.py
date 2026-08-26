@@ -4,6 +4,12 @@ AI 서비스 — watsonx.ai 호출의 유일한 진입점. (교육 자료 rag_co
   - 임베딩: e5 계열은 passage: / query: 접두사 필수
   - 생성  : gpt-oss 는 추론 모델이라 reasoning_effort="low" + 토큰 부족 시 1회 증액 재시도
   - Mock  : AI_PROVIDER=mock 이면 외부 호출 없이 결정적 응답 (데모 백업·프론트 개발용)
+  - response_format: json_schema 구조화 출력 (2-6b 실측, 윤아 2026-08-25) — evidence/sources 처럼
+    "항상 객체 형태로만 나와야 하는" 필드가 있는 에이전트(interpret 등)에서 messages 와 함께
+    넘기면 gpt-oss 가 스키마를 어겨서 문자열로 축약하는 문제를 원천 차단한다 (10/10 실측 통과,
+    scripts/2-6b_response_format_test.py 참고). 프롬프트 문구만으로는 재현성 있게 못 고쳤던 부분이라,
+    스키마가 있는 호출은 프롬프트 지시 + response_format 둘 다 쓰는 걸 권장 (이중 방어).
+    호출부 예시: ai.generate(messages, response_format={"type": "json_schema", "json_schema": {...}})
 
 사용:
     ai = build_ai_service(settings)
@@ -65,12 +71,26 @@ class AIService(ABC):
     async def embed_query(self, text: str) -> list[float]: ...
 
     @abstractmethod
-    async def generate(self, messages: list[dict[str, str]], max_tokens: int = 2000) -> str: ...
+    async def generate(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int = 2000,
+        response_format: dict[str, Any] | None = None,
+    ) -> str: ...
 
     async def generate_json(
-        self, messages: list[dict[str, str]], max_tokens: int = 2000, mock_key: str | None = None
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int = 2000,
+        mock_key: str | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        raw = await self.generate(messages, max_tokens=max_tokens, **({"mock_key": mock_key} if mock_key else {}))
+        raw = await self.generate(
+            messages,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            **({"mock_key": mock_key} if mock_key else {}),
+        )
         try:
             return json.loads(strip_fences(raw))
         except json.JSONDecodeError as e:
@@ -98,7 +118,8 @@ class MockAIService(AIService):
     async def embed_query(self, text):
         return self._embed(text)
 
-    async def generate(self, messages, max_tokens=2000, mock_key: str | None = None):
+    async def generate(self, messages, max_tokens=2000, mock_key: str | None = None, response_format=None):
+        # response_format 은 mock 에선 의미 없음 (고정 fixture 를 그대로 반환) — 시그니처만 맞춘다.
         key = mock_key or self._infer_key(messages)
         path = self.mock_dir / f"{key}.json"
         if path.exists():
@@ -165,11 +186,15 @@ class WatsonxAIService(AIService):
             return await asyncio.to_thread(self._emb.embed_query, text)
 
     # --- 생성 (gpt-oss 토큰 예산) ---
-    async def generate(self, messages, max_tokens=2000, mock_key=None):
+    async def generate(self, messages, max_tokens=2000, mock_key=None, response_format=None):
         extra = {"reasoning_effort": self.reasoning_effort} if "gpt-oss" in self.model_id else {}
+        if response_format:
+            extra["response_format"] = response_format
         with _tracer.start_as_current_span("watsonx.generate") as s:
             s.set_attribute("model", self.model_id)
             s.set_attribute("input_chars", sum(len(m.get("content", "")) for m in messages))
+            if response_format:
+                s.set_attribute("response_format", True)
             last = None
             for budget in (max_tokens, max_tokens + 2000):   # 추론에 토큰을 다 쓰면 본문이 비므로 1회 증액
                 resp = await asyncio.to_thread(

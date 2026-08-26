@@ -129,13 +129,21 @@ def build_report(stored: dict[str, Any], me: Who, week_start: date) -> ReportRes
 
 
 def build_review(stored: dict[str, Any], me: Who, start: datetime, end: datetime) -> ReviewResponse:
-    """구간 저장형 → 돌아보기 응답. `metrics.range`·`metrics.baseline` 둘 다 투영한다."""
+    """구간 저장형 → 돌아보기 응답.
+
+    지표는 question_rate·reply_gap_median_min(CoupleMine) + message_count(구간 합산, 개인별
+    미제공) 3개로 한정한다 — message_length_median·session_length_median 은 응답에서 뺀다
+    (카드에 안 보여주기로 결정, 2026-08-25). `comment`는 이미 `services/review_metrics.py`의
+    `review_comment()`가 숫자 없이 방향만 코드로 생성해서 `stored`에 담아 넘겨준다(LLM 미사용 —
+    B4를 재현성 있게 보장하기 위함) — 여기서는 그대로 통과시키기만 한다(윤아+윤석 병합, 2026-08-25).
+    """
     return ReviewResponse.model_validate({
         "range": {"start": start, "end": end},
         "sessions": stored["sessions"],
         "metrics": {
             "range": project_metrics(stored["metrics"]["range"], me),
             "baseline": project_metrics(stored["metrics"]["baseline"], me),
+            "comment": stored["metrics"]["comment"],
         },
         "notes": stored["notes"],
     })

@@ -1,0 +1,389 @@
+{
+  "safety": [
+    {
+      "raw": "{\n  \"passed\": true,\n  \"rewritten\": [\n    {\"before\": \"A가 질문을 많이 했어요\", \"after\": \"요즘 질문이 많아졌어요\"},\n    {\"before\": \"B보다 A가 더 자주 답장했어요\", \"after\": \"답장이 자주 있는 편이에요\"},\n    {\"before\": \"질문이 30% 늘었어요\", \"after\": \"질문이 늘어난 편이에요\"},\n    {\"before\": \"관계 온도 B등급이에요\", \"after\": \"\"},\n    {\"before\": \"더 자주 연락하세요\", \"after\": \"더 자주 연락해보면 어떨까요\"},\n    {\"before\": \"이 정도면 헤어지는 게 나을까 싶어요\", \"after\": \"\"}\n  ]\n}",
+      "parsed": {
+        "passed": true,
+        "rewritten": [
+          {
+            "before": "A가 질문을 많이 했어요",
+            "after": "요즘 질문이 많아졌어요"
+          },
+          {
+            "before": "B보다 A가 더 자주 답장했어요",
+            "after": "답장이 자주 있는 편이에요"
+          },
+          {
+            "before": "질문이 30% 늘었어요",
+            "after": "질문이 늘어난 편이에요"
+          },
+          {
+            "before": "관계 온도 B등급이에요",
+            "after": ""
+          },
+          {
+            "before": "더 자주 연락하세요",
+            "after": "더 자주 연락해보면 어떨까요"
+          },
+          {
+            "before": "이 정도면 헤어지는 게 나을까 싶어요",
+            "after": ""
+          }
+        ]
+      },
+      "ok": true,
+      "problems": []
+    }
+  ],
+  "chat_intent": [
+    {
+      "label": "우리 언제 처음 자기야라고 불렀지?",
+      "input": {
+        "message": "우리 언제 처음 자기야라고 불렀지?"
+      },
+      "raw": "{\n  \"intent\": \"fact_query\"\n}",
+      "parsed": {
+        "intent": "fact_query"
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "요즘 우리 질문 많이 해?",
+      "input": {
+        "message": "요즘 우리 질문 많이 해?"
+      },
+      "raw": "{\"intent\": \"metric_query\"}",
+      "parsed": {
+        "intent": "metric_query"
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "지난주 리포트 요약해줘",
+      "input": {
+        "message": "지난주 리포트 요약해줘"
+      },
+      "raw": "{\"intent\": \"report_query\"}",
+      "parsed": {
+        "intent": "report_query"
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "우리 어떻게 화해해야 할까?",
+      "input": {
+        "message": "우리 어떻게 화해해야 할까?"
+      },
+      "raw": "{\"intent\": \"advice_request\"}",
+      "parsed": {
+        "intent": "advice_request"
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "오늘 날씨 어때?",
+      "input": {
+        "message": "오늘 날씨 어때?"
+      },
+      "raw": "{\"intent\": \"other\"}",
+      "parsed": {
+        "intent": "other"
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "우리 대화 패턴 보고 조언해줘",
+      "input": {
+        "message": "우리 대화 패턴 보고 조언해줘"
+      },
+      "raw": "{\"intent\": \"advice_request\"}",
+      "parsed": {
+        "intent": "advice_request"
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "이 기간 질문 얼마나 했어?",
+      "input": {
+        "message": "이 기간 질문 얼마나 했어?",
+        "focus_range": {
+          "start": "2026-08-01",
+          "end": "2026-08-07"
+        }
+      },
+      "raw": "{\"intent\": \"metric_query\"}",
+      "parsed": {
+        "intent": "metric_query"
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "고마워",
+      "input": {
+        "message": "고마워"
+      },
+      "raw": "{\"intent\": \"other\"}",
+      "parsed": {
+        "intent": "other"
+      },
+      "ok": true,
+      "problems": []
+    }
+  ],
+  "chat_answer": [
+    {
+      "label": "fact_query 정답 있음",
+      "input": {
+        "message": "우리 언제 처음 자기야라고 불렀지?",
+        "intent": "fact_query",
+        "search_results": [
+          {
+            "session_id": 812,
+            "at": "2026-03-14T19:22:00+09:00",
+            "sender": "a",
+            "snippet": "자기야 뭐해",
+            "score": 0.91
+          },
+          {
+            "session_id": 55,
+            "at": "2026-01-02T10:00:00+09:00",
+            "sender": "b",
+            "snippet": "오늘 날씨 좋다",
+            "score": 0.12
+          }
+        ]
+      },
+      "raw": "{\n  \"answer\": \"2026년 3월 14일 저녁 대화에서 처음 \\\"자기야\\\"라고 부르셨어요.\",\n  \"citations\": [\n    {\n      \"session_id\": 812,\n      \"at\": \"2026-03-14T19:22:00+09:00\",\n      \"sender\": \"a\",\n      \"snippet\": \"자기야 뭐해\"\n    }\n  ],\n  \"metrics\": null\n}",
+      "parsed": {
+        "answer": "2026년 3월 14일 저녁 대화에서 처음 \"자기야\"라고 부르셨어요.",
+        "citations": [
+          {
+            "session_id": 812,
+            "at": "2026-03-14T19:22:00+09:00",
+            "sender": "a",
+            "snippet": "자기야 뭐해"
+          }
+        ],
+        "metrics": null
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "fact_query 정답 없음",
+      "input": {
+        "message": "우리 제주도 언제 갔었지?",
+        "intent": "fact_query",
+        "search_results": [
+          {
+            "session_id": 90,
+            "at": "2026-02-01T10:00:00+09:00",
+            "sender": "a",
+            "snippet": "밥 먹었어?",
+            "score": 0.08
+          }
+        ]
+      },
+      "raw": "{\n  \"answer\": \"관련 기록을 찾지 못했어요.\",\n  \"citations\": [],\n  \"metrics\": null\n}",
+      "parsed": {
+        "answer": "관련 기록을 찾지 못했어요.",
+        "citations": [],
+        "metrics": null
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "metric_query 답장 느려짐 (comment 재사용)",
+      "input": {
+        "message": "요즘 답장 느려졌어?",
+        "intent": "metric_query",
+        "metrics": {
+          "range": {
+            "question_rate": {
+              "couple": 0.2,
+              "mine": 0.1
+            },
+            "reply_gap_median_min": {
+              "couple": 12,
+              "mine": 3
+            },
+            "message_count": 187
+          },
+          "baseline": {
+            "weeks": 8,
+            "question_rate": {
+              "couple": 0.23,
+              "mine": 0.22
+            },
+            "reply_gap_median_min": {
+              "couple": 5,
+              "mine": 4
+            },
+            "message_count": 210
+          },
+          "comment": "지난 8주보다 답장이 많이 느려졌어요"
+        }
+      },
+      "raw": "{\n  \"answer\": \"현재 평균 답장 간격은 12분이에요. 지난 8주 평균(5분)보다 많이 느려졌습니다.\",\n  \"citations\": [],\n  \"metrics\": {\n    \"range\": {\n      \"question_rate\": { \"couple\": 0.2, \"mine\": 0.1 },\n      \"reply_gap_median_min\": { \"couple\": 12, \"mine\": 3 },\n      \"message_count\": 187\n    },\n    \"baseline\": {\n      \"weeks\": 8,\n      \"question_rate\": { \"couple\": 0.23, \"mine\": 0.22 },\n      \"reply_gap_median_min\": { \"couple\": 5, \"mine\": 4 },\n      \"message_count\": 210\n    },\n    \"comment\": \"지난 8주보다 답장이 많이 느려졌어요\"\n  }\n}",
+      "parsed": {
+        "answer": "현재 평균 답장 간격은 12분이에요. 지난 8주 평균(5분)보다 많이 느려졌습니다.",
+        "citations": [],
+        "metrics": {
+          "range": {
+            "question_rate": {
+              "couple": 0.2,
+              "mine": 0.1
+            },
+            "reply_gap_median_min": {
+              "couple": 12,
+              "mine": 3
+            },
+            "message_count": 187
+          },
+          "baseline": {
+            "weeks": 8,
+            "question_rate": {
+              "couple": 0.23,
+              "mine": 0.22
+            },
+            "reply_gap_median_min": {
+              "couple": 5,
+              "mine": 4
+            },
+            "message_count": 210
+          },
+          "comment": "지난 8주보다 답장이 많이 느려졌어요"
+        }
+      },
+      "ok": false,
+      "problems": [
+        "answer 문장에 숫자가 남아있음(metric_query는 숫자 금지 — 2026-08-25 결정, ISSUE A7): '현재 평균 답장 간격은 12분이에요. 지난 8주 평균(5분)보다 많이 느려졌습니다.'"
+      ]
+    },
+    {
+      "label": "metric_query 정확한 수치 요청 (2026-08-25 수정: 이제는 숫자를 직접 답함)",
+      "input": {
+        "message": "정확히 몇 프로야?",
+        "intent": "metric_query",
+        "metrics": {
+          "range": {
+            "question_rate": {
+              "couple": 0.2,
+              "mine": 0.1
+            },
+            "reply_gap_median_min": {
+              "couple": 12,
+              "mine": 3
+            },
+            "message_count": 187
+          },
+          "baseline": {
+            "weeks": 8,
+            "question_rate": {
+              "couple": 0.23,
+              "mine": 0.22
+            },
+            "reply_gap_median_min": {
+              "couple": 5,
+              "mine": 4
+            },
+            "message_count": 210
+          },
+          "comment": "지난 8주보다 답장이 많이 느려졌어요"
+        }
+      },
+      "raw": "{\n  \"answer\": \"현재 질문 비율은 20%예요.\",\n  \"citations\": [],\n  \"metrics\": {\n    \"range\": {\n      \"question_rate\": {\n        \"couple\": 0.2,\n        \"mine\": 0.1\n      },\n      \"reply_gap_median_min\": {\n        \"couple\": 12,\n        \"mine\": 3\n      },\n      \"message_count\": 187\n    },\n    \"baseline\": {\n      \"weeks\": 8,\n      \"question_rate\": {\n        \"couple\": 0.23,\n        \"mine\": 0.22\n      },\n      \"reply_gap_median_min\": {\n        \"couple\": 5,\n        \"mine\": 4\n      },\n      \"message_count\": 210\n    },\n    \"comment\": \"지난 8주보다 답장이 많이 느려졌어요\"\n  }\n}",
+      "parsed": {
+        "answer": "현재 질문 비율은 20%예요.",
+        "citations": [],
+        "metrics": {
+          "range": {
+            "question_rate": {
+              "couple": 0.2,
+              "mine": 0.1
+            },
+            "reply_gap_median_min": {
+              "couple": 12,
+              "mine": 3
+            },
+            "message_count": 187
+          },
+          "baseline": {
+            "weeks": 8,
+            "question_rate": {
+              "couple": 0.23,
+              "mine": 0.22
+            },
+            "reply_gap_median_min": {
+              "couple": 5,
+              "mine": 4
+            },
+            "message_count": 210
+          },
+          "comment": "지난 8주보다 답장이 많이 느려졌어요"
+        }
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "report_query 준비 안 됨",
+      "input": {
+        "message": "이번 주 리포트 뭐라고 나왔어?",
+        "intent": "report_query",
+        "report": {
+          "status": "pending",
+          "week_start": "2026-08-24"
+        }
+      },
+      "raw": "{\n  \"answer\": \"해당 주의 리포트는 아직 준비되지 않았어요.\",\n  \"citations\": [],\n  \"metrics\": null\n}",
+      "parsed": {
+        "answer": "해당 주의 리포트는 아직 준비되지 않았어요.",
+        "citations": [],
+        "metrics": null
+      },
+      "ok": true,
+      "problems": []
+    },
+    {
+      "label": "report_query 정상",
+      "input": {
+        "message": "저번주 리포트에서 뭐라고 했었지?",
+        "intent": "report_query",
+        "report": {
+          "week_start": "2026-08-17",
+          "summary": "이번 주 대화가 안정적이었어요",
+          "highlights": [
+            {
+              "observation": "요즘 대화가 짧게 끝나는 편이에요",
+              "interpretations": [
+                "바쁜 시기였을 수도"
+              ]
+            }
+          ],
+          "suggestions": [
+            {
+              "text": "서로 안부를 물어보면 어떨까요"
+            }
+          ]
+        }
+      },
+      "raw": "{\n  \"answer\": \"지난 주 리포트에서는 대화가 안정적이었다고 하셨고, 요즘 대화가 짧게 끝나는 편이라는 관찰과 함께 서로 안부를 물어보는 것을 제안드렸어요.\",\n  \"citations\": [],\n  \"metrics\": null\n}",
+      "parsed": {
+        "answer": "지난 주 리포트에서는 대화가 안정적이었다고 하셨고, 요즘 대화가 짧게 끝나는 편이라는 관찰과 함께 서로 안부를 물어보는 것을 제안드렸어요.",
+        "citations": [],
+        "metrics": null
+      },
+      "ok": true,
+      "problems": []
+    }
+  ]
+}

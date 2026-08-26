@@ -64,14 +64,15 @@
   - compose 의 `./data:/app/data:ro` 볼륨은 **유지** — 개발 중에는 볼륨이 이미지 것을 덮어써 재빌드 없이 지식 문서를 고칠 수 있고, OpenShift 에는 볼륨이 없으니 이미지 안의 것을 쓴다
   - **검증**: 이미지 빌드 후 컨테이너 안에서 `load_knowledge` 실행 → `seed_lexicon: 61` (수정 전이면 0). `docs`·`templates` 가 0 인 건 파일이 아직 비어서고(TASKS 1-7·2-11), A6 와 무관
 
-### A7. [ ] 챗봇 `metric_query` 의 수치·노출 정책
+### A7. [x] 챗봇 `metric_query` 의 수치·노출 정책
 - **문제**: B3(지표는 `couple`+`mine` 만)·B4(LLM 문장에 숫자 금지)를 리포트 경로에만 적용했다. 챗봇 `metric_query` 는 공백이다.
   - `tools.get_metrics` 가 저장형(`a`/`b`)을 주면 B3 가 이 경로로 무너진다
   - LLM 에 숫자를 그대로 주면 B4 와 어긋난다. 반대로 밴딩만 주면 "얼마나 빨라?" 에 답을 못 한다
   - `term_count` 는 A3 에서 "커플 합산만, 사람 지목해도 합산 + 안내 문구"까지 정했는데 `metric_query` 만 빠져 있다
 - **선택지**: (가) `term_count` 와 같은 규칙 — 커플 값만, 숫자 허용 / (나) 커플 값 + `mine` 까지 (본인이 물었으니), 숫자 허용 / (다) 리포트와 동일하게 밴딩만
-- **영향**: `tools/get_metrics.py`, `prompts/chat_answer.md`, `agents/chat_supervisor.py`, API_SPEC §6.1·§8, TC-API-008-2
-- **결정**:
+- **영향**: `tools/get_metrics.py`, `prompts/chat_answer.md`, `agents/chat_supervisor.py`, `models/api.py` `ChatResponse`, `web/src/api/types.ts`, API_SPEC §6.1·§8, TC-API-008-2
+- **결정 (2026-08-25, 윤아)**: **(나)에 가깝되, 숫자를 문장이 아니라 별도 구조화 필드로 뺀다.** 돌아보기(FR-005) 화면과 완전히 같은 `{range, baseline, comment}` 카드 형태를 그대로 재사용 — `ChatResponse`에 `metrics: ReviewMetrics | None` 필드를 새로 추가해 `couple`+`mine`(본인 값)까지 숫자로 그대로 보여주고(B3 준수), `answer`(LLM이 쓰는 문장)에는 숫자를 **예외 없이** 금지한다(B4를 리포트보다 더 엄격하게 적용 — "얼마나 빨라?"에는 카드가 답하고, 문장은 방향만 말한다). "정확히 몇 %야?" 류 질문도 문장으로 숫자를 불러주지 않고 카드를 보라고 안내함. 이렇게 하면 (다)안의 단점("얼마나 빨라?"에 답 못 함)과 (나)안의 단점(LLM이 숫자를 실수로 잘못 말할 위험) 둘 다 회피됨. `comment`는 LLM이 아니라 코드가 결정론적으로 생성(`services/projection.py`)해서 B4를 재현성 있게 보장. 반영: `prompts/chat_answer.md`(2026-08-25 개정), `models/api.py`/`types.ts`(`metrics` 필드 추가). **남은 일**: `tools/get_metrics.py`가 아직 이 형태를 반환하지 않음(현재는 주차별 리스트) — 윤석과 구현 조율 필요, `build_review()` 재사용 권장.
+- **추가 결정 (2026-08-25 수정, 윤아)**: 위 "예외 없이 금지"를 한 가지만 완화. **사용자가 "정확히 몇 %야?", "몇 분이야?"처럼 수치 자체를 콕 집어 물으면, 그때는 `answer`도 실제 숫자를 그대로 답한다**(카드로 미루지 않음 — 2-8 실측에서 카드 안내만 하니 "질문을 무시한 것 같다"는 피드백). 그 외의(콕 집어 묻지 않은) 일반 질문은 기존처럼 `comment`만(숫자 없이) 쓴다. 이때도 LLM이 새로 계산하지 않고 `range`/`baseline` 값을 그대로 옮기며, `question_rate`를 %로 표기할 때 100을 곱하는 것만 예외적으로 허용(그 외 연산 금지) — "LLM이 숫자를 실수로 잘못 말할 위험"은 계산을 안 시키는 걸로 계속 방어함. 반영: `prompts/chat_answer.md`, `scripts/2-8_prompt_batch_test.py`.
 
 ---
 
@@ -184,12 +185,12 @@
 - **남은 것(윤석)**: 실제 구현. 2-3 에서 `routers/upload.py` 에 UPDATE 단계를 넣는다.
 - 파일: `routers/upload.py`(구현), `REQUIREMENTS` FR-002 ✓, `TEST_CASES` TC-API-003-12 ✓
 
-### C9. [ ] `interpretations` 절 형식에 방어가 없다 (윤석 + 윤아)
-- B4 는 각 항목을 **종결어미 없는 절**로 규정하고 프론트가 `", ".join + " 있어요."` 로 합친다. 프롬프트(윤아)와 렌더(시여)가 두 파일에 걸쳐 맞물려 있는데 **코드가 강제하지 않는다.**
-  - LLM 이 완결 문장을 내면 화면에 `"바빴어요. 있어요."` — 경보 없이 사용자에게 나간다
-  - 현재 테스트는 목 데이터의 마침표만 본다 (`test_banned_patterns.test_interpretations_are_clauses_not_sentences`). 실 LLM 출력은 검증 안 됨
-- 할 것: `Highlight` 에 Pydantic validator — 각 항목이 `.`/`요`/`다` 로 끝나지 않고 길이 상한(40자). 위반 시 리포트 생성 단계에서 터져 화면까지 안 샌다 (LLM 출력 Pydantic 검증 실패 → 1회 재요청, TRD §1)
-- 파일: `models/api.py`, `prompts/interpret.md`, TC-AGENT-002
+### C9. [x] `interpretations` 절 형식에 방어가 없다 (윤석 + 윤아) — **해결됨 (2026-08-25, 해찬)**
+- B4 는 각 항목을 **종결어미 없는 절**로 규정하고 프론트가 `", ".join + " 있어요."` 로 합친다. 프롬프트(윤아)와 렌더(시여)가 두 파일에 걸쳐 맞물려 있는데 코드가 강제하지 않던 문제.
+  - LLM 이 완결 문장을 내면 화면에 `"바빴어요. 있어요."` — 경보 없이 사용자에게 나갈 위험이 있었다
+- **해결**: 윤석님이 PR #27에서 `InterpretedHighlight.interpretations_are_clauses`(`models/report.py`) Pydantic validator를 이미 구현 — 마침표·느낌표·물음표, 종결어미(요/다/니다/예요/이에요)까지 스펙보다 더 꼼꼼히 막고 있었다. **빠져 있던 40자 길이 상한만 추가**(`models/report.py`)하고 회귀 테스트 추가(`test_agents.py::test_interpretation_clause_over_40_chars_rejected`).
+  - `generate_validated()`의 `model_validate()` 경로 안에 있어 실 LLM 출력에도 걸리고, 위반 시 1회 재요청으로 이어진다 (TRD §1) — 문서가 요구한 동작 그대로.
+- 파일: `models/report.py`, `tests/test_agents.py`
 
 ### C11. [x] Qdrant payload 에 시각이 없어 챗봇 기간 검색이 불가능했다 (해찬, 3-1)
 - 2-6 의 point payload 는 `{couple_id, session_id, chunk_idx, point_key}` 뿐이라 **시각 정보가 없었다.** 그런데 API_SPEC §8 의 `search_conversation` 은 `(couple_id, query, start?, end?, k=8)` — "지난달에 제주도 얘기" 같은 기간 한정 질문이 계약에 들어 있다.
@@ -232,10 +233,12 @@
   - TASKS 2-13은 이 검증으로 완료 처리. 4-6("Instana에서 트레이스 확인")은 전제가 없어져 스킵 — 리뷰 시 `execution_trace` 조회로 대체
   - 영향: `docs/TRD.md` §9.1, `api/requirements.txt`, `api/app/config.py`, `.env.example`, `openshift/00-namespace-secret.yaml`, `docs/TASKS.md` 2-13·4-6
 
-### D4. [→] `ReviewMetrics.range/baseline: dict[str, Any]` (윤석+시여)
-- 돌아보기 화면(가장 늦게 확정)에 타입이 없어 프론트·백이 각자 추측. Phase 3 전까지 `WeekSummary` 서브셋 모델로 고정.
-- 파일: `models/api.py`, `types.ts`, `API_SPEC` §5.1
-- **담당자 판단 (해찬 결정 아님)**: 시여·윤석이 Phase 3 시작 전 30분 맞추면 됨. 기준은 API_SPEC §5.1 예시 JSON (A2 반영해 `initiation_ratio` 제거, **B3 반영해 `{couple, mine}` 형태**). 값 형태는 B3로 확정됐고 남은 건 타입으로 박을지 여부.
+### D4. [x] `ReviewMetrics` range/baseline 타입 확정 (윤석+시여) — **완료 (2026-08-25, 윤석)**
+- **결정**: `RangeMetrics`와 `BaselineMetrics`를 별도 타입으로 고정했다. 지표는 질문 비율·답장 시간·메시지 수 세 개이며, `question_rate`·`reply_gap_median_min`은 B3의 `{couple, mine}`, `message_count`는 개인별 분리 없는 커플 합산이다.
+- baseline은 최대 8주다. 날짜 범위의 `baseline.message_count`는 baseline 일평균을 선택 구간 길이에 맞춰 환산하고, `session_id` 조회는 과거 baseline 세션 `msg_count` 평균을 사용한다.
+- `metrics.comment`는 couple 값과 기존 band 규칙만으로 만드는 숫자 없는 방향성 한 문장이다. LLM은 호출하지 않는다.
+- **반영·검증**: `models/api.py`, `services/review_metrics.py`, `services/projection.py`, `types.ts`, `Review.tsx`, API_SPEC §5.1, TC-API-006·005-13 및 관련 pytest/TypeScript build.
+- **병합 메모 (2026-08-25, 윤아+윤석 합침)**: 윤석님이 실 DB 연결(`postgres_service.get_review_data`)까지 구현 완료. 윤아의 챗봇 쪽 `ChatResponse.metrics: ReviewMetrics | None`(A7) 필드와 겹치지 않아 그대로 병합 — 백엔드 143/152 pytest, 프론트 production build 모두 통과 확인.
 
 ---
 
@@ -263,9 +266,10 @@
 | 18 | 리포트 문장 톤 (B4) | `metrics.band`·`agent_metric_input`(숫자 대신 방향·정도), `banned_patterns.txt` 초안 + `test_banned_patterns.py`, `interpretations` 절 형식 + `HighlightCard.joinInterpretations` 3문장 병합, 프롬프트 4개 계약부, TC-AGENT-001~004 |
 
 ## 남은 것
-- **A4** 담당 재배분 — 팀 회의 후 TASKS §5~7·§10 수정
+- ~~**A4** 담당 재배분~~ **불필요 (2026-08-25)** — Day 1~2 사이 실제 진행을 보니 담당이 이미 자연스럽게 재배분되어 돌아가고 있음(윤석이 3-1/3-1a/3-1b/3-3~3-5까지, 윤아가 2-6/2-11/2-12까지 겸함). 별도 회의·TASKS 수정 불필요
 - **A7** 챗봇 `metric_query` 수치 정책 — 챗봇 구현(3-6) 전까지
-- **D3** Instana — 1-V5 후
+- **D3** Instana — 1-V5 후 → **완료** (D3 항목 참고)
 - **C1~C10, D4** — TASKS 비고로 이관됨. 담당자가 구현 시 적용. 이 파일에선 추적 안 함
-  (C7~C9 는 2026-08-24 스캐폴딩 점검에서 나온 것. **C7 은 수정·검증 완료**, C8 은 문서만 반영·구현은 2-3, C9 만 미착수)
+  (C7~C9 는 2026-08-24 스캐폴딩 점검에서 나온 것. **C7·C9 수정·검증 완료**, C8 은 문서만 반영·구현은 2-3)
   (C10 은 2026-08-24 oc 접속 확인 중 나온 것. 강사·운영 쪽 확인 전까지 미착수)
+  (C11 은 2026-08-25 3-1 작업 중 나온 것. **완료**)
