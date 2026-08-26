@@ -47,6 +47,50 @@ function NavIcon({ name }: { name: string }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.2 2.5 2.7.4-2 2 .5 2.8-2.4-1.3-2.4 1.3.5-2.8-2-2 2.7-.4Z" /><path d="M12 12v8M7.5 20h9" /></svg>;
 }
 
+function parseCalendarDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const date = new Date(year, month, day);
+  return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day
+    ? date
+    : null;
+}
+
+function formatDDay(firstMetAt: string | null | undefined): string | null {
+  const firstMetDate = parseCalendarDate(firstMetAt);
+  if (!firstMetDate) return null;
+
+  const today = new Date();
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dayDifference = Math.round(
+    (todayDate.getTime() - firstMetDate.getTime()) / (24 * 60 * 60 * 1000),
+  );
+
+  if (dayDifference === 0) return "D-DAY";
+  return dayDifference > 0 ? `D+${dayDifference}` : `D-${Math.abs(dayDifference)}`;
+}
+
+function HomeDday() {
+  const { data } = useQuery({
+    queryKey: ["couple-me"],
+    queryFn: () => api.get<CoupleMeResponse>("/api/couples/me"),
+    staleTime: 30_000,
+  });
+  const dday = formatDDay(data?.first_met_at);
+
+  return (
+    <span className={`site-header__home-dday${dday ? "" : " is-unset"}`} aria-label={`D-DAY ${dday ?? "미설정"}`}>
+      <span className="site-header__home-dday-label">D-DAY</span>
+      <strong>{dday ?? "미설정"}</strong>
+    </span>
+  );
+}
+
 function BrandLink() {
   return (
     <Link to="/" className="brand-link" aria-label="견우야 직녀야 홈으로 이동">
@@ -97,6 +141,7 @@ function AppShell() {
               <span className="profile-chip__chevron" aria-hidden="true">⌄</span>
             </span>
           )}
+          {!isOnboarding && (pathname === "/" || pathname.startsWith("/timeline")) && <HomeDday />}
         </div>
       </header>
       <div className="app-shell__content">
