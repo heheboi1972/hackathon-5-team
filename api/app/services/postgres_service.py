@@ -976,6 +976,22 @@ class PostgresService:
             )
             return await cur.fetchone()
 
+    async def get_latest_generated_week(self, couple_id: UUID) -> date | None:
+        """가장 최근 status='generated' 리포트의 week_start.
+        챗봇 report_query가 특정 주를 못 짚었을 때(focus_range 없음) 기본값으로 쓴다 (TASKS 3-6)."""
+        async with self.pool.connection() as conn:
+            row = await (
+                await conn.execute(
+                    """
+                    SELECT week_start FROM reports
+                     WHERE couple_id=%s AND status='generated'
+                     ORDER BY week_start DESC LIMIT 1
+                    """,
+                    (couple_id,),
+                )
+            ).fetchone()
+            return row[0] if row else None
+
     async def get_couple_lexicon(self, couple_id: UUID) -> dict[str, tuple[str, str]]:
         async with self.pool.connection() as conn:
             rows = await (

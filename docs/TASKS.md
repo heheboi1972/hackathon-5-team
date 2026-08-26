@@ -156,7 +156,7 @@ graph TD
 | 3-4 | 리포트 플로우 Supervisor (execution_trace). 메모: 기준선 부족 주는 LLM 없이 즉시 `insufficient_baseline` | 윤석 | — | 3-3 |
 | 3-5 | 리포트 워커 (`report_backfill`: 최신 주부터, `Semaphore(3)` 주차 병렬, `summary_hash` 변경 주차만) + reports API (`deps.current_member` 로 `mine` 투영) | 윤석 | TC-API-005 | 2-0, 2-1, 3-4 |
 | 3-1b | 단어 횟수 검색 (`services/term_search.py` 저장소 연결 + `tools/count_term.py` + `term_count_cache` 무효화). **LLM 무관** — 감성 사전·build_lexicon 과 독립 | 윤석 | TC-API-008-11~17 | 2-3 |
-| 3-6 | 챗봇 Supervisor + chat API. 메모: advice/other 는 regex 사전 분기, 나머지는 검색 먼저 후 1회 호출 (C4). 횟수 질문 → other (A3) | 윤아(프롬프트) + 윤석 | TC-AGENT-005, TC-API-008 | 3-1 |
+| 3-6 | ~~챗봇 Supervisor + chat API~~ **완료 (2026-08-26, 해찬)** — term_count/advice_request는 regex 선분기(LLM 0회), 나머지 3개(fact/metric/report_query)는 chat_intent 분류 1회 + chat_answer 생성 1회. metric_query는 get_metrics 툴 원본을 그대로 응답에 붙이고 LLM의 echo는 신뢰하지 않음(P-2) | 윤아(프롬프트) + 해찬 | TC-AGENT-005, TC-API-008 | 3-1 |
 | 3-7 | 실 LLM 전환 + `reasoning_effort: low` + 토큰 설정 | 윤아 | 스모크 | 3-3, 3-6 |
 | 3-8 | 리포트 화면 (summary / highlights / suggestions / moments + **"활발한 시간" 카드 + "내 단어" 카드**) | 시여 | — | 2-9 |
 | 3-9 | ~~돌아보기 화면 (구간 선택 → 지표 vs 기준선 → 메모)~~ **완료** — D4 타입 확정: 질문 비율·답장 시간은 `{couple, mine}`, 메시지 수는 커플 합산, baseline 최대 8주, 숫자 없는 코드 comment | 시여+윤석 | TC-API-006, 005-13 | 2-5 |

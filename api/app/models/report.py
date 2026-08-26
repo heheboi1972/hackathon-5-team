@@ -173,3 +173,32 @@ class AgentTraceStep(StrictModel):
     agent: Literal["select", "interpret", "suggest", "safety"]
     input: dict[str, Any]
     output: dict[str, Any]
+
+
+# ---------------------------------------------------------------- 챗봇 (TASKS 3-6, FR-006)
+# term_count/advice_request는 chat_supervisor가 정규식으로 먼저 걸러 LLM을 거치지 않는다
+# (prompts/chat_intent.md·chat_answer.md 참고) — 여기 모델 2개는 그 나머지(intent 분류/답변 생성)만 다룬다.
+
+ChatIntent = Literal["fact_query", "metric_query", "report_query", "advice_request", "other"]
+
+
+class ChatIntentOutput(StrictModel):
+    intent: ChatIntent
+
+
+class ChatCitation(StrictModel):
+    """report 쪽 AgentEvidence와 달리 sender를 남긴다 — 이미 두 사람이 나눈 대화의 사실
+    정보라 P-3(비교 금지) 대상이 아니다(chat_answer.md 규칙 참고)."""
+    session_id: int
+    at: datetime
+    sender: Literal["a", "b"]
+    snippet: str
+
+
+class ChatAnswerOutput(StrictModel):
+    answer: str = Field(min_length=1)
+    citations: list[ChatCitation] = Field(default_factory=list)
+    # LLM이 입력으로 받은 metrics(range/baseline/comment)를 그대로 echo하지만, 코드는 이 값을
+    # 쓰지 않는다 — chat_supervisor가 툴이 준 원본을 ChatResponse.metrics에 직접 붙인다
+    # (숫자는 코드가 만든다, P-2 — LLM의 "그대로 옮기기"를 신뢰하지 않고 구조적으로 강제).
+    metrics: dict[str, Any] | None = None

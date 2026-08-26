@@ -163,16 +163,12 @@ report_query:
 {"answer": "관련 기록을 찾지 못했어요.", "citations": [], "metrics": null}
 ```
 
-**알려진 한계 / 다음에 확인할 것**:
-- `search_conversation`/`get_report` 툴은 아직 구현 전(TODO 윤석)이라, 위 입력 형태는 API_SPEC §8
-  시그니처 기준으로 미리 정의한 것입니다.
-- `get_metrics` 툴은 **이번에 입력·출력 형태가 바뀌었습니다** — 기존엔 `(couple_id, week_start?|range?)
-  → summary + metrics`(주차별 리스트)였는데, 챗봇의 metric_query 전용으로 `(couple_id, focus_range?)
-  → {range, baseline, comment}`(돌아보기 화면과 동일한 range-vs-baseline 형태)로 좁혔습니다. 실제
-  `tools/get_metrics.py`는 아직 이 형태를 반환하지 않으므로(현재는 주차별 리스트 반환) **윤석과 코드
-  쪽 구현 조율 필요** — `services/projection.py`의 `build_review()`/`_review_comment()` 로직 재사용을
-  권장합니다(돌아보기 화면과 로직 중복 방지).
-- 실제 툴이 완성되면 반환 필드명이 정확히 일치하는지 다시 확인하고, 골든셋 5~10개로 Prompt Lab
-  실측 검증을 한 번 거치는 걸 권장합니다(특히 fact_query의 "관련 없는 검색결과를 걸러내는" 판단이
-  gpt-oss로 안정적으로 되는지, metric_query가 일반 질문엔 숫자 없이 방향만 말하면서도 "정확히
-  몇 %야?" 류 질문엔 `range` 값을 실수 없이 그대로(계산 없이) 옮기는지).
+**구현 완료 (2026-08-26, 해찬, TASKS 3-6)**: `search_conversation`/`get_report`/`get_metrics` 툴,
+`chat_supervisor`/`chat_intent_agent`/`chat_answer_agent` 전부 구현됨 — `tools/get_metrics.py`가
+이 문서 계약대로 `(couple_id, focus_range?) → {range, baseline, comment}`를 반환하고
+`services/review_metrics.py`/`projection.py`를 재사용한다. `api/tests/test_chat_supervisor.py`·
+`test_agents.py`에 mock 모드 단위 테스트 있음.
+
+**다음에 확인할 것**: 골든셋 5~10개로 Prompt Lab 실측 검증(윤아) — 특히 fact_query의 "관련 없는
+검색결과를 걸러내는" 판단이 gpt-oss로 안정적으로 되는지, metric_query가 일반 질문엔 숫자 없이
+방향만 말하면서도 "정확히 몇 %야?" 류 질문엔 `range` 값을 실수 없이 그대로(계산 없이) 옮기는지.
