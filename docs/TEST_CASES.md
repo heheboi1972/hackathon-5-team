@@ -220,13 +220,13 @@ PC 처럼 CRLF 로만 잘라내면 둘째 줄부터 통째로 버려진다.
 |---|---|---|
 | 001-1 | A invite | 201, code 8자, status=pending |
 | 001-2 | A invite 2회 | 같은 code |
-| 001-3 | B join(유효) | 200, status=awaiting_confirm |
+| 001-3 | B join(유효) | 200, status=active |
 | 001-4 | A join(자기 코드) | 409 INVITE_SELF |
 | 001-5 | C join(이미 커플 있음) | 409 ALREADY_COUPLED |
 | 001-6 | join(없는 코드) | 404 INVITE_INVALID |
-| 001-7 | A confirm accept=true | 200, status=active |
-| 001-8 | B confirm | 403 |
-| 001-9 | A confirm accept=false | 200, status=pending, user_b=null |
+| 001-7 | A·B가 각각 invite 후 A가 B 코드 입력 | A의 미사용 코드 폐기, B 커플 active |
+| 001-8 | active 커플의 코드 재입력 | 404 INVITE_INVALID |
+| 001-9 | confirm(이전 awaiting_confirm 커플) | 기존 호환 동작 유지 |
 | 001-10 | confirm(이미 active) | 409 INVITE_STATE |
 | 001-11 | me(커플 없음) | 200, couple_id=null |
 | 001-12 | me(active) | members.a/b, me, data 포함 |

@@ -1,7 +1,7 @@
-// 역할: 온보딩 — 가입 → 초대코드 → 수락대기 → 수락 (참조: FR-000, FR-001, TRD §6.1) — 시여 담당
-import { useState, type FormEvent } from "react";
+// 역할: 온보딩 — 가입 → 초대코드 → 즉시 연결 (참조: FR-000, FR-001, TRD §6.1) — 시여 담당
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, setToken } from "../api/client";
+import { api, getToken, setToken } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -37,6 +37,30 @@ export default function Onboarding() {
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!getToken() || (stage !== "invite" && stage !== "awaiting")) return;
+
+    let cancelled = false;
+    const syncConnection = async () => {
+      try {
+        const me = await api.get<CoupleMeResponse>("/api/couples/me");
+        if (cancelled || !me.couple_id || !me.status) return;
+        setCoupleId(me.couple_id);
+        if (me.status === "active") setStage("active");
+        else if (me.status === "awaiting_confirm") setStage("awaiting");
+      } catch {
+        // 연결 완료 확인은 보조 요청이므로, 일시적 오류는 다음 주기에 다시 시도한다.
+      }
+    };
+
+    void syncConnection();
+    const timer = window.setInterval(() => void syncConnection(), 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [stage]);
 
   const updateForm = (field: keyof SignupRequest, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -153,7 +177,7 @@ export default function Onboarding() {
         invite_code: code,
       });
       setCoupleId(result.couple_id);
-      setStage("awaiting");
+      setStage(result.status === "active" ? "active" : "awaiting");
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {

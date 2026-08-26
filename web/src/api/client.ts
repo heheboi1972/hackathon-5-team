@@ -186,7 +186,27 @@ export async function request<T>(
   if (resp.status === 204) return undefined as T;
 
   const text = await resp.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: unknown = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (!resp.ok) {
+        throw new ApiClientError(
+          resp.status,
+          "NON_JSON_ERROR",
+          resp.status >= 500
+            ? "서버에서 오류가 발생했어요. 잠시 후 다시 시도해주세요."
+            : "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.",
+        );
+      }
+      throw new ApiClientError(
+        resp.status,
+        "INVALID_RESPONSE",
+        "서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요.",
+      );
+    }
+  }
   if (!resp.ok) {
     const err = (data ?? {}) as Partial<ApiError> & { detail?: unknown };
     const fastApiDetail =

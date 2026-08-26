@@ -105,7 +105,7 @@ Swagger(http://localhost:8000/docs)에서 순서대로:
 1. `POST /api/auth/signup` → 두 번 (A, B). 토큰 2개 받기
 2. 오른쪽 위 **Authorize**에 A 토큰 → `POST /api/couples/invite` → `invite_code` 복사
 3. Authorize를 B 토큰으로 → `POST /api/couples/join` (코드 입력)
-4. Authorize를 A 토큰으로 → `POST /api/couples/{couple_id}/confirm` `{"accept": true}`
+4. `join` 응답이 `active`인지 확인한다. 추가 수락은 필요 없다.
 5. `POST /api/couples/{couple_id}/upload` — 파일: `api/tests/fixtures/kakao/ios.txt`, name_map: `{"a":"<이름1>","b":"<이름2>"}`
 6. `GET /api/couples/{couple_id}/timeline` → 주별 숫자가 보이면 끝
 

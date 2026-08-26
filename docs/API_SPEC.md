@@ -99,7 +99,7 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 
 ## 2. 커플 연결 (FR-001)
 
-상태 전이: `pending`(코드 발급) → `awaiting_confirm`(B 입력) → `active`(A 수락) → `dissolved`
+상태 전이: `pending`(코드 발급) → `active`(상대방 코드 입력) → `dissolved`
 
 ### 2.1 POST /api/couples/invite
 
@@ -122,20 +122,21 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 | invite_code | string | O |
 
 **처리 규칙**
-- 호출자가 이미 커플에 속하면 409 ALREADY_COUPLED
+- 호출자가 이미 `active`/`awaiting_confirm` 커플에 속하면 409 ALREADY_COUPLED
 - 자기 코드면 409 INVITE_SELF
 - 코드 없음/만료 → 404 INVITE_INVALID
 - 상태가 `pending`이 아니면 409 INVITE_STATE
-- 성공 시 `user_b` 설정, 상태 → `awaiting_confirm`
+- 양쪽이 각각 코드를 발급한 경우, 코드를 입력한 쪽의 미사용 코드는 폐기한다
+- 성공 시 `user_b` 설정, 상태 → `active` (추가 수락 없음)
 
 **Response 200**
 ```json
-{ "couple_id": "uuid", "status": "awaiting_confirm", "partner": { "display_name": "형준" } }
+{ "couple_id": "uuid", "status": "active", "partner": { "display_name": "형준" } }
 ```
 
 ### 2.3 POST /api/couples/{couple_id}/confirm
 
-A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
+A가 연결을 수락/거절하는 이전 흐름 호환용 API. 새 연결은 `join`에서 즉시 완료된다.
 
 | 필드 | 타입 | 필수 |
 |---|---|---|
