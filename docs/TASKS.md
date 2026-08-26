@@ -157,7 +157,7 @@ graph TD
 | 3-5 | 리포트 워커 (`report_backfill`: 최신 주부터, `Semaphore(3)` 주차 병렬, `summary_hash` 변경 주차만) + reports API (`deps.current_member` 로 `mine` 투영) | 윤석 | TC-API-005 | 2-0, 2-1, 3-4 |
 | 3-1b | 단어 횟수 검색 (`services/term_search.py` 저장소 연결 + `tools/count_term.py` + `term_count_cache` 무효화). **LLM 무관** — 감성 사전·build_lexicon 과 독립 | 윤석 | TC-API-008-11~17 | 2-3 |
 | 3-6 | ~~챗봇 Supervisor + chat API~~ **완료 (2026-08-26, 해찬)** — term_count/advice_request는 regex 선분기(LLM 0회), 나머지 3개(fact/metric/report_query)는 chat_intent 분류 1회 + chat_answer 생성 1회. metric_query는 get_metrics 툴 원본을 그대로 응답에 붙이고 LLM의 echo는 신뢰하지 않음(P-2) | 윤아(프롬프트) + 해찬 | TC-AGENT-005, TC-API-008 | 3-1 |
-| 3-7 | 실 LLM 전환 + `reasoning_effort: low` + 토큰 설정 | 윤아 | 스모크 | 3-3, 3-6 |
+| 3-7 | ~~실 LLM 전환 + `reasoning_effort: low` + 토큰 설정~~ **완료** — interpret/safety(리포트, 2-9)·chat_intent/chat_answer(챗봇, 신규 스모크 7/7)까지 response_format 포함 실 watsonx 연결 확인 | 윤아 | 스모크(2-9, 3-7 스모크) | 3-3, 3-6 |
 | 3-8 | 리포트 화면 (summary / highlights / suggestions / moments + **"활발한 시간" 카드 + "내 단어" 카드**) | 시여 | — | 2-9 |
 | 3-9 | ~~돌아보기 화면 (구간 선택 → 지표 vs 기준선 → 메모)~~ **완료** — D4 타입 확정: 질문 비율·답장 시간은 `{couple, mine}`, 메시지 수는 커플 합산, baseline 최대 8주, 숫자 없는 코드 comment | 시여+윤석 | TC-API-006, 005-13 | 2-5 |
 | 3-10 | 챗봇 패널 (인용 카드, 리다이렉트 표시) | 시여 | — | 3-6 |
@@ -176,8 +176,8 @@ graph TD
 | 4-2 | TC-INT-001~003 OpenShift 환경에서 실행 | 윤석 | TC-INT |
 | 4-3 | 금지 표현 regex 전 리포트 스캔 | 윤아 | TC-API-005-9 |
 | 4-4 | 데모 데이터 준비 (동의받은 커플 1쌍 또는 합성) | 형준 | — |
-| 4-5 | Mock 모드 백업 경로 점검 | 윤석 | TC-API-008-10 |
-| 4-6 | ~~Instana에서 트레이스 확인~~ **스킵 (ISSUE D3, agent 없음)**. `execution_trace` 조회로 TRD §9.1 질문 1~3 확인 | 해찬 + 윤석 | — |
+| 4-5 | ~~Mock 모드 백업 경로 점검~~ **완료 (2026-08-26, 해찬)** — interpret/safety/chat_intent/chat_answer/lexicon 전부 `if provider_name=="mock"` 분기로 결정론 로직을 타서 이미 견고함 확인. `mock/*.json` 4개는 어디서도 안 읽는 SCAFFOLD 시절 잔재 | 윤석 | TC-API-008-10 |
+| 4-6 | ~~Instana에서 트레이스 확인~~ **스킵 (ISSUE D3, agent 없음)**. ~~`execution_trace` 조회로 TRD §9.1 질문 1~3 확인~~ **완료 (2026-08-26, 해찬)** — `execution_trace`에 `duration_ms` 계측 추가 후 실측: Q1 병목=interpret(4.1s, LLM 유일 호출 — select/suggest/safety는 결정론이라 0.1~0.2ms), Q2 chat p95≈7.7s(metric_query 1건 10.1s로 8s 기준 초과, 표본 재확인 필요), Q3 업로드 동기 구간 945개 메시지 1.46s(이상 없음) | 해찬 + 윤석 | — |
 
 ---
 

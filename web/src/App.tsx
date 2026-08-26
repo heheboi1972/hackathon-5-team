@@ -1,6 +1,9 @@
-// 역할: 라우트 정의 (참조: TRD §6.1) — 가드(couples/me 분기)는 TODO(시여)
+// 역할: 라우트 정의 (참조: TRD §6.1) — couples/me 기반 인증 가드 적용
+import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { getToken } from "./api/client";
+import { api, getToken } from "./api/client";
+import type { CoupleMeResponse } from "./api/types";
 import ChatPage from "./pages/ChatPage";
 import Onboarding from "./pages/Onboarding";
 import Report from "./pages/Report";
@@ -11,6 +14,23 @@ import Upload from "./pages/Upload";
 
 const USE_MOCK =
   import.meta.env.VITE_USE_MOCK === "true" || import.meta.env.USE_MOCK === "true";
+
+function RequireAuth({ children }: { children: ReactNode }) {
+  const hasToken = Boolean(getToken());
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["couple-me"],
+    queryFn: () => api.get<CoupleMeResponse>("/api/couples/me"),
+    enabled: !USE_MOCK && hasToken,
+    retry: false,
+  });
+
+  if (USE_MOCK) return <>{children}</>;
+  if (!hasToken) return <Navigate to="/onboarding" replace />;
+  if (isLoading) return null;
+  if (isError || data?.status !== "active") return <Navigate to="/onboarding" replace />;
+  return <>{children}</>;
+}
 
 const navigationItems = [
   { label: "홈", icon: "home", path: "/", matches: (pathname: string) => pathname === "/" || pathname.startsWith("/timeline") },
@@ -84,20 +104,74 @@ function AppShell() {
       <div className="app-shell__content">
         <Routes>
           <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/" element={<Timeline />} />
-          <Route
-            path="/timeline"
-            element={USE_MOCK ? <Timeline /> : <Navigate to="/onboarding" replace />}
-          />
-          <Route path="/upload" element={<Upload />} />
-          <Route
-            path="/report"
-            element={<ReportEntry />}
-          />
-          <Route path="/reports/:week" element={<Report />} />
-          <Route path="/review" element={<Review />} />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/settings" element={<Settings />} />
+<Route
+  path="/"
+  element={
+    <RequireAuth>
+      <Timeline />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/timeline"
+  element={
+    USE_MOCK ? (
+      <Timeline />
+    ) : (
+      <RequireAuth>
+        <Timeline />
+      </RequireAuth>
+    )
+  }
+/>
+<Route
+  path="/upload"
+  element={
+    <RequireAuth>
+      <Upload />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/report"
+  element={
+    <RequireAuth>
+      <ReportEntry />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/reports/:week"
+  element={
+    <RequireAuth>
+      <Report />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/review"
+  element={
+    <RequireAuth>
+      <Review />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/chat"
+  element={
+    <RequireAuth>
+      <ChatPage />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/settings"
+  element={
+    <RequireAuth>
+      <Settings />
+    </RequireAuth>
+  }
+/>
           <Route path="*" element={<Navigate to="/onboarding" replace />} />
         </Routes>
       </div>

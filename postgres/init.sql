@@ -1,5 +1,5 @@
 -- 역할: DB 초기 스키마 — users/couples/messages/sessions/weekly_metrics/reports/notes/events/pokes + jobs + couple_lexicon/weekly_terms (참조: PRD §6.1, TRD §4.1)
--- 본문은 body_enc(Fernet)로만 저장. 지표 계산은 body_len/is_question 으로 복호화 없이 (TRD §4.1)
+-- 본문은 body_encrypted(Fernet)로만 저장. 지표 계산은 body_len/is_question 으로 복호화 없이 (TRD §4.1)
 -- P-5 예외: couple_lexicon / weekly_terms / term_count_cache 는 단어 단위 집계를 평문 저장.
 --           원문 복원 불가, 커플 해제 시 CASCADE 삭제. term_count_cache 는 사용자가 실제로 물어본 단어만 남는다.
 
@@ -49,11 +49,12 @@ CREATE TABLE messages (
     session_id  BIGINT,
     sender      CHAR(1) NOT NULL CHECK (sender IN ('a','b')),
     sent_at     TIMESTAMPTZ NOT NULL,
-    body_enc    BYTEA NOT NULL,                      -- Fernet 암호화 본문
+    body_encrypted TEXT NOT NULL,                     -- Fernet 암호화 본문 (base64, ASCII-safe)
     body_len    INTEGER NOT NULL,                    -- 저장 시 계산 (복호화 없이 지표)
     is_question BOOLEAN NOT NULL DEFAULT FALSE,
-    msg_hash    VARCHAR(64) NOT NULL,                -- 중복 제거용 (sha256)
-    UNIQUE (couple_id, msg_hash),
+    msg_type    VARCHAR(10) NOT NULL DEFAULT 'text', -- kakao_parser.MSG_TYPES. term_search가 텍스트만 필터링할 때 사용
+    body_hash   VARCHAR(64) NOT NULL,                -- 중복 제거용 (sha256)
+    UNIQUE (couple_id, body_hash),
     -- SET NULL 은 session_id 만 (PG15+). 컬럼을 안 적으면 couple_id 까지 NULL 로 만들어 not-null 위반 (ISSUE C7)
     FOREIGN KEY (couple_id, session_id) REFERENCES sessions(couple_id, session_id) ON DELETE SET NULL (session_id)
 );
@@ -67,9 +68,10 @@ CREATE TABLE weekly_metrics (
     couple_id  UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
     week_start DATE NOT NULL,                        -- 월요일
     summary    JSONB NOT NULL,                       -- API_SPEC §4.1 summary
+    metrics    JSONB NOT NULL DEFAULT '{}',          -- 기준선·delta 재계산용 원시 지표 (metrics_from_stored 입력)
     summary_hash VARCHAR(64) NOT NULL,               -- sha256(summary). 바뀐 주차만 리포트 재생성 (API_SPEC §3.1 규칙 8)
     outliers   JSONB NOT NULL DEFAULT '[]',          -- moments 후보
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (couple_id, week_start)
 );
 
@@ -78,10 +80,9 @@ CREATE TABLE reports (
     week_start      DATE NOT NULL,
     status          VARCHAR(30) NOT NULL DEFAULT 'pending'
                     CHECK (status IN ('pending','generated','insufficient_baseline','failed')),
-    report          JSONB,                           -- API_SPEC §4.2 전체 JSON
-    execution_trace JSONB,                           -- 에이전트 실행 기록 (NFR-005)
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    report_json     JSONB,                           -- API_SPEC §4.2 전체 JSON + trace_id/execution_trace(NFR-005)
+    summary_hash    VARCHAR(64),                     -- 생성 시점 weekly_metrics.summary_hash 스냅샷 (재생성 판단)
+    generated_at    TIMESTAMPTZ,
     PRIMARY KEY (couple_id, week_start)
 );
 
@@ -101,9 +102,9 @@ CREATE INDEX idx_notes_couple_range ON notes (couple_id, range_start);
 CREATE TABLE events (
     event_id   BIGSERIAL PRIMARY KEY,
     couple_id  UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    at         DATE NOT NULL,
-    kind       VARCHAR(30) NOT NULL,
-    label      VARCHAR(100) NOT NULL,
+    event_at   TIMESTAMPTZ NOT NULL,
+    kind       TEXT NOT NULL,
+    payload    JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -120,11 +121,11 @@ CREATE TABLE pokes (
 -- append-only: 한 번 분류된 term 은 재분류하지 않음 (재현성). seed 는 공용 시드 사전, llm 은 build_lexicon 잡
 CREATE TABLE couple_lexicon (
     couple_id UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    term      VARCHAR(50) NOT NULL,
+    surface   VARCHAR(50) NOT NULL,
     canonical VARCHAR(50) NOT NULL,                  -- 철자 변형만 묶음 (조아→좋아). 동의어는 분리
-    polarity  VARCHAR(8)  NOT NULL CHECK (polarity IN ('pos','neg','neutral','exclude')),
+    sentiment VARCHAR(8)  NOT NULL CHECK (sentiment IN ('pos','neg','neutral','exclude')),
     source    VARCHAR(8)  NOT NULL DEFAULT 'llm' CHECK (source IN ('seed','llm')),
-    PRIMARY KEY (couple_id, term)
+    PRIMARY KEY (couple_id, surface)
 );
 
 -- 주차·사람별 집계 (평문). 양쪽 저장하되 API 응답은 요청자 본인 것만 (P-3 예외)
@@ -133,7 +134,7 @@ CREATE TABLE weekly_terms (
     week_start DATE NOT NULL,
     sender     CHAR(1) NOT NULL CHECK (sender IN ('a','b')),
     canonical  VARCHAR(50) NOT NULL,
-    polarity   VARCHAR(3) NOT NULL CHECK (polarity IN ('pos','neg')),
+    sentiment  VARCHAR(7) NOT NULL CHECK (sentiment IN ('pos','neg','neutral')),
     count      INTEGER NOT NULL,
     PRIMARY KEY (couple_id, week_start, sender, canonical)
 );
@@ -142,12 +143,14 @@ CREATE TABLE weekly_terms (
 -- sender 컬럼을 두지 않는다 = 발화자별 집계가 구조적으로 불가능 (P-3 예외 "내 단어는 본인만" 보호).
 -- 값은 요청 시 본문을 메모리에서 복호화해 세고 즉시 폐기한 결과이며, 평문 본문은 디스크에 쓰지 않는다.
 CREATE TABLE term_count_cache (
-    couple_id   UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    term        VARCHAR(50) NOT NULL,        -- tokenize() 로 정규화된 질의어
-    week_start  DATE NOT NULL,
-    count       INTEGER NOT NULL,            -- 커플 합산
-    computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (couple_id, term, week_start)
+    couple_id      UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
+    term           VARCHAR(120) NOT NULL,      -- "{mode}:{정규화된 질의어}" (services/term_search.py _cache_key)
+    range_start    TIMESTAMPTZ,                -- NULL = 전체 기간
+    range_end      TIMESTAMPTZ,
+    source_version INTEGER NOT NULL,           -- coalesce(max(message_id),0) 스냅샷 — 재업로드 시 무효화 판단
+    result         JSONB NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE NULLS NOT DISTINCT (couple_id, term, range_start, range_end)
 );
 
 -- ---------------------------------------------------------------- 작업 큐 (TRD §4.1)
@@ -161,6 +164,7 @@ CREATE TABLE jobs (
     done         INTEGER NOT NULL DEFAULT 0,
     failed       INTEGER NOT NULL DEFAULT 0,
     current_week DATE,
+    payload      JSONB NOT NULL DEFAULT '{}',
     error        TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
