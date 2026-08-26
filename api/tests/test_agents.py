@@ -201,7 +201,7 @@ def test_interpret_agent_is_korean_grounded_plural_and_number_free():
         }
         assert trace[0]["agent"] == "interpret"
 
-        empty_agent = InterpretAgent(_MockAI(), lambda *_args: [], lambda *_args: [])
+        empty_agent = InterpretAgent(_MockAI(), lambda *_args, **_kwargs: [], lambda *_args, **_kwargs: [])
         empty = await empty_agent.run(
             {
                 "couple_id": uuid4(),
@@ -219,7 +219,7 @@ def test_interpret_agent_is_korean_grounded_plural_and_number_free():
 def test_invalid_agent_schema_retries_only_once():
     async def scenario():
         ai = _InvalidAI()
-        agent = InterpretAgent(ai, lambda *_args: [], lambda *_args: [])
+        agent = InterpretAgent(ai, lambda *_args, **_kwargs: [], lambda *_args, **_kwargs: [])
         with pytest.raises(AgentOutputError):
             await agent.run(
                 {
@@ -366,7 +366,7 @@ def test_unknown_real_template_combination_fails_clearly():
 
 def test_suggest_agent_does_not_invent_when_templates_are_empty():
     async def scenario():
-        agent = SuggestAgent(_MockAI(), lambda *_args: [])
+        agent = SuggestAgent(_MockAI(), lambda *_args, **_kwargs: [])
         with pytest.raises(AgentOutputError):
             await agent.run(
                 {

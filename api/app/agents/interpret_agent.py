@@ -208,7 +208,7 @@ class InterpretAgent(AgentBase):
         with self.span() as span:
             raw_evidence = await maybe_await(
                 self.search_conversation(
-                    model.couple_id, query, model.start, model.end, 8
+                    model.couple_id, query, start=model.start, end=model.end, k=8
                 )
             )
             raw_knowledge = await maybe_await(
