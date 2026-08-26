@@ -160,6 +160,7 @@ CREATE TABLE jobs (
     done         INTEGER NOT NULL DEFAULT 0,
     failed       INTEGER NOT NULL DEFAULT 0,
     current_week DATE,
+    payload      JSONB NOT NULL DEFAULT '{}',
     error        TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
