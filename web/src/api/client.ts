@@ -8,16 +8,29 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 const BASE = import.meta.env.VITE_API_BASE ?? ""; // 로컬은 vite proxy, 배포는 같은 Route 상대 경로
 
 const TOKEN_KEY = "couple_report_token";
+const LEGACY_TOKEN_KEY = TOKEN_KEY;
 let mockCoupleFirstMetAt: string | null = null;
 let mockCoupleFirstMetAtSet = false;
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  const token = sessionStorage.getItem(TOKEN_KEY);
+  if (token) return token;
+
+  // Migrate tokens from older builds once, then keep logins isolated per tab.
+  const legacyToken = localStorage.getItem(LEGACY_TOKEN_KEY);
+  if (legacyToken) {
+    sessionStorage.setItem(TOKEN_KEY, legacyToken);
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+  }
+  return legacyToken;
 }
 
 export function setToken(token: string | null): void {
-  if (token === null) localStorage.removeItem(TOKEN_KEY);
-  else localStorage.setItem(TOKEN_KEY, token);
+  // Two people may onboard in different tabs of the same browser. A tab-local
+  // token prevents the second login from replacing the first person's session.
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+  if (token === null) sessionStorage.removeItem(TOKEN_KEY);
+  else sessionStorage.setItem(TOKEN_KEY, token);
 }
 
 export class ApiClientError extends Error {
