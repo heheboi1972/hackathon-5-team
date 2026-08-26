@@ -176,8 +176,8 @@ graph TD
 | 4-2 | TC-INT-001~003 OpenShift 환경에서 실행 | 윤석 | TC-INT |
 | 4-3 | 금지 표현 regex 전 리포트 스캔 | 윤아 | TC-API-005-9 |
 | 4-4 | 데모 데이터 준비 (동의받은 커플 1쌍 또는 합성) | 형준 | — |
-| 4-5 | Mock 모드 백업 경로 점검 | 윤석 | TC-API-008-10 |
-| 4-6 | ~~Instana에서 트레이스 확인~~ **스킵 (ISSUE D3, agent 없음)**. `execution_trace` 조회로 TRD §9.1 질문 1~3 확인 | 해찬 + 윤석 | — |
+| 4-5 | ~~Mock 모드 백업 경로 점검~~ **완료 (2026-08-26, 해찬)** — interpret/safety/chat_intent/chat_answer/lexicon 전부 `if provider_name=="mock"` 분기로 결정론 로직을 타서 이미 견고함 확인. `mock/*.json` 4개는 어디서도 안 읽는 SCAFFOLD 시절 잔재 | 윤석 | TC-API-008-10 |
+| 4-6 | ~~Instana에서 트레이스 확인~~ **스킵 (ISSUE D3, agent 없음)**. ~~`execution_trace` 조회로 TRD §9.1 질문 1~3 확인~~ **완료 (2026-08-26, 해찬)** — `execution_trace`에 `duration_ms` 계측 추가 후 실측: Q1 병목=interpret(4.1s, LLM 유일 호출 — select/suggest/safety는 결정론이라 0.1~0.2ms), Q2 chat p95≈7.7s(metric_query 1건 10.1s로 8s 기준 초과, 표본 재확인 필요), Q3 업로드 동기 구간 945개 메시지 1.46s(이상 없음) | 해찬 + 윤석 | — |
 
 ---
 
