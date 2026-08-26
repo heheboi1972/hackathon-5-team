@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -59,10 +60,10 @@ ANSWER_CASES = [
             "focus_range": None,
             "history": [],
             "evidence_candidates": [
-                {"session_id": 1150, "at": "2026-08-10T20:12:00+09:00", "sender": "a",
-                 "snippet": "다음 달에 제주도 가자!", "score": 0.82},
-                {"session_id": 1151, "at": "2026-08-11T09:03:00+09:00", "sender": "b",
-                 "snippet": "제주도 숙소 알아볼까?", "score": 0.77},
+                {"session_id": 1150, "at": datetime(2026, 8, 10, 20, 12, tzinfo=timezone(timedelta(hours=9))),
+                 "sender": "a", "snippet": "다음 달에 제주도 가자!", "score": 0.82},
+                {"session_id": 1151, "at": datetime(2026, 8, 11, 9, 3, tzinfo=timezone(timedelta(hours=9))),
+                 "sender": "b", "snippet": "제주도 숙소 알아볼까?", "score": 0.77},
             ],
         },
         {"evidence_candidates_key": "evidence_candidates"},
