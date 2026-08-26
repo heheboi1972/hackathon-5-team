@@ -265,15 +265,15 @@ class PostgresService:
             await self._lock(conn, couple_id)
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
-                    "SELECT couple_id, user_a, status FROM couples WHERE couple_id = %s FOR UPDATE",
+                    "SELECT couple_id, user_a, user_b, status FROM couples WHERE couple_id = %s FOR UPDATE",
                     (couple_id,),
                 )
                 row = await cur.fetchone()
                 if not row:
                     raise RepositoryError("NOT_FOUND", "커플을 찾을 수 없습니다")
-                if row["user_a"] != user_id:
+                if user_id not in (row["user_a"], row["user_b"]):
                     raise RepositoryError(
-                        "FORBIDDEN", "초대를 만든 사용자만 확인할 수 있습니다"
+                        "FORBIDDEN", "이 커플의 구성원만 연결을 완료할 수 있습니다"
                     )
                 if row["status"] != "awaiting_confirm":
                     raise RepositoryError(

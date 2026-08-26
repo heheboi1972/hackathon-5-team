@@ -136,14 +136,14 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 
 ### 2.3 POST /api/couples/{couple_id}/confirm
 
-A가 연결을 수락/거절하는 이전 흐름 호환용 API. 새 연결은 `join`에서 즉시 완료된다.
+이전 수락 대기 연결을 자동 완료하는 호환용 API. 새 연결은 `join`에서 즉시 완료된다.
 
 | 필드 | 타입 | 필수 |
 |---|---|---|
 | accept | boolean | O |
 
 **처리 규칙**
-- 호출자가 `user_a`가 아니면 403
+- 호출자가 커플 구성원이 아니면 403
 - 상태가 `awaiting_confirm`이 아니면 409 INVITE_STATE
 - `accept=true` → `active`, `accept=false` → `user_b` 해제, 상태 `pending`(코드 재사용 가능)
 

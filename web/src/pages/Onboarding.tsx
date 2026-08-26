@@ -34,7 +34,6 @@ export default function Onboarding() {
   const [loginForm, setLoginForm] = useState<LoginRequest>({ email: "", password: "" });
   const [invite, setInvite] = useState<InviteResponse | null>(null);
   const [inviteCode, setInviteCode] = useState("");
-  const [coupleId, setCoupleId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,20 +45,14 @@ export default function Onboarding() {
       try {
         const me = await api.get<CoupleMeResponse>("/api/couples/me");
         if (cancelled || !me.couple_id || !me.status) return;
-        setCoupleId(me.couple_id);
         if (me.status === "active") setStage("active");
         else if (me.status === "awaiting_confirm") {
-          // 이전 배포본에서 만들어진 수락 대기는 초대자가 접속하는 즉시 마무리한다.
-          // 새 연결은 join 단계에서 바로 active가 되므로 이 경로를 거치지 않는다.
-          if (me.me === "a") {
-            const confirmed = await api.post<ConfirmResponse>(
-              `/api/couples/${me.couple_id}/confirm`,
-              { accept: true },
-            );
-            if (!cancelled && confirmed.status === "active") setStage("active");
-          } else {
-            setStage("awaiting");
-          }
+          // 이전 배포본의 수락 대기도 어느 한쪽 화면에서 자동으로 완료한다.
+          const confirmed = await api.post<ConfirmResponse>(
+            `/api/couples/${me.couple_id}/confirm`,
+            { accept: true },
+          );
+          if (!cancelled && confirmed.status === "active") setStage("active");
         }
       } catch {
         // 연결 완료 확인은 보조 요청이므로, 일시적 오류는 다음 주기에 다시 시도한다.
@@ -89,7 +82,6 @@ export default function Onboarding() {
       return;
     }
     if (me.couple_id && me.status === "awaiting_confirm") {
-      setCoupleId(me.couple_id);
       setStage("awaiting");
       return;
     }
@@ -166,7 +158,6 @@ export default function Onboarding() {
     try {
       const result = await api.post<InviteResponse>("/api/couples/invite");
       setInvite(result);
-      setCoupleId(result.couple_id);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -188,29 +179,7 @@ export default function Onboarding() {
       const result = await api.post<JoinResponse>("/api/couples/join", {
         invite_code: code,
       });
-      setCoupleId(result.couple_id);
       setStage(result.status === "active" ? "active" : "awaiting");
-    } catch (requestError) {
-      setError(errorMessage(requestError));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const confirm = async () => {
-    if (!coupleId) {
-      setError("연결할 커플 정보를 찾지 못했어요.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      const result = await api.post<ConfirmResponse>(
-        `/api/couples/${coupleId}/confirm`,
-        { accept: true },
-      );
-      if (result.status === "active") setStage("active");
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -568,12 +537,9 @@ export default function Onboarding() {
               <div className="onboarding-state-visual onboarding-state-visual--waiting" aria-hidden="true">
                 <span>♡</span><i>↗</i>
               </div>
-              <Badge tone="neutral" className="onboarding-badge">3단계 · 수락 대기</Badge>
-              <h2>상대방의 연결을 기다리고 있어요</h2>
-              <p>초대 코드 입력이 완료되었습니다. 연결을 최종 수락하면 다음 단계로 넘어가요.</p>
-              <Button className="onboarding-primary-button" onClick={confirm} disabled={isSubmitting}>
-                {isSubmitting ? "처리 중…" : "연결 수락하기"}
-              </Button>
+              <Badge tone="neutral" className="onboarding-badge">3단계 · 연결 확인 중</Badge>
+              <h2>연결을 마무리하고 있어요</h2>
+              <p>잠시 후 두 사람 모두 자동으로 연결 완료 화면으로 이동해요.</p>
             </Card>
           )}
 
