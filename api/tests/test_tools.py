@@ -2,7 +2,7 @@
 # 실 Postgres/Qdrant/watsonx 없이 도는 것만 여기서 본다: 계약(상대 값 미노출, 템플릿 고정 선택),
 # 기준선 재계산, 인용 조립. 실 저장소 붙는 경로는 스모크로 별도 확인.
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -43,6 +43,44 @@ class _FakePostgres:
             for w, s in sorted(self._weeks.items())
             if (start is None or w >= start) and (end is None or w <= end)
         ]
+
+
+def _review_messages(start: datetime, weeks: int = 4) -> list[dict]:
+    rows = []
+    for index in range(weeks):
+        at = start + timedelta(weeks=index)
+        rows.extend([
+            {"session_id": index + 1, "sender": "a", "sent_at": at, "body_len": 5, "is_question": False},
+            {"session_id": index + 1, "sender": "b", "sent_at": at + timedelta(minutes=4), "body_len": 5, "is_question": True},
+        ])
+    return rows
+
+
+class _FakeReviewPostgres:
+    """get_metrics 툴(챗봇용) 전용 — get_review_data 호출 인자를 기록해 기본 구간 폴백을 검증한다."""
+
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    async def get_review_data(self, couple_id, *, start=None, end=None, session_id=None):
+        self.calls.append({"start": start, "end": end})
+        baseline_messages = _review_messages(start - timedelta(days=28))
+        return {
+            "range_start": start,
+            "range_end": end,
+            "baseline_start": start - timedelta(days=28),
+            "sessions": [{
+                "session_id": 99, "started_at": start,
+                "ended_at": start + timedelta(minutes=10), "initiator": "a", "msg_count": 3,
+            }],
+            "messages": [
+                {"session_id": 99, "sender": "a", "sent_at": start, "body_len": 5, "is_question": True},
+                {"session_id": 99, "sender": "b", "sent_at": start + timedelta(minutes=2), "body_len": 5, "is_question": False},
+            ],
+            "baseline_messages": baseline_messages,
+            "baseline_sessions": [{"msg_count": 8}, {"msg_count": 12}],
+            "notes": [],
+        }
 
 
 # ---------------------------------------------------------------- 지식 dict 툴
@@ -108,40 +146,48 @@ def five_weeks():
     }
 
 
-def test_get_metrics_never_exposes_partner_value(five_weeks):
-    """지표 노출은 {couple, mine} 뿐 — 상대 값은 표시를 안 하는 수준이 아니라 아예 안 나간다 (ISSUE B3)."""
-    out = asyncio.run(get_metrics(_FakePostgres(five_weeks), uuid4(), "a"))
-    assert out
-    for week in out:
-        for key in ("question_rate", "message_length_median", "reply_gap_median_min"):
-            metric = week["metrics"][key]
+def test_get_metrics_never_exposes_partner_value():
+    """지표 노출은 {couple, mine} 뿐 — 상대 값은 표시를 안 하는 수준이 아니라 아예 안 나간다 (ISSUE B3).
+    (2026-08-26, TASKS 3-6: 챗봇용으로 {range, baseline, comment} 형태로 재구현)"""
+    fake = _FakeReviewPostgres()
+    start = datetime(2026, 8, 20, tzinfo=_TZ)
+    end = start + timedelta(days=3)
+    out = asyncio.run(get_metrics(fake, uuid4(), "a", focus_range=(start, end)))
+    for section in (out["range"], out["baseline"]):
+        for key in ("question_rate", "reply_gap_median_min"):
+            metric = section[key]
             assert "mine" in metric
             assert "a" not in metric and "b" not in metric
-            assert "baseline_b" not in metric and "delta_b" not in metric
-        assert "b" not in week["summary"]["question_rate"]
+    assert isinstance(out["comment"], str)
 
 
-def test_get_metrics_same_week_couple_identical_mine_differs(five_weeks):
+def test_get_metrics_same_week_couple_identical_mine_differs():
     couple_id = uuid4()
-    a = asyncio.run(get_metrics(_FakePostgres(five_weeks), couple_id, "a"))
-    b = asyncio.run(get_metrics(_FakePostgres(five_weeks), couple_id, "b"))
-    qa, qb = a[-1]["metrics"]["question_rate"], b[-1]["metrics"]["question_rate"]
-    assert qa["couple"] == qb["couple"]
-    assert qa["mine"] != qb["mine"]
+    start = datetime(2026, 8, 20, tzinfo=_TZ)
+    end = start + timedelta(days=3)
+    a = asyncio.run(get_metrics(_FakeReviewPostgres(), couple_id, "a", focus_range=(start, end)))
+    b = asyncio.run(get_metrics(_FakeReviewPostgres(), couple_id, "b", focus_range=(start, end)))
+    assert a["range"]["question_rate"]["couple"] == b["range"]["question_rate"]["couple"]
+    assert a["range"]["question_rate"]["mine"] != b["range"]["question_rate"]["mine"]
 
 
-def test_get_metrics_single_week_still_uses_earlier_weeks_for_baseline(five_weeks):
-    """구간을 좁혀 물어도 기준선은 그 앞 주차로 계산된다 — 안 그러면 첫 주가 늘 comparable:false 다."""
-    target = sorted(five_weeks)[-1]
-    out = asyncio.run(get_metrics(_FakePostgres(five_weeks), uuid4(), "a", week_start=target))
-    assert len(out) == 1
-    assert out[0]["week_start"] == target
-    assert out[0]["metrics"]["question_rate"]["comparable"] is True
+def test_get_metrics_defaults_to_last_7_days_when_no_focus_range():
+    """focus_range가 없으면("요즘 어때?") 최근 7일을 기본 구간으로 쓴다 — 대화가 끊기면 안 된다."""
+    fake = _FakeReviewPostgres()
+    before = datetime.now(_TZ)
+    asyncio.run(get_metrics(fake, uuid4(), "a"))
+    assert len(fake.calls) == 1
+    call = fake.calls[0]
+    assert call["end"] >= before
+    assert (call["end"] - call["start"]).days == 7
 
 
-def test_get_metrics_unknown_week_returns_empty(five_weeks):
-    out = asyncio.run(get_metrics(_FakePostgres(five_weeks), uuid4(), "a", week_start=date(2020, 1, 6)))
-    assert out == []
+def test_get_metrics_uses_given_focus_range():
+    fake = _FakeReviewPostgres()
+    start = datetime(2026, 8, 1, tzinfo=_TZ)
+    end = datetime(2026, 8, 5, tzinfo=_TZ)
+    asyncio.run(get_metrics(fake, uuid4(), "a", focus_range=(start, end)))
+    assert fake.calls[0] == {"start": start, "end": end}
 
 
 # ---------------------------------------------------------------- search_conversation 인용 조립

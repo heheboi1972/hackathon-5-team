@@ -8,6 +8,9 @@ from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 
+from .agents.chat_answer_agent import ChatAnswerAgent
+from .agents.chat_intent_agent import ChatIntentAgent
+from .agents.chat_supervisor import ChatSupervisor
 from .agents.interpret_agent import InterpretAgent
 from .agents.report_supervisor import ReportSupervisor
 from .agents.safety_agent import SafetyAgent
@@ -23,6 +26,9 @@ from .services.lexicon import BuildLexiconService
 from .services.postgres_service import PostgresService
 from .services.qdrant_service import QdrantService
 from .services.term_search import TermSearchService
+from .tools.count_term import count_term
+from .tools.get_metrics import get_metrics
+from .tools.get_report import get_latest_report_week, get_report
 from .tools.get_suggestion_templates import get_suggestion_templates
 from .tools.search_conversation import search_conversation
 from .tools.search_knowledge import search_knowledge
@@ -43,6 +49,7 @@ class Container:
     report_supervisor: ReportSupervisor
     report_jobs: ReportJobHandler
     term_search: TermSearchService
+    chat_supervisor: ChatSupervisor
     postgres_up: bool = False
     qdrant_up: bool = False
 
@@ -147,6 +154,19 @@ async def build_container(settings: Settings) -> Container:
         cipher,
     )
 
+    chat_intent = ChatIntentAgent(ai)
+    chat_answer = ChatAnswerAgent(ai)
+
+    chat_supervisor = ChatSupervisor(
+        chat_intent,
+        chat_answer,
+        search_conversation=conversation_tool,
+        get_metrics=partial(get_metrics, pg),
+        get_report=partial(get_report, pg),
+        get_latest_report_week=partial(get_latest_report_week, pg),
+        count_term=partial(count_term, service=term_search),
+    )
+
     jobs.register(
         "report_backfill",
         report_jobs,
@@ -169,6 +189,7 @@ async def build_container(settings: Settings) -> Container:
         report_supervisor=supervisor,
         report_jobs=report_jobs,
         term_search=term_search,
+        chat_supervisor=chat_supervisor,
     )
 
     jobs.register(

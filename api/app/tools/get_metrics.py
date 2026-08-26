@@ -1,17 +1,22 @@
-# 역할: 지표 조회 툴 — weekly_metrics 조회 + 기준선 계산 + {couple, mine} 투영 (참조: API_SPEC §8, ISSUE B3)
+# 역할: 지표 조회 툴 — 챗봇 metric_query 전용 (참조: API_SPEC §8, ISSUE A7)
 #
-# 투영을 이 안에서 한다: 챗봇 metric_query 의 답은 사용자에게 그대로 나가므로 상대 값이
-# 툴 밖으로 새면 안 된다. 라우터가 build_* 만 부르는 것과 같은 이유로, 툴도 저장형을 그대로 넘기지 않는다.
+# 2026-08-25 결정(A7)으로 돌아보기(Review) 화면과 같은 range-vs-baseline 형태로 좁혔다.
+# (couple_id, focus_range?) → {range, baseline, comment} — 계산·투영은 review_metrics.py/
+# projection.py를 그대로 재사용한다(돌아보기와 로직 중복 방지, chat_answer.md 알려진 한계 해소).
 from __future__ import annotations
 
-from datetime import date
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from ..models.api import Who
-from ..services.metrics import metrics_from_stored
 from ..services.postgres_service import PostgresService
-from ..services.projection import project_metrics, project_summary
+from ..services.projection import project_metrics
+from ..services.review_metrics import build_stored_review
 from . import tracer
+
+KST = timezone(timedelta(hours=9))
+DEFAULT_WINDOW_DAYS = 7  # focus_range 없을 때("요즘 어때?" 류) 기본 구간 — 챗봇 전용 판단(해찬, 2026-08-26).
+# review 라우터(2주 상한, start/end 필수)와 다르게 챗봇은 대화가 끊기면 안 되므로 폴백을 둔다.
 
 
 async def get_metrics(
@@ -19,41 +24,27 @@ async def get_metrics(
     couple_id: UUID,
     me: Who,
     *,
-    week_start: date | None = None,
-    start: date | None = None,
-    end: date | None = None,
-) -> list[dict]:
-    """→ [{week_start, summary, metrics}] 주 오름차순.
+    focus_range: tuple[datetime, datetime] | None = None,
+) -> dict:
+    """→ {range: RangeMetrics 저장형, baseline: BaselineMetrics 저장형, comment: str}.
 
-    `week_start` 는 한 주만, `start`/`end` 는 구간. 둘 다 없으면 전 주차.
-    기준선은 대상 주 **직전 4주**로 계산하므로, 범위를 좁혀 요청해도 그 앞 주차까지 읽어서 계산한다
-    (안 그러면 구간 첫 주가 늘 `comparable: false` 로 나온다).
-
-    `summary.sentiment` 는 항상 null 이다 — "내 단어"는 weekly_terms 에서 오고 이 툴은 지표만 본다.
+    `range`/`baseline`는 이미 `{couple, mine}`로 투영된 응답형이다 — 챗봇이 그대로
+    `ChatResponse.metrics`에 실어 보낸다. LLM에는 이 값을 그대로 전달하고, 문장 생성 시
+    새 숫자를 계산하지 않도록 하는 건 프롬프트(chat_answer.md) + 서버가 LLM의 echo를
+    신뢰하지 않고 이 값을 직접 응답에 붙이는 것(chat_supervisor) 둘 다로 강제한다.
     """
     with tracer.start_as_current_span("tool.get_metrics") as span:
         span.set_attribute("couple_id", str(couple_id))
-        rows = await postgres.get_weekly_metrics(couple_id, end=week_start or end)
-        by_week = {row["week_start"]: row for row in rows}
-
-        if week_start is not None:
-            targets = [week_start] if week_start in by_week else []
+        if focus_range is not None:
+            start, end = focus_range
         else:
-            targets = [
-                w for w in by_week
-                if (start is None or w >= start) and (end is None or w <= end)
-            ]
-
-        ordered = sorted(by_week)
-        out = []
-        for target in sorted(targets):
-            history = ordered[: ordered.index(target) + 1]
-            summaries = [by_week[w]["summary"] for w in history]
-            out.append({
-                "week_start": target,
-                "summary": project_summary(by_week[target]["summary"], me),
-                "metrics": project_metrics(metrics_from_stored(summaries), me),
-            })
-
-        span.set_attribute("weeks", len(out))
-        return out
+            end = datetime.now(KST)
+            start = end - timedelta(days=DEFAULT_WINDOW_DAYS)
+        raw = await postgres.get_review_data(couple_id, start=start, end=end, session_id=None)
+        stored = build_stored_review(raw, mode="date")
+        span.set_attribute("comment", stored["metrics"]["comment"])
+        return {
+            "range": project_metrics(stored["metrics"]["range"], me),
+            "baseline": project_metrics(stored["metrics"]["baseline"], me),
+            "comment": stored["metrics"]["comment"],
+        }

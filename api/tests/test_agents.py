@@ -13,6 +13,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from app.agents.base import AgentOutputError
+from app.agents.chat_answer_agent import ChatAnswerAgent, NO_RECORD_TEXT
+from app.agents.chat_intent_agent import ChatIntentAgent
 from app.agents.interpret_agent import InterpretAgent
 from app.agents.safety_agent import SafetyAgent
 from app.agents.select_agent import SelectAgent
@@ -336,5 +338,102 @@ def test_safety_agent_rewrites_required_cases_and_ignores_moments():
             {"moments": [{"text": "A가 질문을 30% 덜 한 순간"}]}
         )
         assert moment_only.passed is True and moment_only.rewritten == []
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------------------------- 챗봇 (TASKS 3-6)
+
+
+CHAT_INTENT_CASES = [
+    ("우리 언제 처음 자기야라고 불렀지?", "fact_query"),
+    ("그때 제주도 얘기 언제 했었지?", "fact_query"),
+    ("요즘 우리 질문 많이 해?", "metric_query"),
+    ("답장 빨라졌어?", "metric_query"),
+    ("지난주 리포트 요약해줘", "report_query"),
+    ("오늘 날씨 어때?", "other"),
+]
+
+
+@pytest.mark.parametrize("message,expected", CHAT_INTENT_CASES)
+def test_chat_intent_agent_mock_classifies_by_keyword_hint(message, expected):
+    async def scenario():
+        agent = ChatIntentAgent(_MockAI())
+        output = await agent.run({"message": message, "focus_range": None, "history": []})
+        assert output.intent == expected
+
+    asyncio.run(scenario())
+
+
+def test_chat_answer_agent_fact_query_grounds_citations_in_candidates():
+    async def scenario():
+        candidates = _conversation_tool(uuid4(), "자기야")
+        agent = ChatAnswerAgent(_MockAI())
+        output = await agent.run(
+            "fact_query",
+            {
+                "message": "자기야라고 언제 불렀지?",
+                "focus_range": None,
+                "history": [],
+                "evidence_candidates": candidates,
+            },
+            candidates=candidates,
+        )
+        assert output.citations
+        cited = output.citations[0]
+        assert (cited.session_id, cited.snippet) == (10, "오늘 하루는 어땠어")
+
+    asyncio.run(scenario())
+
+
+def test_chat_answer_agent_fact_query_without_candidates_is_no_record():
+    async def scenario():
+        agent = ChatAnswerAgent(_MockAI())
+        output = await agent.run(
+            "fact_query",
+            {
+                "message": "존재하지 않는 얘기 언제 했지?",
+                "focus_range": None,
+                "history": [],
+                "evidence_candidates": [],
+            },
+            candidates=[],
+        )
+        assert output.answer == NO_RECORD_TEXT
+        assert output.citations == []
+
+    asyncio.run(scenario())
+
+
+def test_chat_answer_agent_metric_query_reuses_tool_comment_without_new_numbers():
+    async def scenario():
+        agent = ChatAnswerAgent(_MockAI())
+        metrics = {
+            "range": {"question_rate": {"couple": 0.2, "mine": 0.1}},
+            "baseline": {"question_rate": {"couple": 0.23, "mine": 0.22}},
+            "comment": "지난 8주보다 답장이 많이 느려졌어요",
+        }
+        output = await agent.run(
+            "metric_query",
+            {"message": "요즘 답장 느려졌어?", "focus_range": None, "history": [], "metrics": metrics},
+        )
+        # mock 모드는 LLM을 호출하지 않으므로 comment를 그대로 재사용한다 — "재계산 없이 그대로
+        # 옮긴다"는 계약을 코드가 지키는지 확인 (숫자 유무 자체는 이 테스트의 관심사가 아니다:
+        # baseline 기간("8주")처럼 정당한 숫자가 comment 안에 이미 있을 수 있다).
+        assert output.answer == metrics["comment"]
+        assert output.citations == []
+
+    asyncio.run(scenario())
+
+
+def test_chat_answer_agent_report_query_pending_is_honest_not_invented():
+    async def scenario():
+        agent = ChatAnswerAgent(_MockAI())
+        output = await agent.run(
+            "report_query",
+            {"message": "이번주 리포트 뭐래?", "focus_range": None, "history": [], "report": None},
+        )
+        assert "준비되지" in output.answer
+        assert output.citations == []
 
     asyncio.run(scenario())

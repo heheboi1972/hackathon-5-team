@@ -37,3 +37,13 @@ async def get_report(
             if report
             else None,
         }
+
+
+async def get_latest_report_week(postgres: PostgresService, couple_id: UUID) -> date | None:
+    """가장 최근 생성된 리포트의 week_start. 챗봇 report_query가 특정 주를 못 짚었을 때
+    (focus_range 없음) 기본값으로 쓴다 (TASKS 3-6)."""
+    with tracer.start_as_current_span("tool.get_latest_report_week") as span:
+        span.set_attribute("couple_id", str(couple_id))
+        week = await postgres.get_latest_generated_week(couple_id)
+        span.set_attribute("found", week is not None)
+        return week
