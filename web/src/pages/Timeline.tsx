@@ -12,6 +12,40 @@ const TIMELINE_PATH = "/api/couples/00000000-0000-0000-0000-000000000001/timelin
 const COUPLE_ME_PATH = "/api/couples/me";
 const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
 
+function EnvelopeIllustration() {
+  return (
+    <div className="timeline-home-envelope-art" aria-hidden="true">
+      <span className="timeline-home-envelope-art__halo" />
+      <span className="timeline-home-envelope-art__heart timeline-home-envelope-art__heart--one">♥</span>
+      <span className="timeline-home-envelope-art__heart timeline-home-envelope-art__heart--two">♥</span>
+      <span className="timeline-home-envelope-art__sparkle">✦</span>
+      <span className="timeline-home-envelope-art__bubble">우리 이야기 <b>⌁</b></span>
+      <span className="timeline-home-envelope-art__heart timeline-home-envelope-art__heart--three">♥</span>
+      <span className="timeline-home-envelope-art__sparkle timeline-home-envelope-art__sparkle--two">✧</span>
+      <svg className="timeline-home-envelope" viewBox="0 0 250 180" role="img" aria-label="편지와 하트가 담긴 봉투 일러스트">
+        <defs>
+          <linearGradient id="home-envelope-paper" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fffdfd" />
+            <stop offset="1" stopColor="#fff2f7" />
+          </linearGradient>
+          <linearGradient id="home-envelope-flap" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ffadc2" />
+            <stop offset="1" stopColor="#ff78a3" />
+          </linearGradient>
+        </defs>
+        <path d="M9 112c25-24 43-31 61-27 18 4 25 20 43 19 22-1 29-27 58-30 21-2 38 7 57 26" fill="none" stroke="#ffb3c1" strokeDasharray="3 7" strokeLinecap="round" strokeWidth="2" opacity=".62" />
+        <path d="M41 57c0-8 6-14 14-14h140c8 0 14 6 14 14v82c0 8-6 14-14 14H55c-8 0-14-6-14-14Z" fill="url(#home-envelope-paper)" stroke="#ffb3c1" strokeWidth="3" />
+        <path d="m43 61 75 56c4 3 10 3 14 0l75-56" fill="#ffe8f0" stroke="#ffb3c1" strokeWidth="3" />
+        <path d="m43 139 61-51 14 11c4 3 10 3 14 0l14-11 61 51" fill="#fff4f8" stroke="#ffb3c1" strokeWidth="3" />
+        <path d="M53 48h144c6 0 11 5 11 11l-65 49c-4 3-10 3-14 0L42 59c0-6 5-11 11-11Z" fill="url(#home-envelope-flap)" stroke="#ff9db7" strokeWidth="3" />
+        <path d="M104 77h42v45h-42z" rx="4" fill="#fffdfd" stroke="#f7c0d1" strokeWidth="2" transform="rotate(-6 125 99)" />
+        <path d="M125 111c-13-8-17-14-13-19 3-4 8-3 13 2 5-5 10-6 13-2 4 5 0 11-13 19Z" fill="#ff78a3" />
+        <path d="M113 128h28M118 134h18" stroke="#f2bfd0" strokeLinecap="round" strokeWidth="2" />
+      </svg>
+    </div>
+  );
+}
+
 function parseCalendarDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
@@ -30,20 +64,6 @@ function sameCalendarDate(left: Date, right: Date): boolean {
   return left.getFullYear() === right.getFullYear()
     && left.getMonth() === right.getMonth()
     && left.getDate() === right.getDate();
-}
-
-function formatDDay(firstMetAt: string | null | undefined): string | null {
-  const firstMetDate = parseCalendarDate(firstMetAt);
-  if (!firstMetDate) return null;
-
-  const today = new Date();
-  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const dayDifference = Math.round(
-    (todayDate.getTime() - firstMetDate.getTime()) / (24 * 60 * 60 * 1000),
-  );
-
-  if (dayDifference === 0) return "D-DAY";
-  return dayDifference > 0 ? `D+${dayDifference}` : `D-${Math.abs(dayDifference)}`;
 }
 
 function MonthlyCalendar({ firstMetAt }: { firstMetAt?: string | null }) {
@@ -174,8 +194,6 @@ export default function Timeline() {
     );
   }
 
-  const dday = formatDDay(coupleData?.first_met_at);
-
   return (
     <main className="timeline-page">
       <div className="timeline-background-decor" aria-hidden="true">
@@ -191,20 +209,17 @@ export default function Timeline() {
         <span className="timeline-edge-flower timeline-edge-flower--left"><i /><b /><em /></span>
         <span className="timeline-edge-flower timeline-edge-flower--right"><i /><b /><em /></span>
       </div>
-      <header className="timeline-home-header" aria-labelledby="timeline-home-title">
-        <div className="timeline-home-header__copy">
-          <span className="timeline-home-header__eyebrow"></span>
-          <h1 id="timeline-home-title"></h1>
-        </div>
-        <div
-          className={`timeline-dday${dday ? "" : " is-unset"}`}
-          aria-label={`D-DAY ${dday ?? "미설정"}`}
-        >
-          <span className="timeline-dday__label">D-DAY</span>
-          <strong>{dday ?? "미설정"}</strong>
-        </div>
-      </header>
-      <MonthlyCalendar firstMetAt={coupleData?.first_met_at} />
+      <div className="timeline-home-layout">
+        <section className="timeline-home-banner" aria-labelledby="timeline-home-banner-title">
+          <div className="timeline-home-banner__copy">
+            <span className="timeline-home-banner__eyebrow">칠월칠석, 우리의 이야기</span>
+            <h2 id="timeline-home-banner-title">견우와 직녀처럼,<br /><span>우리의 이야기를 이어가요</span></h2>
+            <p>서로의 대화가 쌓여<br />우리만의 이야기가 됩니다.</p>
+          </div>
+          <EnvelopeIllustration />
+        </section>
+        <MonthlyCalendar firstMetAt={coupleData?.first_met_at} />
+      </div>
 
       <section className="timeline-summary" aria-labelledby="timeline-summary-title">
         <div className="timeline-section-heading">
