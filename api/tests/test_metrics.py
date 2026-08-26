@@ -178,3 +178,37 @@ def test_comparable_is_decided_by_couple_axis():
     assert q["comparable"] is False
     for axis in ("couple", "a", "b"):
         assert q[f"baseline_{axis}"] is None and q[f"delta_{axis}"] is None
+
+
+def test_fifth_week_uses_previous_four_week_baseline():
+    messages = []
+    for index, monday in enumerate((2, 9, 16, 23, 30)):
+        messages.extend(
+            [
+                _m(
+                    "a",
+                    f"2026-03-{monday:02d} 20:00",
+                    "질문?",
+                    is_question=True,
+                ),
+                _m(
+                    "b",
+                    f"2026-03-{monday:02d} 20:05",
+                    "답변?" if index == 4 else "답변",
+                    is_question=index == 4,
+                ),
+            ]
+        )
+
+    weeks = build_weekly_metrics(messages, "a", "b")
+    assert len(weeks) == 5
+    assert all(
+        metric["comparable"] is False
+        for week in weeks[:4]
+        for metric in week["metrics"].values()
+    )
+    fifth = weeks[4]["metrics"]
+    assert set(fifth) == {"question_rate", "message_length_median", "reply_gap_median_min"}
+    assert all(metric["comparable"] is True for metric in fifth.values())
+    assert fifth["question_rate"]["baseline_couple"] == 0.5
+    assert fifth["question_rate"]["delta_couple"] == 0.5

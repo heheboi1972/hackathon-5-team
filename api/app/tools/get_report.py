@@ -29,7 +29,7 @@ async def get_report(
 
         span.set_attribute("found", True)
         span.set_attribute("status", row["status"])
-        report = row["report"]
+        report = row["report_json"]
         return {
             "week_start": row["week_start"],
             "status": row["status"],

@@ -2,7 +2,7 @@
 
 import asyncio
 from copy import deepcopy
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import os
 from types import SimpleNamespace
 from uuid import uuid4
@@ -126,9 +126,9 @@ async def _run_db_test() -> None:
                 CREATE TABLE events (
                     event_id BIGSERIAL PRIMARY KEY,
                     couple_id UUID NOT NULL,
-                    at DATE NOT NULL,
-                    kind VARCHAR(30) NOT NULL,
-                    label VARCHAR(100) NOT NULL
+                    event_at TIMESTAMPTZ NOT NULL,
+                    kind TEXT NOT NULL,
+                    payload JSONB NOT NULL
                 )
                 """
             )
@@ -175,9 +175,13 @@ async def _run_db_test() -> None:
                     couple_id, weeks[-1], couple_id, weeks[-1], couple_id, weeks[-1]
                 ),
             )
+            event_at = datetime(2026, 8, 25, 12, tzinfo=timezone.utc)
             await conn.execute(
-                "INSERT INTO events (couple_id, at, kind, label) VALUES (%s, %s, 'anniversary', '기념일')",
-                (couple_id, weeks[-1] + timedelta(days=1)),
+                """
+                INSERT INTO events (couple_id, event_at, kind, payload)
+                VALUES (%s, %s, 'anniversary', %s)
+                """,
+                (couple_id, event_at, Jsonb({"label": "기념일"})),
             )
 
         app = FastAPI()

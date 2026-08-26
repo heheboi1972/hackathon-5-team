@@ -26,7 +26,7 @@ def _row(comparable=True):
 
 
 def _supervisor():
-    async def conversation(*_args):
+    async def conversation(*_args, **_kwargs):
         return [{"session_id": 1, "at": datetime(2026, 8, 17, tzinfo=timezone.utc),
                  "sender": "a", "snippet": "오늘은 어땠어", "score": 0.9}]
 

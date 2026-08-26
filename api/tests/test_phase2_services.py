@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
+from io import BytesIO
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
+from fastapi import UploadFile
+
+import app.routers.upload as upload_module
+from app.deps import AuthenticatedUser
 from app.routers.upload import _message_hash, _resolve_name_map, _week_payloads
 from app.services.auth import (
     InvalidToken,
@@ -70,11 +76,16 @@ def test_name_map_requires_exact_detected_senders():
 
 
 def test_message_hash_normalizes_seconds_but_keeps_sender_and_body():
-    first = _message("a", datetime(2026, 8, 24, 20, 1, 2, tzinfo=KST), "안녕")
-    same_minute = _message("a", datetime(2026, 8, 24, 20, 1, 58, tzinfo=KST), "안녕")
+    first = _message("a", datetime(2026, 8, 24, 20, 1, 2, tzinfo=KST), "안녕\r\n")
+    same_minute = _message(
+        "a", datetime(2026, 8, 24, 20, 1, 58, tzinfo=KST), "안녕\n"
+    )
     other_sender = _message("b", same_minute.sent_at, "안녕")
     assert _message_hash(first) == _message_hash(same_minute)
     assert _message_hash(first) != _message_hash(other_sender)
+    assert _message_hash(first) != _message_hash(
+        _message("a", same_minute.sent_at, "다른 본문")
+    )
 
 
 def test_week_payload_keeps_storage_axes_and_summary_excludes_baselines():
@@ -88,6 +99,133 @@ def test_week_payload_keeps_storage_axes_and_summary_excludes_baselines():
     assert set(question) == {"couple", "a", "b"}
     assert not any(key.startswith("baseline_") for key in question)
     assert weeks[0]["summary_hash"]
+    assert set(weeks[0]["metrics"]) == {
+        "question_rate", "message_length_median", "reply_gap_median_min"
+    }
+
+
+class _IncrementalUploadRepo:
+    def __init__(self):
+        self.rows: list[dict] = []
+        self.updated_week_counts: list[int] = []
+        self.updated_weeks: list[list[dict]] = []
+
+    async def get_active_couple(self, couple_id, user_id):
+        return {
+            "member": "a",
+            "status": "active",
+            "kakao_name_a": "A",
+            "kakao_name_b": "B",
+        }
+
+    async def get_stored_messages(self, couple_id):
+        return list(self.rows)
+
+    async def get_couple_lexicon(self, couple_id):
+        return {}
+
+    async def apply_upload(
+        self,
+        couple_id,
+        *,
+        user_id,
+        base_hashes,
+        kakao_names,
+        new_messages,
+        sessions,
+        weeks,
+    ):
+        assert base_hashes == {row["msg_hash"] for row in self.rows}
+        self.updated_week_counts.append(len(weeks))
+        self.updated_weeks.append(weeks)
+        self.rows.extend(new_messages)
+        return {
+            "embed_job_id": uuid4(),
+            "report_job_id": uuid4(),
+            "changed_weeks": [week["week_start"] for week in weeks],
+        }
+
+
+def _messages_for_weeks(count: int) -> list[Message]:
+    start = datetime(2026, 1, 5, 20, tzinfo=KST)
+    messages = []
+    for index in range(count):
+        at = start + timedelta(weeks=index)
+        messages.extend(
+            [
+                _message("A", at, f"질문 {index}?"),
+                _message("B", at + timedelta(minutes=5), f"답변 {index}"),
+            ]
+        )
+    return messages
+
+
+def test_incremental_upload_only_enqueues_weeks_with_new_messages(monkeypatch):
+    async def scenario():
+        base = _messages_for_weeks(25)
+        batches = iter([base, base, _messages_for_weeks(26)])
+        monkeypatch.setattr(
+            upload_module,
+            "_parse",
+            lambda data: ("pc", next(batches)),
+        )
+        repo = _IncrementalUploadRepo()
+        container = SimpleNamespace(
+            postgres=repo,
+            cipher=BodyCipher("", fallback_secret="incremental-upload-test"),
+            knowledge=SimpleNamespace(seed_lexicon={}),
+            settings=SimpleNamespace(session_gap_min=30),
+        )
+        request = SimpleNamespace(
+            app=SimpleNamespace(state=SimpleNamespace(container=container))
+        )
+        couple_id = uuid4()
+        user = AuthenticatedUser(uuid4(), "user@example.com", "사용자", couple_id, "a")
+
+        async def call_upload():
+            return await upload_module.upload(
+                couple_id,
+                request,
+                user,
+                UploadFile(file=BytesIO(b"fixture"), filename="chat.txt"),
+                None,
+            )
+
+        first = await call_upload()
+        # 운영 DB에 과거 hash 규칙으로 저장된 행이 있어도 현재 canonical input으로
+        # 기존 메시지를 재구성해 동일 파일을 중복으로 판단해야 한다.
+        for index, row in enumerate(repo.rows):
+            row["msg_hash"] = f"{index:064x}"
+
+        same = await call_upload()
+        extended = await call_upload()
+
+        assert (first.weeks_computed, first.report_jobs.total) == (25, 25)
+        assert (same.weeks_computed, same.report_jobs.total) == (25, 0)
+        assert same.parsed.new_messages == 0
+        assert (extended.weeks_computed, extended.report_jobs.total) == (26, 1)
+        assert extended.parsed.new_messages == 2
+        assert repo.updated_week_counts == [25, 0, 1]
+
+        first_weeks = repo.updated_weeks[0]
+        expected_keys = {
+            "question_rate", "message_length_median", "reply_gap_median_min"
+        }
+        assert all(set(week["metrics"]) == expected_keys for week in first_weeks)
+        assert all(
+            metric["comparable"] is False
+            for week in first_weeks[:4]
+            for metric in week["metrics"].values()
+        )
+        assert all(
+            metric["comparable"] is True
+            for metric in first_weeks[-1]["metrics"].values()
+        )
+        assert repo.updated_weeks[1] == []
+        assert len(repo.updated_weeks[2]) == 1
+        assert all(metric["comparable"] for metric in repo.updated_weeks[2][0]["metrics"].values())
+
+    asyncio.run(scenario())
 
 
 class _FakeJobsRepo:

@@ -16,15 +16,20 @@ from app.agents.base import AgentOutputError
 from app.agents.chat_answer_agent import ChatAnswerAgent, NO_RECORD_TEXT
 from app.agents.chat_intent_agent import ChatIntentAgent
 from app.agents.interpret_agent import InterpretAgent
+from app.agents.report_supervisor import (
+    SELECTABLE_AGENT_METRICS,
+    _outlier_signals,
+)
 from app.agents.safety_agent import SafetyAgent
 from app.agents.select_agent import SelectAgent
 from app.agents.suggest_agent import SuggestAgent
 from app.models.report import InterpretedHighlight, SelectOutput
-from app.services.knowledge import Knowledge
+from app.services.knowledge import Knowledge, load_knowledge
 from app.tools.get_suggestion_templates import get_suggestion_templates
 from app.tools.search_knowledge import search_knowledge
 
 KST = ZoneInfo("Asia/Seoul")
+KNOWLEDGE_ROOT = Path(__file__).resolve().parents[2] / "data" / "knowledge"
 
 
 class _MockAI:
@@ -196,7 +201,7 @@ def test_interpret_agent_is_korean_grounded_plural_and_number_free():
         }
         assert trace[0]["agent"] == "interpret"
 
-        empty_agent = InterpretAgent(_MockAI(), lambda *_args: [], lambda *_args: [])
+        empty_agent = InterpretAgent(_MockAI(), lambda *_args, **_kwargs: [], lambda *_args, **_kwargs: [])
         empty = await empty_agent.run(
             {
                 "couple_id": uuid4(),
@@ -214,7 +219,7 @@ def test_interpret_agent_is_korean_grounded_plural_and_number_free():
 def test_invalid_agent_schema_retries_only_once():
     async def scenario():
         ai = _InvalidAI()
-        agent = InterpretAgent(ai, lambda *_args: [], lambda *_args: [])
+        agent = InterpretAgent(ai, lambda *_args, **_kwargs: [], lambda *_args, **_kwargs: [])
         with pytest.raises(AgentOutputError):
             await agent.run(
                 {
@@ -270,9 +275,98 @@ def test_suggest_agent_uses_only_templates_and_one_sentence():
     asyncio.run(scenario())
 
 
+def test_resume_delay_outlier_uses_real_canonical_template():
+    async def scenario():
+        knowledge = load_knowledge(KNOWLEDGE_ROOT)
+        signal = _outlier_signals(
+            [{"metric": "resume_delay", "direction": "high"}]
+        )[0]
+        assert signal["metric"] == "resume_delay_median_min"
+        assert signal["direction"] == "up"
+
+        tool = partial(get_suggestion_templates, knowledge=knowledge)
+        rows = tool(signal["metric"], signal["direction"])
+        assert rows
+        output = await SuggestAgent(_MockAI(), tool).run(
+            {
+                "metric": signal["metric"],
+                "direction": signal["direction"],
+                "magnitude": "clear",
+                "linked_highlight": "h1",
+            }
+        )
+        by_id = {row["template_id"]: row["text"] for row in rows}
+        assert 1 <= len(output.suggestions) <= 2
+        assert all(item.template_id in by_id for item in output.suggestions)
+        assert all(item.text == by_id[item.template_id] for item in output.suggestions)
+
+    asyncio.run(scenario())
+
+
+def test_real_knowledge_templates_cover_every_selectable_metric_direction():
+    async def scenario():
+        knowledge = load_knowledge(KNOWLEDGE_ROOT)
+        assert knowledge.templates
+        template_ids = [
+            row["template_id"]
+            for rows in knowledge.templates.values()
+            for row in rows
+        ]
+        assert len(template_ids) == len(set(template_ids))
+
+        tool = partial(get_suggestion_templates, knowledge=knowledge)
+        agent = SuggestAgent(_MockAI(), tool)
+        for metric in SELECTABLE_AGENT_METRICS:
+            for direction in ("up", "down"):
+                rows = tool(metric, direction)
+                assert rows, f"missing template: {metric}/{direction}"
+                output = await agent.run(
+                    {
+                        "metric": metric,
+                        "direction": direction,
+                        "magnitude": "clear",
+                        "linked_highlight": "h1",
+                    }
+                )
+                allowed = {row["template_id"]: row["text"] for row in rows}
+                assert 1 <= len(output.suggestions) <= 2
+                assert all(item.template_id in allowed for item in output.suggestions)
+                assert all(item.text == allowed[item.template_id] for item in output.suggestions)
+                assert all(
+                    "하세요" not in item.text and "해야" not in item.text
+                    for item in output.suggestions
+                )
+                assert all(_one_sentence_for_test(item.text) for item in output.suggestions)
+
+    asyncio.run(scenario())
+
+
+def _one_sentence_for_test(text: str) -> bool:
+    inner = text.strip().rstrip(".!?。")
+    return bool(inner) and not re.search(r"[.!?。]", inner)
+
+
+def test_unknown_real_template_combination_fails_clearly():
+    knowledge = load_knowledge(KNOWLEDGE_ROOT)
+    agent = SuggestAgent(
+        _MockAI(),
+        partial(get_suggestion_templates, knowledge=knowledge),
+    )
+    with pytest.raises(AgentOutputError, match="사용 가능한 제안 템플릿"):
+        asyncio.run(
+            agent.run(
+                {
+                    "metric": "unknown_metric",
+                    "direction": "up",
+                    "magnitude": "clear",
+                    "linked_highlight": "h1",
+                }
+            )
+        )
+
 def test_suggest_agent_does_not_invent_when_templates_are_empty():
     async def scenario():
-        agent = SuggestAgent(_MockAI(), lambda *_args: [])
+        agent = SuggestAgent(_MockAI(), lambda *_args, **_kwargs: [])
         with pytest.raises(AgentOutputError):
             await agent.run(
                 {

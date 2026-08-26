@@ -157,13 +157,18 @@ class PostgresService:
                     return row
 
                 await cur.execute(
-                    """
-                    INSERT INTO couples (user_a, invite_code, invite_expires_at)
-                    VALUES (%s, %s, %s)
-                    RETURNING couple_id, invite_code, invite_expires_at AS expires_at, status
-                    """,
-                    (user_id, invite_code, expires_at),
-                )
+    """
+    INSERT INTO couples (
+        user_a,
+        invite_code,
+        invite_expires_at,
+        status
+    )
+    VALUES (%s, %s, %s, %s)
+    RETURNING couple_id, invite_code, invite_expires_at AS expires_at, status
+    """,
+    (user_id, invite_code, expires_at, "pending"),
+)
                 return await cur.fetchone()
 
     async def join_invite(self, user_id: UUID, invite_code: str) -> dict[str, Any]:
@@ -275,12 +280,12 @@ class PostgresService:
                        (SELECT count(*) FROM weekly_metrics w WHERE w.couple_id=c.couple_id) AS weeks_available,
                        (SELECT count(*) FROM messages m WHERE m.couple_id=c.couple_id) AS message_count,
                        j.job_id AS active_job_id, j.kind AS active_job_kind,
-                       j.progress_done AS active_job_done, j.progress_total AS active_job_total
+                       j.done AS active_job_done, j.total AS active_job_total
                   FROM couples c
                   JOIN users ua ON ua.user_id = c.user_a
                   LEFT JOIN users ub ON ub.user_id = c.user_b
                   LEFT JOIN LATERAL (
-                    SELECT job_id, kind, progress_done, progress_total FROM jobs
+                    SELECT job_id, kind, done, total FROM jobs
                      WHERE couple_id=c.couple_id AND status IN ('queued','running')
                      ORDER BY created_at DESC LIMIT 1
                   ) j ON true
@@ -388,12 +393,12 @@ class PostgresService:
 
             await cur.execute(
                 """
-                SELECT at, kind, label
+                SELECT event_at AS at, kind, payload AS label
                   FROM events
                  WHERE couple_id = %s
-                   AND at >= %s
-                   AND at < %s
-                 ORDER BY at, event_id
+                   AND event_at >= %s
+                   AND event_at < %s
+                 ORDER BY event_at, event_id
                 """,
                 (couple_id, first_week, last_week + timedelta(days=7)),
             )
@@ -412,9 +417,18 @@ class PostgresService:
 
         events_by_week: dict[date, list[dict[str, Any]]] = {}
         for event in event_rows:
-            week_start = event["at"] - timedelta(days=event["at"].weekday())
+            event_at = event["at"]
+            event_date = (
+                event_at.date()
+                if isinstance(event_at, datetime)
+                else event_at
+            )
+            week_start = event_date - timedelta(days=event_date.weekday())
+            label = event["label"]
+            if isinstance(label, dict):
+                label = label.get("label")
             events_by_week.setdefault(week_start, []).append(
-                {"at": event["at"], "kind": event["kind"], "label": event["label"]}
+                {"at": event_at, "kind": event["kind"], "label": label}
             )
 
         return [
@@ -551,6 +565,38 @@ class PostgresService:
             "notes": notes,
         }
 
+    async def create_note(
+        self, couple_id: UUID, author_user_id: UUID,
+        range_start: datetime, range_end: datetime, body: str,
+    ) -> dict[str, Any]:
+        async with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                """
+                INSERT INTO notes (couple_id, author, range_start, range_end, body)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING note_id, range_start, range_end, body, created_at
+                """,
+                (couple_id, author_user_id, range_start, range_end, body),
+            )
+            return await cur.fetchone()
+
+    async def get_note_author(self, couple_id: UUID, note_id: int) -> UUID | None:
+        async with self.pool.connection() as conn:
+            row = await (
+                await conn.execute(
+                    "SELECT author FROM notes WHERE couple_id=%s AND note_id=%s",
+                    (couple_id, note_id),
+                )
+            ).fetchone()
+            return row[0] if row else None
+
+    async def delete_note(self, couple_id: UUID, note_id: int) -> None:
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                "DELETE FROM notes WHERE couple_id=%s AND note_id=%s",
+                (couple_id, note_id),
+            )
+
     async def dissolve_couple(self, couple_id: UUID, user_id: UUID) -> None:
         async with self.pool.connection() as conn, conn.transaction():
             await self._lock(conn, couple_id)
@@ -587,7 +633,7 @@ class PostgresService:
             row = await (
                 await conn.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    INSERT INTO jobs (couple_id, kind, status, total, payload)
                     VALUES (%s, %s, %s, %s, %s) RETURNING job_id
                     """,
                     (couple_id, kind, initial, total, Jsonb(payload or {})),
@@ -605,8 +651,8 @@ class PostgresService:
             await cur.execute(
                 """
                 SELECT j.job_id, j.kind, j.status,
-                       j.progress_total AS total, j.progress_done AS done,
-                       j.progress_failed AS failed, j.current_week
+                       j.total AS total, j.done AS done,
+                       j.failed AS failed, j.current_week
                   FROM jobs j JOIN couples c ON c.couple_id=j.couple_id
                  WHERE j.job_id=%s AND (c.user_a=%s OR c.user_b=%s)
                 """,
@@ -647,7 +693,7 @@ class PostgresService:
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                UPDATE jobs SET progress_done=%s, progress_failed=%s,
+                UPDATE jobs SET done=%s, failed=%s,
                        current_week=%s, updated_at=now()
                  WHERE job_id=%s
                 """,
@@ -660,8 +706,8 @@ class PostgresService:
                 """
                 UPDATE jobs
                    SET status=%s, error=%s,
-                       progress_done=CASE WHEN %s IS NULL THEN progress_total ELSE progress_done END,
-                       progress_failed=CASE WHEN %s IS NULL THEN progress_failed ELSE greatest(progress_failed, 1) END,
+                       done=CASE WHEN %s::text IS NULL THEN total ELSE done END,
+                       failed=CASE WHEN %s::text IS NULL THEN failed ELSE greatest(failed, 1) END,
                        updated_at=now()
                  WHERE job_id=%s
                 """,
@@ -671,7 +717,7 @@ class PostgresService:
     async def set_job_total(self, job_id: UUID, total: int) -> None:
         async with self.pool.connection() as conn:
             await conn.execute(
-                "UPDATE jobs SET progress_total=%s, updated_at=now() WHERE job_id=%s",
+                "UPDATE jobs SET total=%s, updated_at=now() WHERE job_id=%s",
                 (total, job_id),
             )
 
@@ -895,7 +941,7 @@ class PostgresService:
         async with self.pool.connection() as conn:
             rows = await (
                 await conn.execute(
-                    "SELECT msg_hash FROM messages WHERE couple_id=%s", (couple_id,)
+                    "SELECT body_hash FROM messages WHERE couple_id=%s", (couple_id,)
                 )
             ).fetchall()
             return {row[0] for row in rows}
@@ -907,7 +953,9 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT sender, sent_at, body_enc, body_len, is_question, msg_hash
+                SELECT sender, sent_at,
+                       convert_to(body_encrypted, 'UTF8') AS body_enc,
+                       body_len, is_question, body_hash AS msg_hash
                   FROM messages WHERE couple_id=%s ORDER BY sent_at, message_id
                 """,
                 (couple_id,),
@@ -923,7 +971,9 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT session_id, sender, sent_at, body_enc, body_len, is_question
+                SELECT session_id, sender, sent_at,
+                       convert_to(body_encrypted, 'UTF8') AS body_enc,
+                       body_len, is_question
                   FROM messages
                  WHERE couple_id=%s AND session_id IS NOT NULL
                  ORDER BY session_id, sent_at
@@ -945,7 +995,9 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT session_id, sender, sent_at, body_enc, body_len, is_question
+                SELECT session_id, sender, sent_at,
+                       convert_to(body_encrypted, 'UTF8') AS body_enc,
+                       body_len, is_question
                   FROM messages
                  WHERE couple_id=%s AND session_id = ANY(%s)
                  ORDER BY session_id, sent_at
@@ -988,7 +1040,7 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT week_start, status, report, execution_trace, updated_at
+                SELECT week_start, status, report_json
                   FROM reports WHERE couple_id=%s AND week_start=%s
                 """,
                 (couple_id, week_start),
@@ -1118,7 +1170,7 @@ class PostgresService:
 
             current_hash_rows = await (
                 await conn.execute(
-                    "SELECT msg_hash FROM messages WHERE couple_id=%s", (couple_id,)
+                    "SELECT body_hash FROM messages WHERE couple_id=%s", (couple_id,)
                 )
             ).fetchall()
             if {row[0] for row in current_hash_rows} != base_hashes:
@@ -1132,9 +1184,10 @@ class PostgresService:
                     await cur.executemany(
                         """
                         INSERT INTO messages
-                            (couple_id, sender, sent_at, body_enc, body_len, is_question, msg_hash)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s)
-                        ON CONFLICT (couple_id, msg_hash) DO NOTHING
+                            (couple_id, sender, sent_at, body_encrypted,
+                             body_len, is_question, msg_type, body_hash)
+                        VALUES (%s,%s,%s,convert_from(%s, 'UTF8'),%s,%s,%s,%s)
+                        ON CONFLICT (couple_id, body_hash) DO NOTHING
                         """,
                         [
                             (
@@ -1144,6 +1197,7 @@ class PostgresService:
                                 m["body_enc"],
                                 m["body_len"],
                                 m["is_question"],
+                                m["msg_type"],
                                 m["msg_hash"],
                             )
                             for m in new_messages
@@ -1183,19 +1237,7 @@ class PostgresService:
                             for s in sessions
                         ],
                     )
-
-                old_rows = await (
-                    await conn.execute(
-                        "SELECT week_start, summary_hash FROM weekly_metrics WHERE couple_id=%s",
-                        (couple_id,),
-                    )
-                ).fetchall()
-                old_hashes = {row[0]: row[1] for row in old_rows}
-                changed = [
-                    w["week_start"]
-                    for w in weeks
-                    if old_hashes.get(w["week_start"]) != w["summary_hash"]
-                ]
+                changed = [w["week_start"] for w in weeks]
 
                 if weeks:
                     await cur.executemany(
@@ -1221,9 +1263,14 @@ class PostgresService:
                         ],
                     )
 
-                await cur.execute(
-                    "DELETE FROM weekly_terms WHERE couple_id=%s", (couple_id,)
-                )
+                if changed:
+                    await cur.execute(
+                        """
+                        DELETE FROM weekly_terms
+                         WHERE couple_id=%s AND week_start = ANY(%s)
+                        """,
+                        (couple_id, changed),
+                    )
                 term_rows = [term for week in weeks for term in week["terms"]]
                 if term_rows:
                     await cur.executemany(
@@ -1265,7 +1312,7 @@ class PostgresService:
                 report_total = len(changed)
                 await cur.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    INSERT INTO jobs (couple_id, kind, status, total, payload)
                     VALUES (%s,'embed_sessions',%s,%s,'{}'::jsonb) RETURNING job_id
                     """,
                     (couple_id, "queued" if embed_total else "done", embed_total),
@@ -1273,7 +1320,7 @@ class PostgresService:
                 embed_job_id = (await cur.fetchone())[0]
                 await cur.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    INSERT INTO jobs (couple_id, kind, status, total, payload)
                     VALUES (%s,'report_backfill',%s,%s,%s) RETURNING job_id
                     """,
                     (couple_id, "queued" if report_total else "done", report_total,
@@ -1284,7 +1331,7 @@ class PostgresService:
                 if new_messages:
                     await cur.execute(
                         """
-                        INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                        INSERT INTO jobs (couple_id, kind, status, total, payload)
                         VALUES (%s,'build_lexicon','queued',1,'{}'::jsonb)
                         """,
                         (couple_id,),
