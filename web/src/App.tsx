@@ -79,7 +79,10 @@ function AppShell() {
       <div className="app-shell__content">
         <Routes>
           <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/" element={<Timeline />} />
+          <Route
+            path="/"
+            element={USE_MOCK ? <Timeline /> : <Navigate to="/onboarding" replace />}
+          />
           <Route
             path="/timeline"
             element={USE_MOCK ? <Timeline /> : <Navigate to="/onboarding" replace />}
