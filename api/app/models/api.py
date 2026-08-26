@@ -117,8 +117,13 @@ class CoupleMeResponse(BaseModel):
     me: Who | None = None
     kakao_names: dict[Who, str] | None = None
     started_at: date | None = None
+    first_met_at: date | None = None
     data: CoupleData | None = None
     active_job: ActiveJob | None = None
+
+
+class CoupleSettingsUpdate(BaseModel):
+    first_met_at: date | None
 
 
 # ---------------------------------------------------------------- 3. 업로드 (FR-002)

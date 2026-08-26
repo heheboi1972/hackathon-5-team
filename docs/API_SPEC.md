@@ -159,6 +159,7 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "me": "a",
   "kakao_names": { "a": "김형준", "b": "윤아♥" },
   "started_at": "2026-03-01",
+  "first_met_at": "2024-01-17",
   "data": { "first_week": "2026-03-02", "last_week": "2026-08-17", "weeks_available": 25, "message_count": 18342 },
   "active_job": { "job_id": "uuid", "kind": "report_backfill", "done": 12, "total": 25 }
 }
@@ -166,7 +167,20 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 커플 없으면 200 `{ "couple_id": null, "status": null }` (404 아님 — 온보딩 분기용).
 `active_job`: `queued|running` 인 최신 잡 1건, 없으면 `null` — 새로고침 후 진행률 UI 복구용 (프론트는 이게 있을 때만 `GET /jobs/{id}` 폴링).
 
-### 2.5 DELETE /api/couples/{couple_id}
+### 2.5 PATCH /api/couples/me
+
+현재 로그인 사용자가 속한 커플의 설정을 수정한다. 요청에 `couple_id`를 포함하지 않는다.
+
+**Request**
+```json
+{ "first_met_at": "2024-01-17" }
+```
+
+`first_met_at`은 `YYYY-MM-DD` 형식의 날짜 또는 `null`이다. `null`을 보내면 설정을 삭제한다.
+
+**Response 200**: 수정된 `GET /api/couples/me`와 동일한 `CoupleMeResponse` 형식.
+
+### 2.6 DELETE /api/couples/{couple_id}
 
 커플 해제 + **모든 대화·지표·리포트·메모 즉시 삭제** (Postgres CASCADE + Qdrant `couple_id` 필터 삭제). 어느 쪽이든 호출 가능.
 

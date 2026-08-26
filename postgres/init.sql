@@ -26,6 +26,7 @@ CREATE TABLE couples (
     kakao_name_a      VARCHAR(100),                  -- 카톡 이름 → a/b 매핑 (FR-002)
     kakao_name_b      VARCHAR(100),
     started_at        DATE,
+    first_met_at      DATE,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

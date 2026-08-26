@@ -130,165 +130,236 @@ export default function Onboarding() {
   };
 
   return (
-    <main className="mx-auto max-w-lg space-y-6 p-6 sm:p-8">
-      <header className="space-y-2">
-        <p className="text-sm font-medium text-rose-600">커플 대화 리포트</p>
-        <h1 className="text-2xl font-bold text-gray-900">함께 시작해볼까요?</h1>
-        <p className="text-gray-600">가입하고 초대 코드로 연결하면 대화 리포트를 준비할 수 있어요.</p>
-      </header>
+    <main className="onboarding-page">
+      <div className="onboarding-background-decor" aria-hidden="true">
+        <span className="onboarding-decor-cloud onboarding-decor-cloud--one" />
+        <span className="onboarding-decor-cloud onboarding-decor-cloud--two" />
+        <span className="onboarding-decor-sparkle onboarding-decor-sparkle--one">✦</span>
+        <span className="onboarding-decor-sparkle onboarding-decor-sparkle--two">✧</span>
+        <span className="onboarding-flight-path" />
+      </div>
 
-      <ol className="grid grid-cols-4 gap-2 text-center text-xs" aria-label="온보딩 진행 단계">
-        {[
-          ["signup", "가입"],
-          ["invite", "초대"],
-          ["awaiting", "대기"],
-          ["active", "완료"],
-        ].map(([key, label], index) => {
-          const stages: OnboardingStage[] = ["signup", "invite", "awaiting", "active"];
-          const currentIndex = stages.indexOf(stage);
-          const complete = index <= currentIndex;
-          return (
-            <li
-              key={key}
-              className={complete ? "rounded bg-rose-100 px-2 py-1.5 text-rose-700" : "rounded bg-gray-100 px-2 py-1.5 text-gray-500"}
-            >
-              {label}
-            </li>
-          );
-        })}
-      </ol>
-
-      {stage === "signup" && (
-        <Card>
-          <div className="mb-5 space-y-1">
-            <Badge tone="neutral">1단계</Badge>
-            <h2 className="text-lg font-semibold">계정 만들기</h2>
-            <p className="text-sm text-gray-600">리포트를 확인할 계정 정보를 입력해주세요.</p>
+      <div className="onboarding-shell">
+        <header className="onboarding-hero">
+          <div className="onboarding-hero__copy">
+            <p className="onboarding-eyebrow">OUR BEGINNING</p>
+            <h1>우리의 이야기를<br />함께 시작해볼까요?</h1>
+            <p className="onboarding-hero__subtitle">
+              가입하고 초대 코드로 연결하면<br />둘만의 대화 리포트를 준비할 수 있어요.
+            </p>
+            <div className="onboarding-hero__note">
+              <span className="onboarding-hero__note-icon" aria-hidden="true">↗</span>
+              <span>우리만의 기록을<br />차곡차곡 담아요</span>
+            </div>
           </div>
-          <form className="space-y-4" onSubmit={signup}>
-            <label className="block space-y-1 text-sm font-medium text-gray-700">
-              이메일
-              <input
-                type="email"
-                value={form.email}
-                onChange={(event) => updateForm("email", event.target.value)}
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
-                required
-              />
-            </label>
-            <label className="block space-y-1 text-sm font-medium text-gray-700">
-              비밀번호
-              <input
-                type="password"
-                value={form.password}
-                onChange={(event) => updateForm("password", event.target.value)}
-                autoComplete="new-password"
-                minLength={8}
-                placeholder="8자 이상"
-                className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
-                required
-              />
-            </label>
-            <label className="block space-y-1 text-sm font-medium text-gray-700">
-              표시 이름
-              <input
-                type="text"
-                value={form.display_name}
-                onChange={(event) => updateForm("display_name", event.target.value)}
-                autoComplete="name"
-                maxLength={20}
-                placeholder="1~20자"
-                className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
-                required
-              />
-            </label>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "가입 중…" : "가입하고 계속하기"}
-            </Button>
-          </form>
-        </Card>
-      )}
 
-      {stage === "invite" && (
-        <div className="space-y-4">
-          <Card>
-            <div className="mb-4 space-y-1">
-              <Badge tone="neutral">2단계</Badge>
-              <h2 className="text-lg font-semibold">초대 코드 만들기</h2>
-              <p className="text-sm text-gray-600">상대방에게 전달할 코드를 발급해주세요.</p>
-            </div>
-            <Button onClick={createInvite} disabled={isSubmitting}>
-              {isSubmitting ? "발급 중…" : invite ? "코드 다시 확인하기" : "초대 코드 발급"}
-            </Button>
-            {invite && (
-              <div className="mt-4 rounded-lg bg-rose-50 p-4 text-center">
-                <p className="text-sm text-rose-700">초대 코드를 전달해주세요</p>
-                <p className="mt-1 font-mono text-2xl font-bold tracking-widest text-rose-800">
-                  {invite.invite_code}
-                </p>
-                <p className="mt-1 text-xs text-gray-500">코드는 7일 동안 유효해요.</p>
+          <div className="onboarding-hero-art" aria-hidden="true">
+            <svg viewBox="0 0 360 220" role="img">
+              <defs>
+                <linearGradient id="onboardingBubblePink" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0" stopColor="#fff9fc" />
+                  <stop offset="1" stopColor="#ffdce9" />
+                </linearGradient>
+                <linearGradient id="onboardingBubbleLavender" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0" stopColor="#fbf8ff" />
+                  <stop offset="1" stopColor="#e9dbff" />
+                </linearGradient>
+              </defs>
+              <ellipse cx="184" cy="194" rx="118" ry="13" fill="#dfb7d2" opacity=".18" />
+              <path className="onboarding-art-path" d="M73 105c24-30 44-36 70-31 22 4 35 21 43 38" />
+              <path className="onboarding-art-path onboarding-art-path--lavender" d="M191 112c25 1 45-4 70-27 11-10 21-14 32-15" />
+              <circle className="onboarding-art-node onboarding-art-node--pink" cx="72" cy="106" r="8" />
+              <circle className="onboarding-art-node onboarding-art-node--lavender" cx="193" cy="113" r="8" />
+              <circle className="onboarding-art-node onboarding-art-node--peach" cx="293" cy="69" r="7" />
+              <g className="onboarding-art-bubble onboarding-art-bubble--lavender">
+                <path d="M28 48c0-17 14-30 31-30h72c17 0 31 13 31 30v23c0 17-14 30-31 30H82L59 119v-18h0C42 101 28 88 28 71Z" fill="url(#onboardingBubbleLavender)" />
+                <circle cx="69" cy="59" r="5" /><circle cx="95" cy="59" r="5" /><circle cx="121" cy="59" r="5" />
+              </g>
+              <g className="onboarding-art-bubble onboarding-art-bubble--pink">
+                <path d="M198 67c0-17 14-30 31-30h77c17 0 31 13 31 30v24c0 17-14 30-31 30h-42l-24 17v-17h-11c-17 0-31-13-31-30Z" fill="url(#onboardingBubblePink)" />
+                <path d="m243 72 9 9 19-21" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="5" />
+              </g>
+              <g className="onboarding-art-envelope">
+                <rect x="118" y="132" width="68" height="46" rx="10" />
+                <path d="m121 139 31 25 31-25M121 172l21-17M183 172l-21-17" />
+              </g>
+              <path className="onboarding-art-heart" d="M180 32c-8-12-29-5-25 10 3 10 25 25 25 25s22-15 25-25c4-15-17-22-25-10Z" />
+            </svg>
+            <span className="onboarding-art-sparkle onboarding-art-sparkle--one">✦</span>
+            <span className="onboarding-art-sparkle onboarding-art-sparkle--two">✧</span>
+            <span className="onboarding-art-label">two hearts · one story</span>
+          </div>
+        </header>
+
+        <ol className="onboarding-progress" aria-label="온보딩 진행 단계">
+          {[
+            ["signup", "가입"],
+            ["invite", "초대"],
+            ["awaiting", "대기"],
+            ["active", "완료"],
+          ].map(([key, label], index) => {
+            const stages: OnboardingStage[] = ["signup", "invite", "awaiting", "active"];
+            const currentIndex = stages.indexOf(stage);
+            const complete = index <= currentIndex;
+            return (
+              <li
+                key={key}
+                className={[
+                  "onboarding-progress__step",
+                  index === currentIndex ? "is-active" : "",
+                  complete && index !== currentIndex ? "is-complete" : "",
+                ].filter(Boolean).join(" ")}
+                aria-current={index === currentIndex ? "step" : undefined}
+              >
+                <span className="onboarding-progress__number">{index + 1}</span>
+                <span>{label}</span>
+              </li>
+            );
+          })}
+        </ol>
+
+        <div className="onboarding-flow">
+          {stage === "signup" && (
+            <Card className="onboarding-card onboarding-card--signup">
+              <div className="onboarding-card__heading">
+                <span className="onboarding-step-icon onboarding-step-icon--pink" aria-hidden="true">♡</span>
+                <div>
+                  <Badge tone="neutral" className="onboarding-badge">1단계 · 시작</Badge>
+                  <h2>계정 만들기</h2>
+                  <p>리포트를 확인할 계정 정보를 입력해주세요.</p>
+                </div>
               </div>
-            )}
-          </Card>
+              <form className="onboarding-form" onSubmit={signup}>
+                <label className="onboarding-field">
+                  <span>이메일</span>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(event) => updateForm("email", event.target.value)}
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    className="onboarding-input"
+                    required
+                  />
+                </label>
+                <label className="onboarding-field">
+                  <span>비밀번호</span>
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(event) => updateForm("password", event.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    placeholder="8자 이상"
+                    className="onboarding-input"
+                    required
+                  />
+                </label>
+                <label className="onboarding-field">
+                  <span>표시 이름</span>
+                  <input
+                    type="text"
+                    value={form.display_name}
+                    onChange={(event) => updateForm("display_name", event.target.value)}
+                    autoComplete="name"
+                    maxLength={20}
+                    placeholder="1~20자"
+                    className="onboarding-input"
+                    required
+                  />
+                </label>
+                <Button type="submit" className="onboarding-primary-button w-full" disabled={isSubmitting}>
+                  {isSubmitting ? "가입 중…" : "가입하고 계속하기"}
+                </Button>
+              </form>
+            </Card>
+          )}
 
-          <Card>
-            <div className="mb-4 space-y-1">
-              <Badge tone="neutral">상대방</Badge>
-              <h2 className="text-lg font-semibold">받은 초대 코드 입력</h2>
-              <p className="text-sm text-gray-600">전달받은 8자리 코드를 입력해주세요.</p>
+          {stage === "invite" && (
+            <div className="onboarding-invite-stack">
+              <Card className="onboarding-card onboarding-card--invite">
+                <div className="onboarding-card__heading">
+                  <span className="onboarding-step-icon onboarding-step-icon--lavender" aria-hidden="true">↗</span>
+                  <div>
+                    <Badge tone="neutral" className="onboarding-badge">2단계 · 우리 연결</Badge>
+                    <h2>서로를 연결해볼까요?</h2>
+                    <p>상대방에게 전달할 초대 코드를 발급해주세요.</p>
+                  </div>
+                </div>
+                <Button onClick={createInvite} disabled={isSubmitting} className="onboarding-primary-button">
+                  {isSubmitting ? "발급 중…" : invite ? "코드 다시 확인하기" : "초대 코드 발급"}
+                </Button>
+                {invite && (
+                  <div className="onboarding-invite-code">
+                    <span className="onboarding-invite-code__label">우리만의 연결 코드</span>
+                    <strong>{invite.invite_code}</strong>
+                    <span>코드는 7일 동안 유효해요.</span>
+                  </div>
+                )}
+              </Card>
+
+              <Card className="onboarding-card onboarding-card--join">
+                <div className="onboarding-card__heading">
+                  <span className="onboarding-step-icon onboarding-step-icon--peach" aria-hidden="true">♡</span>
+                  <div>
+                    <Badge tone="neutral" className="onboarding-badge">상대방</Badge>
+                    <h2>받은 초대 코드 입력</h2>
+                    <p>전달받은 8자리 코드를 입력해주세요.</p>
+                  </div>
+                </div>
+                <form className="onboarding-join-form" onSubmit={join}>
+                  <input
+                    value={inviteCode}
+                    onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+                    placeholder="K7P2M9QX"
+                    maxLength={8}
+                    className="onboarding-input onboarding-code-input"
+                    aria-label="초대 코드"
+                    required
+                  />
+                  <Button type="submit" disabled={isSubmitting} className="onboarding-primary-button">
+                    연결 요청
+                  </Button>
+                </form>
+              </Card>
             </div>
-            <form className="flex gap-2" onSubmit={join}>
-              <input
-                value={inviteCode}
-                onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
-                placeholder="K7P2M9QX"
-                maxLength={8}
-                className="min-w-0 flex-1 rounded border px-3 py-2 font-mono outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
-                aria-label="초대 코드"
-                required
-              />
-              <Button type="submit" disabled={isSubmitting}>
-                연결 요청
+          )}
+
+          {stage === "awaiting" && (
+            <Card className="onboarding-card onboarding-state-card onboarding-card--awaiting">
+              <div className="onboarding-state-visual onboarding-state-visual--waiting" aria-hidden="true">
+                <span>♡</span><i>↗</i>
+              </div>
+              <Badge tone="neutral" className="onboarding-badge">3단계 · 수락 대기</Badge>
+              <h2>상대방의 연결을 기다리고 있어요</h2>
+              <p>초대 코드 입력이 완료되었습니다. 연결을 최종 수락하면 다음 단계로 넘어가요.</p>
+              <Button className="onboarding-primary-button" onClick={confirm} disabled={isSubmitting}>
+                {isSubmitting ? "처리 중…" : "연결 수락하기"}
               </Button>
-            </form>
-          </Card>
+            </Card>
+          )}
+
+          {stage === "active" && (
+            <Card className="onboarding-card onboarding-state-card onboarding-card--active">
+              <div className="onboarding-state-visual onboarding-state-visual--active" aria-hidden="true">
+                <span>♥</span><i>✓</i>
+              </div>
+              <Badge tone="neutral" className="onboarding-badge">4단계 · 연결 완료</Badge>
+              <h2>우리의 공간이 연결됐어요</h2>
+              <p>이제 대화 파일을 올리고 리포트를 준비할 수 있어요.</p>
+              <Link to="/upload" className="onboarding-primary-link">
+                대화 파일 업로드하기
+              </Link>
+            </Card>
+          )}
+
+          {error && (
+            <p role="alert" className="onboarding-error">
+              {error}
+            </p>
+          )}
         </div>
-      )}
-
-      {stage === "awaiting" && (
-        <Card className="text-center">
-          <Badge tone="neutral">3단계 · 수락 대기</Badge>
-          <h2 className="mt-3 text-lg font-semibold">상대방 수락을 기다리는 중이에요</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            초대 코드 입력이 완료되었습니다. 연결을 최종 수락하면 다음 단계로 넘어가요.
-          </p>
-          <Button className="mt-5" onClick={confirm} disabled={isSubmitting}>
-            {isSubmitting ? "처리 중…" : "연결 수락하기"}
-          </Button>
-        </Card>
-      )}
-
-      {stage === "active" && (
-        <Card className="text-center">
-          <Badge tone="neutral">4단계 · 연결 완료</Badge>
-          <h2 className="mt-3 text-lg font-semibold">연결이 완료되었습니다</h2>
-          <p className="mt-2 text-sm text-gray-600">이제 대화 파일을 올리고 리포트를 준비할 수 있어요.</p>
-          <Link
-            to="/upload"
-            className="mt-5 inline-flex rounded bg-rose-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-300"
-          >
-            대화 파일 업로드하기
-          </Link>
-        </Card>
-      )}
-
-      {error && (
-        <p role="alert" className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      </div>
     </main>
   );
 }

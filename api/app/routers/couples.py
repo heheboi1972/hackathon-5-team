@@ -18,6 +18,7 @@ from ..models.api import (
     CoupleData,
     CoupleMembers,
     CoupleMeResponse,
+    CoupleSettingsUpdate,
     InviteResponse,
     JoinRequest,
     JoinResponse,
@@ -154,9 +155,39 @@ async def me(
         me=row["me"],
         kakao_names=kakao_names,
         started_at=row["started_at"],
+        first_met_at=row["first_met_at"],
         data=data,
         active_job=active_job,
     )
+
+
+@router.patch("/me", response_model=CoupleMeResponse)
+async def update_me(
+    body: CoupleSettingsUpdate,
+    request: Request,
+    user: AuthenticatedUser = Depends(current_user),
+) -> CoupleMeResponse:
+    if user.couple_id is None or user.member is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "NOT_COUPLE_MEMBER",
+                "message": "현재 연결된 커플이 없습니다",
+            },
+        )
+
+    updated = await request.app.state.container.postgres.update_couple_first_met_at(
+        user.couple_id, user.user_id, body.first_met_at
+    )
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "NOT_COUPLE_MEMBER",
+                "message": "해당 커플의 구성원이 아닙니다",
+            },
+        )
+    return await me(request, user)
 
 
 @router.delete("/{couple_id}", status_code=status.HTTP_204_NO_CONTENT)

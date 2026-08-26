@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import Modal from "../components/Modal";
-import type { CoupleMeResponse, CoupleStatus, Who } from "../api/types";
+import type { CoupleMeResponse, CoupleSettingsUpdate, CoupleStatus, Who } from "../api/types";
 
 const COUPLE_ME_PATH = "/api/couples/me";
 const COUPLE_ME_QUERY_KEY = ["couple-me"];
@@ -35,8 +35,6 @@ function memberLabel(who: Who, me: Who | null | undefined): string {
 function SettingsBackgroundDecor() {
   return (
     <div className="settings-background-decor" aria-hidden="true">
-      <span className="settings-decor-heart settings-decor-heart--one">♡</span>
-      <span className="settings-decor-heart settings-decor-heart--two">♡</span>
       <span className="settings-decor-sparkle settings-decor-sparkle--one">✦</span>
       <span className="settings-decor-sparkle settings-decor-sparkle--two">✦</span>
       <span className="settings-decor-dot settings-decor-dot--one" />
@@ -93,7 +91,7 @@ function SettingsHero({ status }: { status?: string }) {
           <h1>
             우리의 공간을
             <br />
-            편안하게 설정해요 <span aria-hidden="true">♡</span>
+            편안하게 설정해요
           </h1>
           {status && <Badge tone="neutral">{status}</Badge>}
         </div>
@@ -193,12 +191,17 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [firstMetAt, setFirstMetAt] = useState("");
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: COUPLE_ME_QUERY_KEY,
     queryFn: () => api.get<CoupleMeResponse>(COUPLE_ME_PATH),
     staleTime: 30_000,
   });
+
+  useEffect(() => {
+    setFirstMetAt(data?.first_met_at ?? "");
+  }, [data?.first_met_at]);
 
   const deleteCouple = useMutation({
     mutationFn: async () => {
@@ -213,6 +216,14 @@ export default function Settings() {
         status: null,
       });
       queryClient.invalidateQueries({ queryKey: ["timeline"] });
+    },
+  });
+
+  const updateFirstMetAt = useMutation({
+    mutationFn: (payload: CoupleSettingsUpdate) =>
+      api.patch<CoupleMeResponse>(COUPLE_ME_PATH, payload),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<CoupleMeResponse>(COUPLE_ME_QUERY_KEY, updated);
     },
   });
 
@@ -290,6 +301,44 @@ export default function Settings() {
           )}
         </Card>
       </section>
+
+      <Card className="settings-card settings-card--pink">
+        <div className="settings-card__heading">
+          <span className="settings-icon settings-icon--pink" aria-hidden="true">♡</span>
+          <div>
+            <p className="settings-card__kicker">우리의 기록</p>
+            <h2 className="mt-1 text-lg font-semibold text-gray-900">처음 만난 날</h2>
+          </div>
+        </div>
+        <p className="settings-card__description">우리의 시작을 기억해둘 수 있어요.</p>
+        <form
+          className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
+          onSubmit={(event) => {
+            event.preventDefault();
+            updateFirstMetAt.mutate({ first_met_at: firstMetAt || null });
+          }}
+        >
+          <label className="flex min-w-0 flex-1 flex-col gap-2 text-sm font-medium text-gray-700" htmlFor="first-met-at">
+            처음 만난 날
+            <input
+              id="first-met-at"
+              type="date"
+              value={firstMetAt}
+              onChange={(event) => setFirstMetAt(event.target.value)}
+              className="rounded-md border border-line bg-white px-3 py-2 text-sm text-ink shadow-sm outline-none transition focus:border-coral-400 focus:ring-2 focus:ring-coral-200"
+            />
+          </label>
+          <Button type="submit" disabled={updateFirstMetAt.isPending}>
+            {updateFirstMetAt.isPending ? "저장 중..." : "저장"}
+          </Button>
+        </form>
+        {!firstMetAt && <p className="mt-2 text-xs text-gray-500">아직 날짜를 설정하지 않았어요.</p>}
+        {updateFirstMetAt.error && (
+          <p role="alert" className="settings-inline-error mt-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+            {errorMessage(updateFirstMetAt.error)}
+          </p>
+        )}
+      </Card>
 
       {data.data && (
         <Card className="settings-card settings-card--peach">
