@@ -9,9 +9,9 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const toneClasses: Record<BadgeTone, string> = {
-  a: "bg-rose-100 text-rose-700",
-  b: "bg-sky-100 text-sky-700",
-  neutral: "bg-gray-100 text-gray-700",
+  a: "bg-coral-100 text-coral-700",
+  b: "bg-lavender-100 text-slate-700",
+  neutral: "bg-stone-100 text-stone-700",
 };
 
 export default function Badge({

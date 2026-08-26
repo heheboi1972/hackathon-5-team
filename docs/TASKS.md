@@ -159,7 +159,7 @@ graph TD
 | 3-6 | 챗봇 Supervisor + chat API. 메모: advice/other 는 regex 사전 분기, 나머지는 검색 먼저 후 1회 호출 (C4). 횟수 질문 → other (A3) | 윤아(프롬프트) + 윤석 | TC-AGENT-005, TC-API-008 | 3-1 |
 | 3-7 | 실 LLM 전환 + `reasoning_effort: low` + 토큰 설정 | 윤아 | 스모크 | 3-3, 3-6 |
 | 3-8 | 리포트 화면 (summary / highlights / suggestions / moments + **"활발한 시간" 카드 + "내 단어" 카드**) | 시여 | — | 2-9 |
-| 3-9 | ~~돌아보기 화면 (구간 선택 → 지표 vs 기준선 → 메모)~~ **완료** — D4 타입 확정: 질문 비율·답장 시간은 `{couple, mine}`, 메시지 수는 커플 합산, baseline 최대 8주, 숫자 없는 코드 comment | 시여 | TC-API-006, 005-13 | 2-5 |
+| 3-9 | ~~돌아보기 화면 (구간 선택 → 지표 vs 기준선 → 메모)~~ **완료** — D4 타입 확정: 질문 비율·답장 시간은 `{couple, mine}`, 메시지 수는 커플 합산, baseline 최대 8주, 숫자 없는 코드 comment | 시여+윤석 | TC-API-006, 005-13 | 2-5 |
 | 3-10 | 챗봇 패널 (인용 카드, 리다이렉트 표시) | 시여 | — | 3-6 |
 | 3-11 | Tekton 파이프라인 연결. 메모: 빌드 태스크 `CONTEXT=.` / `DOCKERFILE=api/Dockerfile` — `data/knowledge` 때문에 루트가 컨텍스트다 (ISSUE A6). `CONTEXT=api` 로 두면 COPY 4줄이 전부 실패 | 해찬 | — | 2-10 |
 | 3-12 | Qdrant `couple_id` 삭제 → couples DELETE에 연결 | 윤석 | TC-API-002-1 | 2-6 |

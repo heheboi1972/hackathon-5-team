@@ -102,6 +102,8 @@ class InterpretedHighlight(StrictModel):
                 raise ValueError("interpretation은 마침표 없는 절이어야 합니다")
             if item.endswith(("요", "다", "니다", "예요", "이에요")):
                 raise ValueError("interpretation은 종결어미 없는 절이어야 합니다")
+            if len(item) > 40:
+                raise ValueError("interpretation은 40자 이하여야 합니다 (ISSUE C9)")
             cleaned.append(item)
         return cleaned
 

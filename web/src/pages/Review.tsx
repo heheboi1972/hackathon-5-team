@@ -256,7 +256,7 @@ export default function Review() {
   };
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-4xl space-y-6 p-6 sm:p-8">
       <header className="space-y-2">
         <p className="text-sm font-medium text-rose-600">선택한 대화 돌아보기</p>
         <h1 className="text-2xl font-bold text-gray-900">이 구간을 돌아봐요</h1>

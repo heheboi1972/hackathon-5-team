@@ -358,7 +358,8 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 - baseline은 선택 구간 직전 과거 데이터이며 최대 8주다. 비교에 필요한 과거 데이터가 부족한 값은 `null`로 유지한다.
 - 날짜 범위 조회의 `baseline.message_count`는 baseline 실제 일평균에 선택 구간 길이를 곱해 환산한다. 기존 `start`/`end` 기간 길이에 임의로 하루를 더하지 않는다.
 - `session_id` 조회의 `baseline.message_count`는 baseline에 포함된 과거 세션 `msg_count`의 평균이다.
-- `comment`는 `couple` 값만 사용한 숫자 없는 방향성 한 문장이다. 기존 지표 band 규칙으로 코드가 결정론적으로 만들며 LLM을 호출하지 않는다.
+- `comment`는 `couple` 값만 사용한 숫자 없는 방향성 한 문장이다. 기존 지표 band 규칙으로 코드가 결정론적으로 만들며 LLM을 호출하지 않는다. (윤석 구현, 2026-08-25)
+- `message_length_median`·`session_length_median`은 이 화면에서 제외한다(타임라인·리포트에는 계속 있음).
 
 ### 5.2 POST /api/couples/{couple_id}/notes
 
@@ -413,9 +414,29 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
   "answer": "2026년 3월 14일 저녁 대화에서 A가 처음 '자기야'라고 불렀어요.",
   "citations": [{ "session_id": 812, "at": "2026-03-14T19:22:00+09:00", "sender": "a", "snippet": "자기야 뭐해" }],
   "redirect": null,
-  "trace_id": "uuid"
+  "trace_id": "uuid",
+  "metrics": null
 }
 ```
+
+**`metric_query` 응답 예시 (2026-08-25 결정, ISSUE A7)** — 숫자는 `metrics` 카드로 항상 나가고, `answer`는 일반 질문이면 방향 문장 1줄뿐:
+```json
+{
+  "intent": "metric_query",
+  "answer": "지난 8주보다 답장이 많이 느려졌어요.",
+  "citations": [],
+  "redirect": null,
+  "trace_id": "uuid",
+  "metrics": {
+    "range": { "question_rate": { "couple": 0.2, "mine": 0.1 }, "reply_gap_median_min": { "couple": 12, "mine": 3 }, "message_count": 187 },
+    "baseline": { "weeks": 8, "question_rate": { "couple": 0.23, "mine": 0.22 }, "reply_gap_median_min": { "couple": 5, "mine": 4 }, "message_count": 210 },
+    "comment": "지난 8주보다 답장이 많이 느려졌어요"
+  }
+}
+```
+**2026-08-25 수정**: 단, "정확히 몇 %야?"처럼 수치 자체를 콕 집어 물으면 `answer`도 실제 숫자를 그대로 답한다(카드로 미루지 않음) — 예: `"answer": "지금 질문 비율은 20%예요. 지난 8주 평균(23%)보다 조금 낮아졌어요."` (`range`/`baseline` 값을 그대로 옮기며, `question_rate`의 %표기(100배)만 예외적으로 허용, 그 외 계산 없음). 그 외 일반 질문은 위 예시처럼 숫자 없는 방향 문장만.
+
+`metrics`는 metric_query 외에는 항상 `null`. 프론트는 이 카드를 돌아보기 화면과 동일한 컴포넌트로 그리면 됨(§5.1 `ReviewMetrics`와 타입 동일).
 
 **advice_request**
 ```json
@@ -438,7 +459,7 @@ A가 연결을 수락/거절. **상호 동의의 마지막 단계.**
 | 툴 | 시그니처 | 설명 |
 |---|---|---|
 | `search_conversation` | `(couple_id, query, start?, end?, k=8) → [{session_id, at, sender, snippet, score}]` | 컬렉션 A 벡터 검색 + 메타 필터 |
-| `get_metrics` | `(couple_id, week_start? \| range?) → summary + metrics` | Postgres 조회 |
+| `get_metrics` | `(couple_id, focus_range?) → {range: RangeMetrics, baseline: BaselineMetrics, comment: str}` — 돌아보기(§5.1) 화면과 동일한 range-vs-baseline 형태 (2026-08-25 결정, ISSUE A7). `comment`는 코드가 숫자 없이 방향만 생성(`services/projection.py`) | Postgres 조회, `build_review()` 로직 재사용 권장 |
 | `get_report` | `(couple_id, week_start) → report` | Postgres 조회 |
 | `search_knowledge` | `(metric, direction, k=5) → [{doc, section, text, source}]` | 지식 dict (`data/knowledge/interpretations`, 메모리) |
 | `get_suggestion_templates` | `(metric, direction) → [{template_id, text}]` | 지식 dict (`data/knowledge/templates.json`, 메모리) |

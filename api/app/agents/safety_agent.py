@@ -10,6 +10,36 @@ from ..models.report import Rewrite, SafetyInput, SafetyOutput
 from ..services.ai_service import AIService
 from .base import AgentBase, AgentOutputError
 
+# watsonx json_schema 구조화 출력 (2026-08-25 윤아 — 3-7, interpret_agent.py와 같은 이유).
+# SafetyOutput 실제 필드(passed: bool, rewritten: [{before, after}])와 1:1.
+_RESPONSE_FORMAT: dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "safety_output",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "rewritten": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "before": {"type": "string"},
+                            "after": {"type": "string"},
+                        },
+                        "required": ["before", "after"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["passed", "rewritten"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 
 def load_banned_patterns(path: Path | None = None) -> list[re.Pattern[str]]:
     target = path or (
@@ -84,7 +114,10 @@ class SafetyAgent(AgentBase):
                 )
             else:
                 generated = await self.generate_validated(
-                    {"sentences": flagged}, SafetyOutput, mock_key="safety"
+                    {"sentences": flagged},
+                    SafetyOutput,
+                    mock_key="safety",
+                    response_format=_RESPONSE_FORMAT,
                 )
                 by_before = {
                     item.before: item.after

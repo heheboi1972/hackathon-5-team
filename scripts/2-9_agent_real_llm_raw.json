@@ -1,0 +1,173 @@
+{
+  "interpret": [
+    {
+      "index": 1,
+      "label": "질문 빈도 증가 (눈에 띄게, 근거·지식 있음)",
+      "ok": true,
+      "output": {
+        "highlights": [
+          {
+            "observation": "우리 대화에서 질문이 눈에 띄게 늘었어",
+            "interpretations": [
+              "서로에 대한 궁금증이 커졌을 수도",
+              "새로운 주제에 대해 이야기하고 싶어졌을 수도"
+            ],
+            "evidence": [
+              {
+                "session_id": 1150,
+                "at": "2026-08-10T20:12:00+09:00",
+                "snippet": "너 요즘 취미 뭐야?"
+              }
+            ],
+            "sources": [
+              {
+                "doc": "question_rate_up.md",
+                "section": ""
+              }
+            ]
+          }
+        ]
+      },
+      "problems": []
+    },
+    {
+      "index": 2,
+      "label": "메시지 길이 감소 — 근거·지식 후보 없음",
+      "ok": true,
+      "output": {
+        "highlights": [
+          {
+            "observation": "우리 대화에서 메시지 길이가 조금 줄었어",
+            "interpretations": [
+              "짧은 내용으로도 충분히 전달하려는 시도였을 수도",
+              "요즘 바빠서 간단히 얘기하려는 경향이 있었을 수도"
+            ],
+            "evidence": [],
+            "sources": []
+          }
+        ]
+      },
+      "problems": []
+    },
+    {
+      "index": 3,
+      "label": "답장 간격 증가 (눈에 띄게)",
+      "ok": true,
+      "output": {
+        "highlights": [
+          {
+            "observation": "우리 대화에서 답장이 눈에 띄게 늦어졌어",
+            "interpretations": [
+              "서로 바쁜 일정 때문일 수도",
+              "대화 주제가 줄어들어 일시적인 침묵이 생겼을 수도"
+            ],
+            "evidence": [
+              {
+                "session_id": 1187,
+                "at": "2026-08-19T23:41:00+09:00",
+                "snippet": "미안 지금 봤어"
+              }
+            ],
+            "sources": [
+              {
+                "doc": "reply_gap_median_min_up_01.md",
+                "section": ""
+              }
+            ]
+          }
+        ]
+      },
+      "problems": []
+    },
+    {
+      "index": 4,
+      "label": "대화 재개 지연 감소 (약하게)",
+      "ok": true,
+      "output": {
+        "highlights": [
+          {
+            "observation": "우리 대화에서 답장 지연이 조금 줄었어",
+            "interpretations": [
+              "대화 흐름이 원활해져서",
+              "상대가 더 여유로워진 걸 수도"
+            ],
+            "evidence": [
+              {
+                "session_id": 1245,
+                "at": "2026-08-22T19:00:00+09:00",
+                "snippet": "바로 답장왔네"
+              }
+            ],
+            "sources": []
+          }
+        ]
+      },
+      "problems": []
+    },
+    {
+      "index": 10,
+      "label": "메시지 길이 감소 — 1차·2차 테스트 모두에서 evidence/sources가 문자열로 축약됐던 케이스",
+      "ok": true,
+      "output": {
+        "highlights": [
+          {
+            "observation": "우리 대화에서 메시지 길이가 눈에 띄게 줄었어",
+            "interpretations": [
+              "짧은 답변으로 일상이 바빠졌을 수도",
+              "감정 전달을 간결히 하려는 흐름일 수도"
+            ],
+            "evidence": [
+              {
+                "session_id": 1320,
+                "at": "2026-08-20T23:50:00+09:00",
+                "snippet": "응"
+              }
+            ],
+            "sources": [
+              {
+                "doc": "message_length_median_down.md",
+                "section": ""
+              }
+            ]
+          }
+        ]
+      },
+      "problems": []
+    }
+  ],
+  "safety": [
+    {
+      "ok": true,
+      "output": {
+        "passed": false,
+        "rewritten": [
+          {
+            "before": "A가 질문을 많이 했어요",
+            "after": "요즘 질문이 많아졌어요"
+          },
+          {
+            "before": "B보다 A가 더 자주 답장했어요",
+            "after": "요즘 답장이 자주 오는 편이에요"
+          },
+          {
+            "before": "질문이 30% 늘었어요",
+            "after": "질문이 늘어난 편이에요"
+          },
+          {
+            "before": "관계 온도 B등급이에요",
+            "after": ""
+          },
+          {
+            "before": "더 자주 연락하세요",
+            "after": ""
+          },
+          {
+            "before": "이 정도면 헤어지는 게 나을까 싶어요",
+            "after": ""
+          }
+        ]
+      },
+      "problems": []
+    }
+  ]
+}

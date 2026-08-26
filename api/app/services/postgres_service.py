@@ -421,6 +421,7 @@ class PostgresService:
 
         날짜 범위는 기존 review의 양 끝 포함 조건을 유지한다. baseline은 선택
         시작 직전 최대 8주이며, 서비스가 비율/중앙값과 응답 저장형을 계산한다.
+        (윤석, 2026-08-25, TASKS 3-9)
         """
         async with (
             self.pool.connection() as conn,

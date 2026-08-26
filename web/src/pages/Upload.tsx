@@ -159,7 +159,7 @@ export default function Upload() {
   const isBusy = stage === "uploading" || stage === "processing";
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-8">
+    <main className="mx-auto max-w-2xl space-y-6 p-6 sm:p-8">
       <header className="space-y-2">
         <p className="text-sm font-medium text-rose-600">커플 대화 리포트</p>
         <h1 className="text-2xl font-bold text-gray-900">대화 파일 올리기</h1>

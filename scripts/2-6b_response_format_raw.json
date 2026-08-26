@@ -1,0 +1,488 @@
+[
+  {
+    "index": 1,
+    "label": "질문 빈도 감소 (약하게)",
+    "input": {
+      "metric": "question_rate",
+      "direction": "down",
+      "magnitude": "slight",
+      "knowledge": [
+        {
+          "doc": "communication_basics.md",
+          "section": "관심 표현으로서의 질문"
+        }
+      ],
+      "evidence_candidates": [
+        {
+          "session_id": 1102,
+          "at": "2026-07-22T21:05:00+09:00",
+          "snippet": "오늘 뭐 했어?"
+        }
+      ]
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [\n        {\n          \"at\": \"2026-07-22T21:05:00+09:00\",\n          \"session_id\": 1102,\n          \"snippet\": \"오늘 뭐 했어?\"\n        }\n      ],\n      \"interpretations\": [\n        \"서로의 일상에 대한 궁금증이 조금 감소했을 수도\",\n        \"대화가 자연스럽게 흐르면서 질문 대신 공유가 늘었을 수도\"\n      ],\n      \"observation\": \"우리 질문이 조금 줄었어\",\n      \"sources\": [\n        {\n          \"doc\": \"communication_basics.md\",\n          \"section\": \"관심 표현으로서의 질문\"\n        }\n      ]\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [
+            {
+              "at": "2026-07-22T21:05:00+09:00",
+              "session_id": 1102,
+              "snippet": "오늘 뭐 했어?"
+            }
+          ],
+          "interpretations": [
+            "서로의 일상에 대한 궁금증이 조금 감소했을 수도",
+            "대화가 자연스럽게 흐르면서 질문 대신 공유가 늘었을 수도"
+          ],
+          "observation": "우리 질문이 조금 줄었어",
+          "sources": [
+            {
+              "doc": "communication_basics.md",
+              "section": "관심 표현으로서의 질문"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "index": 2,
+    "label": "질문 빈도 증가 (눈에 띄게)",
+    "input": {
+      "metric": "question_rate",
+      "direction": "up",
+      "magnitude": "clear",
+      "knowledge": [
+        {
+          "doc": "communication_basics.md",
+          "section": "관심 표현으로서의 질문"
+        }
+      ],
+      "evidence_candidates": [
+        {
+          "session_id": 1150,
+          "at": "2026-08-10T20:12:00+09:00",
+          "snippet": "너 요즘 취미 뭐야?"
+        }
+      ]
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [\n        {\n          \"at\": \"2026-08-10T20:12:00+09:00\",\n          \"session_id\": 1150,\n          \"snippet\": \"너 요즘 취미 뭐야?\"\n        }\n      ],\n      \"interpretations\": [\n        \"서로에 대한 궁금증이 커졌을 수도\",\n        \"대화에 새로운 주제가 생겼을 수도\"\n      ],\n      \"observation\": \"우리 질문이 눈에 띄게 늘었어\",\n      \"sources\": [\n        {\n          \"doc\": \"communication_basics.md\",\n          \"section\": \"관심 표현으로서의 질문\"\n        }\n      ]\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [
+            {
+              "at": "2026-08-10T20:12:00+09:00",
+              "session_id": 1150,
+              "snippet": "너 요즘 취미 뭐야?"
+            }
+          ],
+          "interpretations": [
+            "서로에 대한 궁금증이 커졌을 수도",
+            "대화에 새로운 주제가 생겼을 수도"
+          ],
+          "observation": "우리 질문이 눈에 띄게 늘었어",
+          "sources": [
+            {
+              "doc": "communication_basics.md",
+              "section": "관심 표현으로서의 질문"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "index": 3,
+    "label": "메시지 길이 감소 (눈에 띄게)",
+    "input": {
+      "metric": "message_length_median",
+      "direction": "down",
+      "magnitude": "clear",
+      "knowledge": [
+        {
+          "doc": "communication_basics.md",
+          "section": "짧은 답장의 의미"
+        }
+      ],
+      "evidence_candidates": [
+        {
+          "session_id": 1201,
+          "at": "2026-08-15T22:30:00+09:00",
+          "snippet": "ㅇㅇ"
+        }
+      ]
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [\n        {\n          \"at\": \"2026-08-15T22:30:00+09:00\",\n          \"session_id\": 1201,\n          \"snippet\": \"ㅇㅇ\"\n        }\n      ],\n      \"interpretations\": [\n        \"바쁜 일상이 늘었을 수도\",\n        \"대화 주제가 일상적인 얘기로 변했을 수도\"\n      ],\n      \"observation\": \"우리의 메시지 길이가 눈에 띄게 짧아졌어\",\n      \"sources\": [\n        {\n          \"doc\": \"communication_basics.md\",\n          \"section\": \"짧은 답장의 의미\"\n        }\n      ]\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [
+            {
+              "at": "2026-08-15T22:30:00+09:00",
+              "session_id": 1201,
+              "snippet": "ㅇㅇ"
+            }
+          ],
+          "interpretations": [
+            "바쁜 일상이 늘었을 수도",
+            "대화 주제가 일상적인 얘기로 변했을 수도"
+          ],
+          "observation": "우리의 메시지 길이가 눈에 띄게 짧아졌어",
+          "sources": [
+            {
+              "doc": "communication_basics.md",
+              "section": "짧은 답장의 의미"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "index": 4,
+    "label": "메시지 길이 증가 (약하게) — 근거·지식 후보 둘 다 없음",
+    "input": {
+      "metric": "message_length_median",
+      "direction": "up",
+      "magnitude": "slight",
+      "knowledge": [],
+      "evidence_candidates": []
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [],\n      \"interpretations\": [\n        \"최근 대화에서 서로 더 많은 이야기를 나누려는 경향이 있을 수 있어\",\n        \"일상에서 공유하고 싶은 내용이 조금 늘었을 가능성이 있어\"\n      ],\n      \"observation\": \"우리 메시지 길이가 조금 늘었어\",\n      \"sources\": []\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [],
+          "interpretations": [
+            "최근 대화에서 서로 더 많은 이야기를 나누려는 경향이 있을 수 있어",
+            "일상에서 공유하고 싶은 내용이 조금 늘었을 가능성이 있어"
+          ],
+          "observation": "우리 메시지 길이가 조금 늘었어",
+          "sources": []
+        }
+      ]
+    }
+  },
+  {
+    "index": 5,
+    "label": "답장 간격 증가 (눈에 띄게) — 비교 유혹 큰 케이스",
+    "input": {
+      "metric": "reply_gap_median_min",
+      "direction": "up",
+      "magnitude": "clear",
+      "knowledge": [
+        {
+          "doc": "communication_basics.md",
+          "section": "응답 속도와 상황"
+        }
+      ],
+      "evidence_candidates": [
+        {
+          "session_id": 1187,
+          "at": "2026-08-19T23:41:00+09:00",
+          "snippet": "미안 지금 봤어"
+        }
+      ]
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [\n        {\n          \"at\": \"2026-08-19T23:41:00+09:00\",\n          \"session_id\": 1187,\n          \"snippet\": \"미안 지금 봤어\"\n        }\n      ],\n      \"interpretations\": [\n        \"응답이 눈에 띄게 늦어졌을 가능성\",\n        \"바쁜 상황이나 다른 일에 집중하고 있었을 가능성\"\n      ],\n      \"observation\": \"우리의 응답 간격이 눈에 띄게 늘어났음\",\n      \"sources\": [\n        {\n          \"doc\": \"communication_basics.md\",\n          \"section\": \"응답 속도와 상황\"\n        }\n      ]\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [
+            {
+              "at": "2026-08-19T23:41:00+09:00",
+              "session_id": 1187,
+              "snippet": "미안 지금 봤어"
+            }
+          ],
+          "interpretations": [
+            "응답이 눈에 띄게 늦어졌을 가능성",
+            "바쁜 상황이나 다른 일에 집중하고 있었을 가능성"
+          ],
+          "observation": "우리의 응답 간격이 눈에 띄게 늘어났음",
+          "sources": [
+            {
+              "doc": "communication_basics.md",
+              "section": "응답 속도와 상황"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "index": 6,
+    "label": "답장 간격 감소 (약하게)",
+    "input": {
+      "metric": "reply_gap_median_min",
+      "direction": "down",
+      "magnitude": "slight",
+      "knowledge": [
+        {
+          "doc": "communication_basics.md",
+          "section": "응답 속도와 상황"
+        }
+      ],
+      "evidence_candidates": [
+        {
+          "session_id": 1210,
+          "at": "2026-08-21T13:05:00+09:00",
+          "snippet": "ㅋㅋ바로답장"
+        }
+      ]
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [\n        {\n          \"at\": \"2026-08-21T13:05:00+09:00\",\n          \"session_id\": 1210,\n          \"snippet\": \"ㅋㅋ바로답장\"\n        }\n      ],\n      \"interpretations\": [\n        \"답장이 조금 빨라진 것일 수 있어\",\n        \"대화 흐름이 더 원활해졌을 가능성도 있어\"\n      ],\n      \"observation\": \"우리 대화에서 답장이 빨라졌어\",\n      \"sources\": [\n        {\n          \"doc\": \"communication_basics.md\",\n          \"section\": \"응답 속도와 상황\"\n        }\n      ]\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [
+            {
+              "at": "2026-08-21T13:05:00+09:00",
+              "session_id": 1210,
+              "snippet": "ㅋㅋ바로답장"
+            }
+          ],
+          "interpretations": [
+            "답장이 조금 빨라진 것일 수 있어",
+            "대화 흐름이 더 원활해졌을 가능성도 있어"
+          ],
+          "observation": "우리 대화에서 답장이 빨라졌어",
+          "sources": [
+            {
+              "doc": "communication_basics.md",
+              "section": "응답 속도와 상황"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "index": 7,
+    "label": "대화 재개 지연 증가 (눈에 띄게)",
+    "input": {
+      "metric": "resume_delay_median_min",
+      "direction": "up",
+      "magnitude": "clear",
+      "knowledge": [
+        {
+          "doc": "communication_basics.md",
+          "section": "대화 공백의 의미"
+        }
+      ],
+      "evidence_candidates": [
+        {
+          "session_id": 1230,
+          "at": "2026-08-18T09:15:00+09:00",
+          "snippet": "다시 왔어"
+        }
+      ]
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [\n        {\n          \"at\": \"2026-08-18T09:15:00+09:00\",\n          \"session_id\": 1230,\n          \"snippet\": \"다시 왔어\"\n        }\n      ],\n      \"interpretations\": [\n        \"대화가 잠시 멈추었다는 신호일 수 있어\",\n        \"바쁜 일 때문에 답장이 늦어졌을 가능성도 있어\"\n      ],\n      \"observation\": \"다시 왔어\",\n      \"sources\": [\n        {\n          \"doc\": \"communication_basics.md\",\n          \"section\": \"대화 공백의 의미\"\n        }\n      ]\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [
+            {
+              "at": "2026-08-18T09:15:00+09:00",
+              "session_id": 1230,
+              "snippet": "다시 왔어"
+            }
+          ],
+          "interpretations": [
+            "대화가 잠시 멈추었다는 신호일 수 있어",
+            "바쁜 일 때문에 답장이 늦어졌을 가능성도 있어"
+          ],
+          "observation": "다시 왔어",
+          "sources": [
+            {
+              "doc": "communication_basics.md",
+              "section": "대화 공백의 의미"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "index": 8,
+    "label": "대화 재개 지연 감소 (약하게) — 지식 후보 없음",
+    "input": {
+      "metric": "resume_delay_median_min",
+      "direction": "down",
+      "magnitude": "slight",
+      "knowledge": [],
+      "evidence_candidates": [
+        {
+          "session_id": 1245,
+          "at": "2026-08-22T19:00:00+09:00",
+          "snippet": "바로 답장왔네"
+        }
+      ]
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [\n        {\n          \"at\": \"2026-08-22T19:00:00+09:00\",\n          \"session_id\": 1245,\n          \"snippet\": \"바로 답장왔네\"\n        }\n      ],\n      \"interpretations\": [\n        \"응답이 조금 빨라진 것 같아\",\n        \"대화 흐름이 조금 원활해진 것일 수도\"\n      ],\n      \"observation\": \"바로 답장왔네\",\n      \"sources\": []\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [
+            {
+              "at": "2026-08-22T19:00:00+09:00",
+              "session_id": 1245,
+              "snippet": "바로 답장왔네"
+            }
+          ],
+          "interpretations": [
+            "응답이 조금 빨라진 것 같아",
+            "대화 흐름이 조금 원활해진 것일 수도"
+          ],
+          "observation": "바로 답장왔네",
+          "sources": []
+        }
+      ]
+    }
+  },
+  {
+    "index": 9,
+    "label": "질문 빈도 감소 — 근거·지식 후보 여러 개",
+    "input": {
+      "metric": "question_rate",
+      "direction": "down",
+      "magnitude": "clear",
+      "knowledge": [
+        {
+          "doc": "communication_basics.md",
+          "section": "관심 표현으로서의 질문"
+        },
+        {
+          "doc": "conflict_patterns.md",
+          "section": "회피형 대화"
+        }
+      ],
+      "evidence_candidates": [
+        {
+          "session_id": 1301,
+          "at": "2026-08-05T21:00:00+09:00",
+          "snippet": "그냥 그랬어"
+        },
+        {
+          "session_id": 1302,
+          "at": "2026-08-06T22:10:00+09:00",
+          "snippet": "몰라 피곤해"
+        }
+      ]
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [\n        {\n          \"at\": \"2026-08-05T21:00:00+09:00\",\n          \"session_id\": 1301,\n          \"snippet\": \"그냥 그랬어\"\n        },\n        {\n          \"at\": \"2026-08-06T22:10:00+09:00\",\n          \"session_id\": 1302,\n          \"snippet\": \"몰라 피곤해\"\n        }\n      ],\n      \"interpretations\": [\n        \"최근에 서로에게 궁금한 점을 덜 물어볼 수 있어\",\n        \"피곤함이나 일상에 집중하느라 질문이 줄어들었을 가능성\"\n      ],\n      \"observation\": \"우리 대화에서 질문이 눈에 띄게 감소했어\",\n      \"sources\": [\n        {\n          \"doc\": \"communication_basics.md\",\n          \"section\": \"관심 표현으로서의 질문\"\n        },\n        {\n          \"doc\": \"conflict_patterns.md\",\n          \"section\": \"회피형 대화\"\n        }\n      ]\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [
+            {
+              "at": "2026-08-05T21:00:00+09:00",
+              "session_id": 1301,
+              "snippet": "그냥 그랬어"
+            },
+            {
+              "at": "2026-08-06T22:10:00+09:00",
+              "session_id": 1302,
+              "snippet": "몰라 피곤해"
+            }
+          ],
+          "interpretations": [
+            "최근에 서로에게 궁금한 점을 덜 물어볼 수 있어",
+            "피곤함이나 일상에 집중하느라 질문이 줄어들었을 가능성"
+          ],
+          "observation": "우리 대화에서 질문이 눈에 띄게 감소했어",
+          "sources": [
+            {
+              "doc": "communication_basics.md",
+              "section": "관심 표현으로서의 질문"
+            },
+            {
+              "doc": "conflict_patterns.md",
+              "section": "회피형 대화"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "index": 10,
+    "label": "메시지 길이 감소 — 1차·2차 테스트 모두에서 evidence/sources가 문자열로 축약됐던 케이스",
+    "input": {
+      "metric": "message_length_median",
+      "direction": "down",
+      "magnitude": "clear",
+      "knowledge": [
+        {
+          "doc": "communication_basics.md",
+          "section": "짧은 답장의 의미"
+        }
+      ],
+      "evidence_candidates": [
+        {
+          "session_id": 1320,
+          "at": "2026-08-20T23:50:00+09:00",
+          "snippet": "응"
+        }
+      ]
+    },
+    "raw_content": "{\n  \"highlights\": [\n    {\n      \"evidence\": [\n        {\n          \"at\": \"2026-08-20T23:50:00+09:00\",\n          \"session_id\": 1320,\n          \"snippet\": \"응\"\n        }\n      ],\n      \"interpretations\": [\n        \"대화가 더 간단해졌을 수도\",\n        \"바쁜 일 때문에 짧게 보낼 수도\"\n      ],\n      \"observation\": \"우리의 메시지 길이가 눈에 띄게 짧아졌어\",\n      \"sources\": [\n        {\n          \"doc\": \"communication_basics.md\",\n          \"section\": \"짧은 답장의 의미\"\n        }\n      ]\n    }\n  ]\n}",
+    "finish_reason": "stop",
+    "ok": true,
+    "problems": [],
+    "parsed": {
+      "highlights": [
+        {
+          "evidence": [
+            {
+              "at": "2026-08-20T23:50:00+09:00",
+              "session_id": 1320,
+              "snippet": "응"
+            }
+          ],
+          "interpretations": [
+            "대화가 더 간단해졌을 수도",
+            "바쁜 일 때문에 짧게 보낼 수도"
+          ],
+          "observation": "우리의 메시지 길이가 눈에 띄게 짧아졌어",
+          "sources": [
+            {
+              "doc": "communication_basics.md",
+              "section": "짧은 답장의 의미"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

@@ -130,7 +130,7 @@ export default function Onboarding() {
   };
 
   return (
-    <main className="mx-auto max-w-lg space-y-6 p-8">
+    <main className="mx-auto max-w-lg space-y-6 p-6 sm:p-8">
       <header className="space-y-2">
         <p className="text-sm font-medium text-rose-600">커플 대화 리포트</p>
         <h1 className="text-2xl font-bold text-gray-900">함께 시작해볼까요?</h1>
