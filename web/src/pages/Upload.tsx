@@ -27,40 +27,6 @@ function progressPercent(job: JobResponse | null): number {
   return Math.min(100, Math.round((job.progress.done / job.progress.total) * 100));
 }
 
-function UploadHeroIllustration() {
-  return (
-    <div className="upload-hero-art" aria-hidden="true">
-      <span className="upload-hero-art__halo" />
-      <span className="upload-hero-art__heart upload-hero-art__heart--one">♥</span>
-      <span className="upload-hero-art__heart upload-hero-art__heart--two">♡</span>
-      <span className="upload-hero-art__sparkle upload-hero-art__sparkle--one">✦</span>
-      <span className="upload-hero-art__sparkle upload-hero-art__sparkle--two">✧</span>
-      <span className="upload-hero-art__bubble upload-hero-art__bubble--one">우리의 기록<br />차곡차곡</span>
-      <span className="upload-hero-art__bubble upload-hero-art__bubble--two">우리</span>
-      <svg className="upload-hero-art__illustration" viewBox="0 0 300 190" role="img" aria-label="대화 파일을 클라우드에 올리는 일러스트">
-        <defs>
-          <linearGradient id="upload-cloud-gradient" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#fffefe" />
-            <stop offset="1" stopColor="#ffe6ef" />
-          </linearGradient>
-          <linearGradient id="upload-file-gradient" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#eee5ff" />
-            <stop offset="1" stopColor="#c9b3f0" />
-          </linearGradient>
-        </defs>
-        <path d="M26 145c36-25 60-31 83-20 18 8 27 28 50 23 28-6 36-34 66-35 24-1 42 11 54 27" fill="none" stroke="#ffb0c5" strokeWidth="2" strokeDasharray="3 8" />
-        <path d="M78 124c-18-2-29-14-29-28 0-16 14-29 31-29 5-19 22-32 42-32 22 0 40 16 43 37 18 0 32 12 32 28 0 15-13 27-29 27Z" fill="url(#upload-cloud-gradient)" stroke="#f2a7bd" strokeWidth="2.5" />
-        <path d="M80 99h81M91 109h56" stroke="#e6b1c2" strokeWidth="3" strokeLinecap="round" opacity=".7" />
-        <path d="M119 101V70m0 0-10 10m10-10 10 10" fill="none" stroke="#d08bb0" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M205 54h43l18 18v61a8 8 0 0 1-8 8h-53a8 8 0 0 1-8-8V62a8 8 0 0 1 8-8Z" fill="url(#upload-file-gradient)" stroke="#a589d4" strokeWidth="2.3" transform="rotate(7 232 97)" />
-        <path d="m248 55 1 18 17-1" fill="#f8f2ff" stroke="#a589d4" strokeWidth="2" transform="rotate(7 232 97)" />
-        <path d="M216 92h27M216 103h32M216 114h22" stroke="#8061a8" strokeWidth="2.5" strokeLinecap="round" opacity=".72" transform="rotate(7 232 97)" />
-        <path d="M187 124c12-10 22-15 34-12 11 3 15 12 27 12 14 0 20-10 32-11" fill="none" stroke="#f28aaa" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-}
-
 export default function Upload() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -196,25 +162,6 @@ export default function Upload() {
 
   return (
     <main className="upload-page">
-      <div className="upload-background-decor" aria-hidden="true">
-        <span className="upload-decor-cloud upload-decor-cloud--one" />
-        <span className="upload-decor-cloud upload-decor-cloud--two" />
-        <span className="upload-decor-sparkle upload-decor-sparkle--one">✦</span>
-        <span className="upload-decor-sparkle upload-decor-sparkle--two">✧</span>
-        <span className="upload-decor-petal upload-decor-petal--one" />
-        <span className="upload-decor-petal upload-decor-petal--two" />
-        <span className="upload-decor-path" />
-      </div>
-
-      <header className="upload-hero">
-        <div className="upload-hero__copy">
-          <span className="upload-eyebrow">OUR CHAT ARCHIVE</span>
-          <h1>우리의 대화를<br /><span>가져와볼까요?</span></h1>
-          <p>카카오톡 대화 파일을 올리면<br className="upload-hero__break" /> 우리의 기록을 차근차근 정리해드려요.</p>
-        </div>
-        <div className="upload-hero__aside"><UploadHeroIllustration /></div>
-      </header>
-
       {!file && (
         <Card className="upload-drop-card">
           <div

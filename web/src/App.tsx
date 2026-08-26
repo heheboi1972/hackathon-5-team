@@ -54,7 +54,7 @@ function BrandLink() {
       <span className="brand-mark" aria-hidden="true">♥</span>
       <span className="brand-copy">
         <span className="brand-name">견우야 직녀야</span>
-        <span className="brand-tagline">대화로 기록하는 우리</span>
+        <span className="brand-tagline"></span>
       </span>
     </Link>
   );
@@ -93,9 +93,8 @@ function AppShell() {
             </nav>
           )}
           {!isOnboarding && (
-            <span className="profile-chip" aria-label="우리 프로필">
-              <span className="profile-avatar" aria-hidden="true"><i /><b /></span>
-              <span className="profile-chip__name">우리</span>
+            <span className="profile-chip" aria-label="프로필">
+              <span className="profile-chip__name"></span>
               <span className="profile-chip__chevron" aria-hidden="true">⌄</span>
             </span>
           )}
