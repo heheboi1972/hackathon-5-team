@@ -35,42 +35,24 @@ function getErrorMessage(error: unknown): string {
   return "질문을 보내지 못했어요. 잠시 후 다시 시도해주세요.";
 }
 
-type ChatIconName = "message" | "quote" | "compass" | "sparkle" | "send";
-
-function ChatIcon({ name }: { name: ChatIconName }) {
-  if (name === "quote") {
-    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7.5h5.5v5H8.4c.1 2 1.1 3.3 3.1 4v1.5C7.7 17.5 6 15.1 6 11.5zM13.5 7.5H19v5h-3.1c.1 2 1.1 3.3 3.1 4v1.5c-3.8-.5-5.5-2.9-5.5-6.5z" /></svg>;
-  }
-  if (name === "compass") {
-    return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="m15.7 8.3-2.1 5.3-5.3 2.1 2.1-5.3z" /></svg>;
-  }
-  if (name === "sparkle") {
-    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4z" /><path d="m19 16 .6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6z" /></svg>;
-  }
-  if (name === "send") {
-    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 16 8-16 8 3.2-8z" /><path d="M7.2 12H20" /></svg>;
-  }
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16v10H9l-4 3v-3H4z" /><path d="M8 10h8M8 13h5" /></svg>;
-}
-
 function CitationCards({ citations }: { citations: Citation[] }) {
   if (citations.length === 0) return null;
 
   return (
-    <Card className="chat-citations">
-      <div className="chat-citations__heading">
-        <div className="chat-citations__title"><span className="chat-icon-bubble chat-icon-bubble--lavender"><ChatIcon name="quote" /></span><h3>근거가 된 대화</h3></div>
-        <Badge tone="neutral" className="chat-citations__count">{citations.length}개</Badge>
+    <Card className="mt-3 border-rose-100 bg-white p-3 shadow-none">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold text-gray-700">근거가 된 대화</h3>
+        <Badge tone="neutral">{citations.length}개</Badge>
       </div>
-      <div className="chat-citations__list">
+      <div className="mt-2 space-y-2">
         {citations.map((citation, index) => (
-          <div key={`${citation.session_id}-${citation.at}-${index}`} className="chat-citation">
-            <div className="chat-citation__meta">
+          <div key={`${citation.session_id}-${citation.at}-${index}`} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
               <Badge who={citation.sender}>발화자 {citationSenderLabel(citation.sender)}</Badge>
               <span>세션 {citation.session_id}</span>
               <time dateTime={citation.at}>{formatCitationTime(citation.at)}</time>
             </div>
-            <p className="chat-citation__snippet">
+            <p className="mt-2 border-l-2 border-rose-200 pl-3 text-sm leading-6 text-gray-700">
               “{citation.snippet}”
             </p>
           </div>
@@ -129,29 +111,26 @@ export default function ChatPanel({ coupleId }: { coupleId: string }) {
   };
 
   return (
-    <section aria-labelledby="chat-panel-title" className="chat-panel">
-      <Card className="chat-panel__card">
-        <header className="chat-panel__header">
-          <div className="chat-panel__header-icon"><ChatIcon name="message" /></div>
-          <div>
-            <p className="chat-panel__eyebrow">대화 기록 검색</p>
-            <h2 id="chat-panel-title">
+    <section aria-labelledby="chat-panel-title" className="mx-auto w-full max-w-3xl">
+      <Card className="overflow-hidden p-0">
+        <header className="border-b bg-rose-50/60 px-5 py-4">
+          <p className="text-sm font-medium text-rose-600">대화 기록 검색</p>
+          <h1 id="chat-panel-title" className="mt-1 text-xl font-bold text-gray-900">
             우리 대화에 대해 물어보세요
-            </h2>
-            <p>대화 기록에 근거한 답변과 인용을 보여드려요.</p>
-          </div>
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">대화 기록에 근거한 답변과 인용을 보여드려요.</p>
         </header>
 
-        <div className="chat-panel__body">
-          <div aria-live="polite" className="chat-thread">
+        <div className="flex min-h-[28rem] flex-col">
+          <div aria-live="polite" className="min-h-[20rem] flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
             {messages.length === 0 && !isLoading ? (
-              <div className="chat-empty-state">
-                <div className="chat-empty-state__content">
-                  <div className="chat-empty-state__icon" aria-hidden="true">
-                    <ChatIcon name="message" />
+              <div className="flex min-h-[20rem] items-center justify-center text-center">
+                <div className="max-w-sm">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-xl text-rose-600" aria-hidden="true">
+                    ?
                   </div>
-                  <h3>궁금한 대화 기록을 질문해보세요</h3>
-                  <p>
+                  <h2 className="mt-4 font-semibold text-gray-900">궁금한 대화 기록을 질문해보세요</h2>
+                  <p className="mt-2 text-sm leading-6 text-gray-500">
                     예: “지난달에 우리가 가장 많이 이야기한 주제는 뭐야?”
                   </p>
                 </div>
@@ -164,30 +143,29 @@ export default function ChatPanel({ coupleId }: { coupleId: string }) {
                 if (entry.role === "assistant" && !hasAssistantContent) return null;
 
                 return (
-                  <div key={entry.id} className={entry.role === "user" ? "chat-message-row chat-message-row--user" : "chat-message-row chat-message-row--assistant"}>
-                    <div className={entry.role === "user" ? "chat-message chat-message--user" : "chat-message chat-message--assistant"}>
-                      <p className="chat-message__label">
-                        {entry.role === "assistant" && <span className="chat-message__label-icon"><ChatIcon name="message" /></span>}
+                  <div key={entry.id} className={entry.role === "user" ? "flex justify-end" : "flex justify-start"}>
+                    <div className={entry.role === "user" ? "max-w-[85%] sm:max-w-[75%]" : "max-w-[95%] sm:max-w-[85%]"}>
+                      <p className="mb-1 text-xs font-medium text-gray-500">
                         {entry.role === "user" ? "나" : "챗봇"}
                       </p>
                       {entry.content && (
                         <div
                           className={[
-                            "chat-bubble",
+                            "rounded-2xl px-4 py-3 text-sm leading-6",
                             entry.role === "user"
-                              ? "chat-bubble--user"
-                              : "chat-bubble--assistant",
+                              ? "rounded-br-md bg-rose-500 text-white"
+                              : "rounded-bl-md bg-gray-100 text-gray-800",
                           ].join(" ")}
                         >
                           {entry.content}
                         </div>
                       )}
                       {entry.role === "assistant" && entry.redirect && (
-                        <div role="status" className="chat-redirect">
-                          <span aria-hidden="true" className="chat-redirect__icon"><ChatIcon name="compass" /></span>
+                        <div role="status" className="mt-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                          <span aria-hidden="true" className="mt-0.5">↪</span>
                           <div>
-                            <p className="chat-redirect__title">이 질문은 안내가 필요해요</p>
-                            <p className="chat-redirect__copy">{entry.redirect}</p>
+                            <p className="font-semibold">이 질문은 안내가 필요해요</p>
+                            <p className="mt-1 leading-6">{entry.redirect}</p>
                           </div>
                         </div>
                       )}
@@ -201,10 +179,10 @@ export default function ChatPanel({ coupleId }: { coupleId: string }) {
             )}
 
             {isLoading && (
-              <div className="chat-message-row chat-message-row--assistant" role="status" aria-label="답변을 불러오는 중">
-                <div className="chat-message chat-message--assistant">
-                  <p className="chat-message__label"><span className="chat-message__label-icon"><ChatIcon name="sparkle" /></span>챗봇</p>
-                  <div className="chat-bubble chat-bubble--loading">
+              <div className="flex justify-start" role="status" aria-label="답변을 불러오는 중">
+                <div>
+                  <p className="mb-1 text-xs font-medium text-gray-500">챗봇</p>
+                  <div className="rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm text-gray-500">
                     답변을 찾고 있어요…
                   </div>
                 </div>
@@ -212,14 +190,14 @@ export default function ChatPanel({ coupleId }: { coupleId: string }) {
             )}
           </div>
 
-          <div className="chat-composer">
+          <div className="border-t bg-white p-4 sm:p-5">
             {error && (
-              <div role="alert" className="chat-error">
+              <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {error}
               </div>
             )}
-            <form onSubmit={handleSubmit} className="chat-composer__form">
-              <div className="chat-composer__field">
+            <form onSubmit={handleSubmit} className="flex items-end gap-2">
+              <div className="min-w-0 flex-1">
                 <label htmlFor="chat-message" className="sr-only">질문</label>
                 <textarea
                   id="chat-message"
@@ -235,18 +213,17 @@ export default function ChatPanel({ coupleId }: { coupleId: string }) {
                       event.currentTarget.form?.requestSubmit();
                     }
                   }}
-                  className="chat-composer__textarea"
+                  className="block w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-200 disabled:bg-gray-100"
                 />
-                <p className="chat-composer__counter">
+                <p className="mt-1 text-right text-xs text-gray-400">
                   {draft.length}/{CHAT_MAX_LENGTH}
                 </p>
               </div>
-              <Button type="submit" size="sm" className="chat-send-button" disabled={isLoading || !draft.trim()}>
-                <span>{isLoading ? "검색 중…" : "보내기"}</span>
-                <ChatIcon name="send" />
+              <Button type="submit" size="sm" disabled={isLoading || !draft.trim()}>
+                {isLoading ? "검색 중…" : "보내기"}
               </Button>
             </form>
-            <p className="chat-composer__hint">Shift + Enter로 줄바꿈할 수 있어요.</p>
+            <p className="mt-2 text-xs text-gray-400">Shift + Enter로 줄바꿈할 수 있어요.</p>
           </div>
         </div>
       </Card>
