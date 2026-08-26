@@ -157,13 +157,18 @@ class PostgresService:
                     return row
 
                 await cur.execute(
-                    """
-                    INSERT INTO couples (user_a, invite_code, invite_expires_at)
-                    VALUES (%s, %s, %s)
-                    RETURNING couple_id, invite_code, invite_expires_at AS expires_at, status
-                    """,
-                    (user_id, invite_code, expires_at),
-                )
+    """
+    INSERT INTO couples (
+        user_a,
+        invite_code,
+        invite_expires_at,
+        status
+    )
+    VALUES (%s, %s, %s, %s)
+    RETURNING couple_id, invite_code, invite_expires_at AS expires_at, status
+    """,
+    (user_id, invite_code, expires_at, "pending"),
+)
                 return await cur.fetchone()
 
     async def join_invite(self, user_id: UUID, invite_code: str) -> dict[str, Any]:
@@ -369,12 +374,12 @@ class PostgresService:
 
             await cur.execute(
                 """
-                SELECT at, kind, label
+                SELECT event_at AS at, kind, payload AS label
                   FROM events
                  WHERE couple_id = %s
-                   AND at >= %s
-                   AND at < %s
-                 ORDER BY at, event_id
+                   AND event_at >= %s
+                   AND event_at < %s
+                 ORDER BY event_at, event_id
                 """,
                 (couple_id, first_week, last_week + timedelta(days=7)),
             )
@@ -393,9 +398,18 @@ class PostgresService:
 
         events_by_week: dict[date, list[dict[str, Any]]] = {}
         for event in event_rows:
-            week_start = event["at"] - timedelta(days=event["at"].weekday())
+            event_at = event["at"]
+            event_date = (
+                event_at.date()
+                if isinstance(event_at, datetime)
+                else event_at
+            )
+            week_start = event_date - timedelta(days=event_date.weekday())
+            label = event["label"]
+            if isinstance(label, dict):
+                label = label.get("label")
             events_by_week.setdefault(week_start, []).append(
-                {"at": event["at"], "kind": event["kind"], "label": event["label"]}
+                {"at": event_at, "kind": event["kind"], "label": label}
             )
 
         return [
@@ -876,7 +890,7 @@ class PostgresService:
         async with self.pool.connection() as conn:
             rows = await (
                 await conn.execute(
-                    "SELECT msg_hash FROM messages WHERE couple_id=%s", (couple_id,)
+                    "SELECT body_hash FROM messages WHERE couple_id=%s", (couple_id,)
                 )
             ).fetchall()
             return {row[0] for row in rows}
@@ -888,7 +902,9 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT sender, sent_at, body_enc, body_len, is_question, msg_hash
+                SELECT sender, sent_at,
+                       convert_to(body_encrypted, 'UTF8') AS body_enc,
+                       body_len, is_question, body_hash AS msg_hash
                   FROM messages WHERE couple_id=%s ORDER BY sent_at, message_id
                 """,
                 (couple_id,),
@@ -904,7 +920,9 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT session_id, sender, sent_at, body_enc, body_len, is_question
+                SELECT session_id, sender, sent_at,
+                       convert_to(body_encrypted, 'UTF8') AS body_enc,
+                       body_len, is_question
                   FROM messages
                  WHERE couple_id=%s AND session_id IS NOT NULL
                  ORDER BY session_id, sent_at
@@ -926,7 +944,9 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT session_id, sender, sent_at, body_enc, body_len, is_question
+                SELECT session_id, sender, sent_at,
+                       convert_to(body_encrypted, 'UTF8') AS body_enc,
+                       body_len, is_question
                   FROM messages
                  WHERE couple_id=%s AND session_id = ANY(%s)
                  ORDER BY session_id, sent_at
@@ -1099,7 +1119,7 @@ class PostgresService:
 
             current_hash_rows = await (
                 await conn.execute(
-                    "SELECT msg_hash FROM messages WHERE couple_id=%s", (couple_id,)
+                    "SELECT body_hash FROM messages WHERE couple_id=%s", (couple_id,)
                 )
             ).fetchall()
             if {row[0] for row in current_hash_rows} != base_hashes:
@@ -1113,9 +1133,10 @@ class PostgresService:
                     await cur.executemany(
                         """
                         INSERT INTO messages
-                            (couple_id, sender, sent_at, body_enc, body_len, is_question, msg_hash)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s)
-                        ON CONFLICT (couple_id, msg_hash) DO NOTHING
+                            (couple_id, sender, sent_at, body_encrypted,
+                             body_len, is_question, body_hash)
+                        VALUES (%s,%s,%s,convert_from(%s, 'UTF8'),%s,%s,%s)
+                        ON CONFLICT (couple_id, body_hash) DO NOTHING
                         """,
                         [
                             (
@@ -1164,19 +1185,7 @@ class PostgresService:
                             for s in sessions
                         ],
                     )
-
-                old_rows = await (
-                    await conn.execute(
-                        "SELECT week_start, summary_hash FROM weekly_metrics WHERE couple_id=%s",
-                        (couple_id,),
-                    )
-                ).fetchall()
-                old_hashes = {row[0]: row[1] for row in old_rows}
-                changed = [
-                    w["week_start"]
-                    for w in weeks
-                    if old_hashes.get(w["week_start"]) != w["summary_hash"]
-                ]
+                changed = [w["week_start"] for w in weeks]
 
                 if weeks:
                     await cur.executemany(
@@ -1202,9 +1211,14 @@ class PostgresService:
                         ],
                     )
 
-                await cur.execute(
-                    "DELETE FROM weekly_terms WHERE couple_id=%s", (couple_id,)
-                )
+                if changed:
+                    await cur.execute(
+                        """
+                        DELETE FROM weekly_terms
+                         WHERE couple_id=%s AND week_start = ANY(%s)
+                        """,
+                        (couple_id, changed),
+                    )
                 term_rows = [term for week in weeks for term in week["terms"]]
                 if term_rows:
                     await cur.executemany(

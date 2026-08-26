@@ -1,5 +1,5 @@
 -- 역할: DB 초기 스키마 — users/couples/messages/sessions/weekly_metrics/reports/notes/events/pokes + jobs + couple_lexicon/weekly_terms (참조: PRD §6.1, TRD §4.1)
--- 본문은 body_enc(Fernet)로만 저장. 지표 계산은 body_len/is_question 으로 복호화 없이 (TRD §4.1)
+-- 본문은 body_encrypted(Fernet)로만 저장. 지표 계산은 body_len/is_question 으로 복호화 없이 (TRD §4.1)
 -- P-5 예외: couple_lexicon / weekly_terms / term_count_cache 는 단어 단위 집계를 평문 저장.
 --           원문 복원 불가, 커플 해제 시 CASCADE 삭제. term_count_cache 는 사용자가 실제로 물어본 단어만 남는다.
 
@@ -48,11 +48,11 @@ CREATE TABLE messages (
     session_id  BIGINT,
     sender      CHAR(1) NOT NULL CHECK (sender IN ('a','b')),
     sent_at     TIMESTAMPTZ NOT NULL,
-    body_enc    BYTEA NOT NULL,                      -- Fernet 암호화 본문
+    body_encrypted TEXT NOT NULL,                     -- Fernet 암호화 본문 (base64, ASCII-safe)
     body_len    INTEGER NOT NULL,                    -- 저장 시 계산 (복호화 없이 지표)
     is_question BOOLEAN NOT NULL DEFAULT FALSE,
-    msg_hash    VARCHAR(64) NOT NULL,                -- 중복 제거용 (sha256)
-    UNIQUE (couple_id, msg_hash),
+    body_hash   VARCHAR(64) NOT NULL,                -- 중복 제거용 (sha256)
+    UNIQUE (couple_id, body_hash),
     -- SET NULL 은 session_id 만 (PG15+). 컬럼을 안 적으면 couple_id 까지 NULL 로 만들어 not-null 위반 (ISSUE C7)
     FOREIGN KEY (couple_id, session_id) REFERENCES sessions(couple_id, session_id) ON DELETE SET NULL (session_id)
 );
@@ -100,9 +100,9 @@ CREATE INDEX idx_notes_couple_range ON notes (couple_id, range_start);
 CREATE TABLE events (
     event_id   BIGSERIAL PRIMARY KEY,
     couple_id  UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    at         DATE NOT NULL,
-    kind       VARCHAR(30) NOT NULL,
-    label      VARCHAR(100) NOT NULL,
+    event_at   TIMESTAMPTZ NOT NULL,
+    kind       TEXT NOT NULL,
+    payload    JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

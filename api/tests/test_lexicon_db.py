@@ -83,12 +83,15 @@ async def _run_db_test() -> None:
                 CREATE TABLE messages (
                     message_id BIGSERIAL PRIMARY KEY,
                     couple_id UUID NOT NULL,
+                    session_id BIGINT,
                     sender CHAR(1) NOT NULL,
                     sent_at TIMESTAMPTZ NOT NULL,
-                    body_enc BYTEA NOT NULL,
+                    body_encrypted TEXT NOT NULL,
+                    body_hash CHAR(64) NOT NULL,
+                    msg_type TEXT NOT NULL DEFAULT 'text',
                     body_len INTEGER NOT NULL,
                     is_question BOOLEAN NOT NULL,
-                    msg_hash CHAR(64) NOT NULL
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
                 )
                 """
             )
@@ -110,18 +113,35 @@ async def _run_db_test() -> None:
                 await conn.execute(
                     """
                     INSERT INTO messages
-                        (couple_id, sender, sent_at, body_enc, body_len, is_question, msg_hash)
-                    VALUES (%s, %s, %s, %s, %s, false, %s)
+                        (couple_id, session_id, sender, sent_at, body_encrypted,
+                         body_len, is_question, body_hash)
+                    VALUES (%s, %s, %s, %s, %s, %s, false, %s)
                     """,
                     (
                         couple_id,
+                        index + 1,
                         sender,
                         sent_at,
-                        cipher.encrypt(body),
+                        cipher.encrypt(body).decode("ascii"),
                         len(body),
                         str(index) * 64,
                     ),
                 )
+
+        stored_rows = await repository.get_stored_messages(couple_id)
+        assert cipher.decrypt(stored_rows[0]["body_enc"]) == bodies[0][2]
+        assert stored_rows[0]["msg_hash"] == "0" * 64
+        assert await repository.get_message_hashes(couple_id) == {
+            "0" * 64,
+            "1" * 64,
+            "2" * 64,
+        }
+        embedding_rows = await repository.get_messages_for_embedding(couple_id)
+        assert [row["session_id"] for row in embedding_rows] == [1, 2, 3]
+        assert cipher.decrypt(embedding_rows[1]["body_enc"]) == bodies[1][2]
+        session_rows = await repository.get_messages_in_sessions(couple_id, [3])
+        assert len(session_rows) == 1
+        assert cipher.decrypt(session_rows[0]["body_enc"]) == bodies[2][2]
 
         result = await BuildLexiconService(
             repository, _AI(), cipher, {}
