@@ -54,7 +54,7 @@ function BrandLink() {
       <span className="brand-mark" aria-hidden="true">♥</span>
       <span className="brand-copy">
         <span className="brand-name">견우야 직녀야</span>
-        <span className="brand-tagline">칠월칠석, 우리의 이야기</span>
+        <span className="brand-tagline">대화로 기록하는 우리</span>
       </span>
     </Link>
   );

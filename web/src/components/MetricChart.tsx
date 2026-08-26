@@ -132,34 +132,34 @@ function MetricPanel({ weeks, config }: { weeks: TimelineWeek[]; config: MetricC
           <LineChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id={oursGradientId} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#dba1a1" />
-                <stop offset="100%" stopColor="#9f5969" />
+                <stop offset="0%" stopColor="#ff9fba" />
+                <stop offset="100%" stopColor="#ff78a3" />
               </linearGradient>
               <linearGradient id={mineGradientId} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#d6c9e1" />
-                <stop offset="100%" stopColor="#7891a6" />
+                <stop offset="0%" stopColor="#d7c1ff" />
+                <stop offset="100%" stopColor="#8ea7ff" />
               </linearGradient>
               <linearGradient id={`${oursGradientId}-fill`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#c8878d" stopOpacity="0.2" />
-                <stop offset="100%" stopColor="#c8878d" stopOpacity="0.015" />
+                <stop offset="0%" stopColor="#ff78a3" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#ff78a3" stopOpacity="0.015" />
               </linearGradient>
               <linearGradient id={`${mineGradientId}-fill`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#9aaabd" stopOpacity="0.18" />
-                <stop offset="100%" stopColor="#9aaabd" stopOpacity="0.02" />
+                <stop offset="0%" stopColor="#d8c5ff" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="#d8c5ff" stopOpacity="0.02" />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} strokeDasharray="2 6" stroke="#e4dcd3" />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#8b8584", fontWeight: 600 }} tickLine={false} axisLine={false} />
-            <YAxis tickFormatter={config.axisFormat} tick={{ fontSize: 9, fill: "#8b8584" }} tickLine={false} axisLine={false} width={42} />
-            <Tooltip cursor={{ stroke: "#d8b86a", strokeWidth: 1 }} content={<MetricTooltip config={config} />} />
+            <CartesianGrid vertical={false} strokeDasharray="2 6" stroke="#f6e7ee" />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#a998a3", fontWeight: 600 }} tickLine={false} axisLine={false} />
+            <YAxis tickFormatter={config.axisFormat} tick={{ fontSize: 9, fill: "#b09da8" }} tickLine={false} axisLine={false} width={42} />
+            <Tooltip cursor={{ stroke: "#ffc8d7", strokeWidth: 1 }} content={<MetricTooltip config={config} />} />
             <Area type="monotone" dataKey="ours" fill={`url(#${oursGradientId}-fill)`} stroke="none" activeDot={false} connectNulls />
             <Area type="monotone" dataKey="mine" fill={`url(#${mineGradientId}-fill)`} stroke="none" activeDot={false} connectNulls />
-            <Line type="monotone" dataKey="ours" name="우리" stroke={`url(#${oursGradientId})`} strokeWidth={2.5} dot={{ r: 3, fill: "#b66f7c", strokeWidth: 2, stroke: "#fffdf8" }} activeDot={{ r: 5, fill: "#9f5969", stroke: "#fffdf8", strokeWidth: 2 }} connectNulls />
-            <Line type="monotone" dataKey="mine" name="나" stroke={`url(#${mineGradientId})`} strokeWidth={2.5} dot={{ r: 3, fill: "#7891a6", strokeWidth: 2, stroke: "#fffdf8" }} activeDot={{ r: 5, fill: "#536b82", stroke: "#fffdf8", strokeWidth: 2 }} connectNulls />
+            <Line type="monotone" dataKey="ours" name="우리" stroke={`url(#${oursGradientId})`} strokeWidth={2.5} dot={{ r: 3, fill: "#ff78a3", strokeWidth: 2, stroke: "#ffffff" }} activeDot={{ r: 5, fill: "#f26091", stroke: "#ffffff", strokeWidth: 2 }} connectNulls />
+            <Line type="monotone" dataKey="mine" name="나" stroke={`url(#${mineGradientId})`} strokeWidth={2.5} dot={{ r: 3, fill: "#a97bff", strokeWidth: 2, stroke: "#ffffff" }} activeDot={{ r: 5, fill: "#8ea7ff", stroke: "#ffffff", strokeWidth: 2 }} connectNulls />
             {data
               .filter((item) => item.outlier && item.ours !== null)
               .map((item) => (
-                <ReferenceDot key={item.weekStart} x={item.label} y={item.ours ?? undefined} r={5} fill="#d8b86a" stroke="#fffdf8" strokeWidth={2} />
+                <ReferenceDot key={item.weekStart} x={item.label} y={item.ours ?? undefined} r={5} fill="#ffb3c1" stroke="#ffffff" strokeWidth={2} />
               ))}
           </LineChart>
         </ResponsiveContainer>

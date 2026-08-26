@@ -7,12 +7,11 @@ import Card from "../components/Card";
 import HighlightCard from "../components/HighlightCard";
 import MomentCard from "../components/MomentCard";
 import type { ReportResponse, TermCount, TimelineResponse, TimelineWeek, WeekSummary } from "../api/types";
+import { formatFriendlyWeekLabel } from "../lib/weekLabels";
 
 const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
 const TIMELINE_PATH = `/api/couples/${COUPLE_ID}/timeline`;
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
-const KOREAN_WEEK_ORDINALS = ["첫째", "둘째", "셋째", "넷째", "다섯째", "여섯째"];
-
 function formatWeekTitle(weekStart: string): string {
   return `${formatFriendlyWeekLabel(weekStart)} 리포트`;
 }
@@ -22,20 +21,6 @@ function formatShortWeekDate(weekStart: string): string {
   return year && month && day
     ? `${year}년 ${Number(month)}월 ${Number(day)}일 시작`
     : weekStart;
-}
-
-function formatFriendlyWeekLabel(weekStart: string): string {
-  const date = new Date(`${weekStart}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return weekStart;
-
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-  const firstOfMonth = new Date(Date.UTC(year, month, 1));
-  const firstMonday = 1 + ((8 - firstOfMonth.getUTCDay()) % 7);
-  const ordinal = Math.floor((day - firstMonday) / 7) + 1;
-
-  return `${month + 1}월 ${KOREAN_WEEK_ORDINALS[ordinal - 1] ?? `${ordinal}번째`} 주`;
 }
 
 function formatMinutes(value: number | null | undefined): string {
@@ -139,19 +124,19 @@ function ReportLetterIllustration() {
       <svg className="report-letter" viewBox="0 0 260 190" role="img" aria-label="하트가 담긴 주간 편지 일러스트">
         <defs>
           <linearGradient id="report-letter-paper" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#fffdf8" />
-            <stop offset="1" stopColor="#f6e4e3" />
+            <stop offset="0" stopColor="#fffefe" />
+            <stop offset="1" stopColor="#fff0f6" />
           </linearGradient>
           <linearGradient id="report-letter-flap" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#d6c9e1" />
-            <stop offset="1" stopColor="#b66f7c" />
+            <stop offset="0" stopColor="#ffb7ca" />
+            <stop offset="1" stopColor="#ff719c" />
           </linearGradient>
         </defs>
-        <path d="M12 126c29-26 50-34 69-28 20 6 27 25 47 22 24-3 29-30 59-33 22-2 40 8 60 29" fill="none" stroke="#d8b86a" strokeWidth="2" strokeDasharray="3 7" />
-        <path d="M38 72h184v91H38z" fill="url(#report-letter-paper)" stroke="#e4dcd3" strokeWidth="2.5" />
-        <path d="m40 75 90 68 90-68" fill="url(#report-letter-flap)" stroke="#9f5969" strokeWidth="2.5" strokeLinejoin="round" />
-        <path d="m40 160 62-53M220 160l-62-53" fill="none" stroke="#e8c5c4" strokeWidth="2" />
-        <path d="M130 126c-13-12-27-2-20 10 7 12 20 18 20 18s13-6 20-18c7-12-7-22-20-10Z" fill="#b66f7c" stroke="#814655" strokeWidth="2" />
+        <path d="M12 126c29-26 50-34 69-28 20 6 27 25 47 22 24-3 29-30 59-33 22-2 40 8 60 29" fill="none" stroke="#ffb3c1" strokeWidth="2" strokeDasharray="3 7" />
+        <path d="M38 72h184v91H38z" fill="url(#report-letter-paper)" stroke="#ef9db4" strokeWidth="2.5" />
+        <path d="m40 75 90 68 90-68" fill="url(#report-letter-flap)" stroke="#ef789d" strokeWidth="2.5" strokeLinejoin="round" />
+        <path d="m40 160 62-53M220 160l-62-53" fill="none" stroke="#f6b7c8" strokeWidth="2" />
+        <path d="M130 126c-13-12-27-2-20 10 7 12 20 18 20 18s13-6 20-18c7-12-7-22-20-10Z" fill="#ff709b" stroke="#e95d89" strokeWidth="2" />
         <path d="M130 126c-3-5-7-7-10-6" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" opacity=".85" />
       </svg>
     </div>
@@ -416,7 +401,7 @@ export default function Report() {
       <header className="report-hero">
         <div className="report-hero__copy">
           <Link to="/timeline" className="report-back-link">← 홈으로</Link>
-          <span className="report-eyebrow">칠월칠석, 이번 주 이야기</span>
+          <span className="report-eyebrow">OUR WEEKLY LETTER</span>
           <h1>이번 주 우리의<br /><span>이야기를 담았어요</span></h1>
           <p>대화 속 작은 변화와 기억하고 싶은 순간을 모았어요</p>
           <div className="report-hero__meta">

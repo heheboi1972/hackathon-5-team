@@ -195,11 +195,10 @@ export default function Onboarding() {
       <div className="onboarding-shell">
         <header className="onboarding-hero">
           <div className="onboarding-hero__copy">
-            <p className="onboarding-brand">견우야 직녀야</p>
-            <p className="onboarding-eyebrow">칠월칠석, 이야기의 시작</p>
-            <h1>우리 둘의 이야기를<br />이어볼까요</h1>
+            <p className="onboarding-eyebrow">OUR BEGINNING</p>
+            <h1>우리의 이야기를<br />함께 시작해볼까요?</h1>
             <p className="onboarding-hero__subtitle">
-              초대 코드를 통해 서로를 연결하고<br />둘만의 이야기를 시작해보세요.
+              가입하고 초대 코드로 연결하면<br />둘만의 대화 리포트를 준비할 수 있어요.
             </p>
             <div className="onboarding-hero__note">
               <span className="onboarding-hero__note-icon" aria-hidden="true">↗</span>
@@ -211,15 +210,15 @@ export default function Onboarding() {
             <svg viewBox="0 0 360 220" role="img">
               <defs>
                 <linearGradient id="onboardingBubblePink" x1="0" x2="1" y1="0" y2="1">
-                  <stop offset="0" stopColor="#fffdf8" />
-                  <stop offset="1" stopColor="#f6e4e3" />
+                  <stop offset="0" stopColor="#fff9fc" />
+                  <stop offset="1" stopColor="#ffdce9" />
                 </linearGradient>
                 <linearGradient id="onboardingBubbleLavender" x1="0" x2="1" y1="0" y2="1">
-                  <stop offset="0" stopColor="#fffdf8" />
-                  <stop offset="1" stopColor="#eae3f1" />
+                  <stop offset="0" stopColor="#fbf8ff" />
+                  <stop offset="1" stopColor="#e9dbff" />
                 </linearGradient>
               </defs>
-              <ellipse cx="184" cy="194" rx="118" ry="13" fill="#d8b86a" opacity=".18" />
+              <ellipse cx="184" cy="194" rx="118" ry="13" fill="#dfb7d2" opacity=".18" />
               <path className="onboarding-art-path" d="M73 105c24-30 44-36 70-31 22 4 35 21 43 38" />
               <path className="onboarding-art-path onboarding-art-path--lavender" d="M191 112c25 1 45-4 70-27 11-10 21-14 32-15" />
               <circle className="onboarding-art-node onboarding-art-node--pink" cx="72" cy="106" r="8" />
@@ -379,7 +378,7 @@ export default function Onboarding() {
           {stage === "signup" && (
             <Card className="onboarding-card onboarding-card--signup">
               <div className="onboarding-card__heading">
-                <span className="onboarding-step-icon onboarding-step-icon--pink" aria-hidden="true">✦</span>
+                <span className="onboarding-step-icon onboarding-step-icon--pink" aria-hidden="true">♡</span>
                 <div>
                   <Badge tone="neutral" className="onboarding-badge">1단계 · 시작</Badge>
                   <h2>계정 만들기</h2>
@@ -457,7 +456,7 @@ export default function Onboarding() {
 
               <Card className="onboarding-card onboarding-card--join">
                 <div className="onboarding-card__heading">
-                  <span className="onboarding-step-icon onboarding-step-icon--peach" aria-hidden="true">✉</span>
+                  <span className="onboarding-step-icon onboarding-step-icon--peach" aria-hidden="true">♡</span>
                   <div>
                     <Badge tone="neutral" className="onboarding-badge">상대방</Badge>
                     <h2>받은 초대 코드 입력</h2>
@@ -485,10 +484,10 @@ export default function Onboarding() {
           {stage === "awaiting" && (
             <Card className="onboarding-card onboarding-state-card onboarding-card--awaiting">
               <div className="onboarding-state-visual onboarding-state-visual--waiting" aria-hidden="true">
-                <span>☾</span><i>↗</i>
+                <span>♡</span><i>↗</i>
               </div>
               <Badge tone="neutral" className="onboarding-badge">3단계 · 수락 대기</Badge>
-              <h2>오작교 건너편의 상대를 기다리고 있어요</h2>
+              <h2>상대방의 연결을 기다리고 있어요</h2>
               <p>초대 코드 입력이 완료되었습니다. 연결을 최종 수락하면 다음 단계로 넘어가요.</p>
               <Button className="onboarding-primary-button" onClick={confirm} disabled={isSubmitting}>
                 {isSubmitting ? "처리 중…" : "연결 수락하기"}
@@ -499,10 +498,10 @@ export default function Onboarding() {
           {stage === "active" && (
             <Card className="onboarding-card onboarding-state-card onboarding-card--active">
               <div className="onboarding-state-visual onboarding-state-visual--active" aria-hidden="true">
-                <span>✦</span><i>✓</i>
+                <span>♥</span><i>✓</i>
               </div>
               <Badge tone="neutral" className="onboarding-badge">4단계 · 연결 완료</Badge>
-              <h2>우리의 이야기가<br />이어졌어요</h2>
+              <h2>우리의 공간이 연결됐어요</h2>
               <p>이제 대화 파일을 올리고 리포트를 준비할 수 있어요.</p>
               <Link to="/upload" className="onboarding-primary-link">
                 대화 파일 업로드하기
