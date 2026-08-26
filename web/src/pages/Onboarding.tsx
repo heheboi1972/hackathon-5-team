@@ -48,7 +48,19 @@ export default function Onboarding() {
         if (cancelled || !me.couple_id || !me.status) return;
         setCoupleId(me.couple_id);
         if (me.status === "active") setStage("active");
-        else if (me.status === "awaiting_confirm") setStage("awaiting");
+        else if (me.status === "awaiting_confirm") {
+          // 이전 배포본에서 만들어진 수락 대기는 초대자가 접속하는 즉시 마무리한다.
+          // 새 연결은 join 단계에서 바로 active가 되므로 이 경로를 거치지 않는다.
+          if (me.me === "a") {
+            const confirmed = await api.post<ConfirmResponse>(
+              `/api/couples/${me.couple_id}/confirm`,
+              { accept: true },
+            );
+            if (!cancelled && confirmed.status === "active") setStage("active");
+          } else {
+            setStage("awaiting");
+          }
+        }
       } catch {
         // 연결 완료 확인은 보조 요청이므로, 일시적 오류는 다음 주기에 다시 시도한다.
       }
