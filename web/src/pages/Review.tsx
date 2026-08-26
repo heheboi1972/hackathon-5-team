@@ -119,40 +119,6 @@ function ReviewIcon({ name }: { name: ReviewIconName }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5h9.5L18 7v13H6z" /><path d="M15.5 4.5V8H18M8.5 11h7M8.5 14h7M8.5 17h4" /></svg>;
 }
 
-function ReviewIllustration() {
-  return (
-    <div className="review-hero-art" aria-hidden="true">
-      <span className="review-hero-art__halo" />
-      <span className="review-hero-art__heart review-hero-art__heart--one">♥</span>
-      <span className="review-hero-art__heart review-hero-art__heart--two">♡</span>
-      <span className="review-hero-art__sparkle review-hero-art__sparkle--one">✦</span>
-      <span className="review-hero-art__sparkle review-hero-art__sparkle--two">✧</span>
-      <span className="review-hero-art__bubble review-hero-art__bubble--one">오늘도<br />기억해요</span>
-      <span className="review-hero-art__bubble review-hero-art__bubble--two">우리</span>
-      <svg className="review-notebook" viewBox="0 0 280 190" role="img" aria-label="하트와 메모가 있는 돌아보기 노트 일러스트">
-        <defs>
-          <linearGradient id="review-paper" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#fffefa" />
-            <stop offset="1" stopColor="#fff0f5" />
-          </linearGradient>
-          <linearGradient id="review-cover" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#d6c1ff" />
-            <stop offset="1" stopColor="#ae8eef" />
-          </linearGradient>
-        </defs>
-        <path d="M15 136c33-30 59-39 82-29 19 8 30 28 52 23 24-6 28-31 59-35 25-3 43 8 57 24" fill="none" stroke="#ffabc1" strokeWidth="2" strokeDasharray="3 7" />
-        <rect x="53" y="34" width="168" height="112" rx="12" fill="url(#review-cover)" stroke="#9e7dd4" strokeWidth="2.5" transform="rotate(-5 137 90)" />
-        <rect x="66" y="42" width="143" height="103" rx="5" fill="url(#review-paper)" stroke="#efb0c2" strokeWidth="2" transform="rotate(3 137 94)" />
-        <path d="M78 69h106M78 86h106M78 103h75" stroke="#f3cbd5" strokeWidth="2" strokeLinecap="round" />
-        <path d="M152 117c-10-9-20-1-15 8 5 9 15 14 15 14s10-5 15-14c5-9-5-17-15-8Z" fill="#ff709b" stroke="#e95d89" strokeWidth="2" />
-        <path d="m199 38 6-12 6 12 12 6-12 6-6 12-6-12-12-6z" fill="#ffcb8a" stroke="#f0a968" strokeWidth="1.5" />
-        <path d="m215 129 8 8M223 129l-8 8" stroke="#ff8eac" strokeWidth="3" strokeLinecap="round" />
-      </svg>
-      <span className="review-pencil" />
-    </div>
-  );
-}
-
 type PairFormatter = (value: number | null) => string;
 
 function CoupleMineValues({ value, format }: { value: CoupleMine; format: PairFormatter }) {
@@ -307,23 +273,6 @@ export default function Review() {
 
   return (
     <main className="review-page">
-      <div className="review-background-decor" aria-hidden="true">
-        <span className="review-decor-sparkle review-decor-sparkle--one">✦</span>
-        <span className="review-decor-sparkle review-decor-sparkle--two">✧</span>
-        <span className="review-decor-cloud review-decor-cloud--one" />
-        <span className="review-decor-cloud review-decor-cloud--two" />
-        <span className="review-decor-dots" />
-      </div>
-
-      <header className="review-hero">
-        <div className="review-hero__copy">
-          <span className="review-eyebrow">OUR LITTLE REVIEW</span>
-          <h1>우리의 이 순간을<br /><span>천천히 돌아봐요</span></h1>
-          <p>선택한 기간의 대화 흐름을 평소와 비교하고,<br className="review-hero__break" /> 기억하고 싶은 순간을 남겨보세요.</p>
-        </div>
-        <div className="review-hero__aside"><ReviewIllustration /></div>
-      </header>
-
       <section className="review-range-card" aria-labelledby="review-range-heading">
         <div className="review-range-card__heading">
           <span className="review-section-icon"><ReviewIcon name="calendar" /></span>

@@ -6,18 +6,10 @@ import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import Modal from "../components/Modal";
-import type { CoupleMeResponse, CoupleSettingsUpdate, CoupleStatus, Who } from "../api/types";
+import type { CoupleMeResponse, CoupleSettingsUpdate, Who } from "../api/types";
 
 const COUPLE_ME_PATH = "/api/couples/me";
 const COUPLE_ME_QUERY_KEY = ["couple-me"];
-
-function statusLabel(status: CoupleStatus | null | undefined): string {
-  if (status === "active") return "연결됨";
-  if (status === "awaiting_confirm") return "수락 대기 중";
-  if (status === "pending") return "초대 대기 중";
-  if (status === "dissolved") return "해제됨";
-  return "연결 정보 없음";
-}
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "-";
@@ -32,81 +24,9 @@ function memberLabel(who: Who, me: Who | null | undefined): string {
   return who === me ? "나" : "상대방";
 }
 
-function SettingsBackgroundDecor() {
-  return (
-    <div className="settings-background-decor" aria-hidden="true">
-      <span className="settings-decor-sparkle settings-decor-sparkle--one">✦</span>
-      <span className="settings-decor-sparkle settings-decor-sparkle--two">✦</span>
-      <span className="settings-decor-dot settings-decor-dot--one" />
-      <span className="settings-decor-dot settings-decor-dot--two" />
-      <span className="settings-decor-dot settings-decor-dot--three" />
-    </div>
-  );
-}
-
-function SettingsIllustration() {
-  return (
-    <div className="settings-hero-art" aria-hidden="true">
-      <span className="settings-hero-art__heart settings-hero-art__heart--one">♡</span>
-      <span className="settings-hero-art__heart settings-hero-art__heart--two">♡</span>
-      <span className="settings-hero-art__sparkle settings-hero-art__sparkle--one">✦</span>
-      <span className="settings-hero-art__sparkle settings-hero-art__sparkle--two">✦</span>
-      <svg className="settings-hero-art__svg" viewBox="0 0 360 230" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="188" cy="205" rx="132" ry="18" fill="#EADCF7" fillOpacity=".62" />
-        <rect x="82" y="54" width="180" height="126" rx="24" fill="#FFFDFD" stroke="#F5B8CB" strokeWidth="3" />
-        <rect x="101" y="75" width="142" height="79" rx="15" fill="url(#settings-card-gradient)" />
-        <circle cx="139" cy="110" r="19" fill="#FFE2EB" />
-        <path d="M130 111.5C130 106.8 133.8 103 138.5 103C143.2 103 147 106.8 147 111.5C147 116.2 143.2 120 138.5 120C133.8 120 130 116.2 130 111.5Z" fill="#FF8CAC" />
-        <path d="M124 140C126.6 131.7 132 127.5 138.5 127.5C145 127.5 150.4 131.7 153 140" stroke="#FF8CAC" strokeWidth="4" strokeLinecap="round" />
-        <rect x="169" y="98" width="52" height="8" rx="4" fill="#D6C1F3" />
-        <rect x="169" y="114" width="39" height="7" rx="3.5" fill="#F7C7B1" />
-        <rect x="169" y="129" width="47" height="7" rx="3.5" fill="#F8D9E3" />
-        <circle cx="273" cy="139" r="28" fill="#F0E5FF" stroke="#C9ADEB" strokeWidth="3" />
-        <path d="M273 121V127M273 151V157M255 139H261M285 139H291M260.3 126.3L264.5 130.5M281.5 147.5L285.7 151.7M285.7 126.3L281.5 130.5M264.5 147.5L260.3 151.7" stroke="#A98AD7" strokeWidth="3" strokeLinecap="round" />
-        <circle cx="273" cy="139" r="11" fill="#FFFDFD" stroke="#A98AD7" strokeWidth="3" />
-        <path d="M273 133V139L277 142" stroke="#A98AD7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M76 49C76 42.4 81.4 37 88 37C94.6 37 100 42.4 100 49C100 55.6 94.6 61 88 61C81.4 61 76 55.6 76 49Z" fill="#FFC9AD" fillOpacity=".72" />
-        <path d="M88 43V55M82 49H94" stroke="#D88D6E" strokeWidth="2.5" strokeLinecap="round" />
-        <defs>
-          <linearGradient id="settings-card-gradient" x1="101" y1="75" x2="243" y2="154" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#FFF0F4" />
-            <stop offset="1" stopColor="#F2EBFF" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="settings-hero-art__note">
-        <span>우리의 작은 약속</span>
-        <strong>천천히, 다정하게</strong>
-      </div>
-    </div>
-  );
-}
-
-function SettingsHero({ status }: { status?: string }) {
-  return (
-    <header className="settings-hero">
-      <div className="settings-hero__copy">
-        <span className="settings-eyebrow">OUR LITTLE SPACE</span>
-        <div className="settings-hero__title-row">
-          <h1>
-            우리의 공간을
-            <br />
-            편안하게 설정해요
-          </h1>
-          {status && <Badge tone="neutral">{status}</Badge>}
-        </div>
-        <p>우리에게 맞는 설정을 천천히 정리해보세요.</p>
-      </div>
-      <SettingsIllustration />
-    </header>
-  );
-}
-
 function LoadingState() {
   return (
     <main className="settings-page settings-page--state">
-      <SettingsBackgroundDecor />
-      <SettingsHero />
       <Card className="settings-card settings-card--pink">
         <div className="settings-skeleton__title h-5 w-32 animate-pulse rounded bg-gray-200" />
         <div className="settings-skeleton__body mt-4 h-16 animate-pulse rounded bg-gray-100" />
@@ -118,8 +38,6 @@ function LoadingState() {
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <main className="settings-page settings-page--state">
-      <SettingsBackgroundDecor />
-      <SettingsHero />
       <Card className="settings-card settings-card--danger border-red-200 bg-red-50">
         <div className="settings-card__heading">
           <span className="settings-icon settings-icon--danger" aria-hidden="true">!</span>
@@ -140,8 +58,6 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 function EmptyState() {
   return (
     <main className="settings-page settings-page--state">
-      <SettingsBackgroundDecor />
-      <SettingsHero />
       <Card className="settings-card settings-card--lavender text-center">
         <span className="settings-state-icon" aria-hidden="true">♡</span>
         <Badge tone="neutral">커플 연결 필요</Badge>
@@ -163,8 +79,6 @@ function EmptyState() {
 function DeletedState() {
   return (
     <main className="settings-page settings-page--state">
-      <SettingsBackgroundDecor />
-      <SettingsHero />
       <Card className="settings-card settings-card--pink border-rose-200 bg-rose-50">
         <div className="settings-card__heading">
           <span className="settings-icon settings-icon--pink" aria-hidden="true">♡</span>
@@ -242,9 +156,6 @@ export default function Settings() {
 
   return (
     <main className="settings-page">
-      <SettingsBackgroundDecor />
-      <SettingsHero status={statusLabel(data.status)} />
-
       <section className="grid gap-4 md:grid-cols-2" aria-label="계정 및 커플 정보">
         <Card className="settings-card settings-card--pink">
           <div className="settings-card__heading">
