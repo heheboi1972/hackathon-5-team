@@ -50,10 +50,10 @@ function NavIcon({ name }: { name: string }) {
 
 function BrandLink() {
   return (
-    <Link to="/" className="brand-link" aria-label="우리사이 홈으로 이동">
+    <Link to="/" className="brand-link" aria-label="견우야 직녀야 홈으로 이동">
       <span className="brand-mark" aria-hidden="true">♥</span>
       <span className="brand-copy">
-        <span className="brand-name">우리사이</span>
+        <span className="brand-name">견우야 직녀야</span>
         <span className="brand-tagline">대화로 기록하는 우리</span>
       </span>
     </Link>

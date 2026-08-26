@@ -1,19 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import ChatPanel from "../components/ChatPanel";
-import type { TimelineResponse, TimelineWeek } from "../api/types";
+import type { CoupleMeResponse, TimelineResponse, TimelineWeek } from "../api/types";
+import { formatFriendlyWeekLabel } from "../lib/weekLabels";
 
 const TIMELINE_PATH = "/api/couples/00000000-0000-0000-0000-000000000001/timeline";
+const COUPLE_ME_PATH = "/api/couples/me";
 const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
-
-function formatWeekDate(weekStart: string): string {
-  const [, month, day] = weekStart.split("-");
-  return month && day ? `${Number(month)}월 ${Number(day)}일` : weekStart;
-}
 
 function summaryPeakHour(week: TimelineWeek): string {
   const hour = week.summary.activity.top_hour;
@@ -79,10 +77,111 @@ function EnvelopeIllustration() {
   );
 }
 
+function parseCalendarDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const date = new Date(year, month, day);
+  return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day
+    ? date
+    : null;
+}
+
+function sameCalendarDate(left: Date, right: Date): boolean {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
+function MonthlyCalendar({ firstMetAt }: { firstMetAt?: string | null }) {
+  const [displayedMonth, setDisplayedMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const firstMetDate = parseCalendarDate(firstMetAt);
+  const today = new Date();
+  const year = displayedMonth.getFullYear();
+  const month = displayedMonth.getMonth();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const calendarCells = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+
+  return (
+    <section className="timeline-calendar-card" aria-labelledby="timeline-calendar-title">
+      <div className="timeline-calendar-card__header">
+        <button
+          type="button"
+          className="timeline-calendar-card__nav"
+          onClick={() => setDisplayedMonth(new Date(year, month - 1, 1))}
+          aria-label="이전 달"
+        >
+          ‹
+        </button>
+        <h2 id="timeline-calendar-title" aria-live="polite">{year}년 {month + 1}월</h2>
+        <button
+          type="button"
+          className="timeline-calendar-card__nav"
+          onClick={() => setDisplayedMonth(new Date(year, month + 1, 1))}
+          aria-label="다음 달"
+        >
+          ›
+        </button>
+      </div>
+      <div className="timeline-calendar-card__weekdays" aria-hidden="true">
+        {[
+          ["일", "is-sunday"],
+          ["월", ""],
+          ["화", ""],
+          ["수", ""],
+          ["목", ""],
+          ["금", ""],
+          ["토", "is-saturday"],
+        ].map(([label, tone]) => <span key={label} className={tone}>{label}</span>)}
+      </div>
+      <div className="timeline-calendar-card__grid">
+        {calendarCells.map((day, index) => {
+          if (day === null) return <span key={`empty-${index}`} aria-hidden="true" />;
+
+          const date = new Date(year, month, day);
+          const isFirstMet = firstMetDate ? sameCalendarDate(date, firstMetDate) : false;
+          const isToday = sameCalendarDate(date, today);
+          const className = [
+            "timeline-calendar-card__day",
+            index % 7 === 0 ? "is-sunday" : "",
+            index % 7 === 6 ? "is-saturday" : "",
+            isToday ? "is-today" : "",
+            isFirstMet ? "is-first-met" : "",
+          ].filter(Boolean).join(" ");
+          const label = isFirstMet ? `${month + 1}월 ${day}일, 처음 만난 날` : `${month + 1}월 ${day}일`;
+
+          return (
+            <span key={day} className={className} aria-label={label}>
+              {isFirstMet && <span className="timeline-calendar-card__heart" aria-hidden="true">♡</span>}
+              <span>{day}</span>
+            </span>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function Timeline() {
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["timeline"],
     queryFn: () => api.get<TimelineResponse>(TIMELINE_PATH),
+    staleTime: 30_000,
+  });
+  const { data: coupleData } = useQuery({
+    queryKey: ["couple-me"],
+    queryFn: () => api.get<CoupleMeResponse>(COUPLE_ME_PATH),
     staleTime: 30_000,
   });
 
@@ -149,21 +248,24 @@ export default function Timeline() {
         <span className="timeline-edge-flower timeline-edge-flower--left"><i /><b /><em /></span>
         <span className="timeline-edge-flower timeline-edge-flower--right"><i /><b /><em /></span>
       </div>
-      <header className="timeline-hero">
-        <div className="timeline-hero__copy">
-          <span className="timeline-eyebrow">OUR WEEKLY STORY</span>
-          <h1>이번 주 우리 대화는<br /><span>어땠을까요?</span></h1>
-          <p>서로의 이야기가 쌓여 우리의 기록이 돼요</p>
-        </div>
-        <div className="timeline-hero__aside">
-          <EnvelopeIllustration />
-          <div className="timeline-week-pill">
-            <span className="timeline-week-pill__icon"><TimelineIcon name="calendar" /></span>
-            <span>{formatWeekDate(currentWeek.week_start)} 주</span>
+      <div className="timeline-hero-layout">
+        <header className="timeline-hero">
+          <div className="timeline-hero__copy">
+            <span className="timeline-eyebrow">칠월칠석, 우리의 이야기</span>
+            <h1><span className="timeline-hero__title-first-line">견우와 직녀처럼,</span>{" "}<br className="timeline-hero__desktop-break" /><span>우리의 이야기를 이어가요</span></h1>
+            <p>서로의 대화가 쌓여<br />우리만의 이야기가 됩니다.</p>
           </div>
-          {isFetching && <span className="timeline-fetching">업데이트 중</span>}
-        </div>
-      </header>
+          <div className="timeline-hero__aside">
+            <EnvelopeIllustration />
+            <div className="timeline-week-pill">
+              <span className="timeline-week-pill__icon"><TimelineIcon name="calendar" /></span>
+              <span>{formatFriendlyWeekLabel(currentWeek.week_start)}</span>
+            </div>
+            {isFetching && <span className="timeline-fetching">업데이트 중</span>}
+          </div>
+        </header>
+        <MonthlyCalendar firstMetAt={coupleData?.first_met_at} />
+      </div>
 
       <section className="timeline-summary" aria-labelledby="timeline-summary-title">
         <div className="timeline-section-heading">

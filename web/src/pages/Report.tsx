@@ -7,12 +7,11 @@ import Card from "../components/Card";
 import HighlightCard from "../components/HighlightCard";
 import MomentCard from "../components/MomentCard";
 import type { ReportResponse, TermCount, TimelineResponse, TimelineWeek, WeekSummary } from "../api/types";
+import { formatFriendlyWeekLabel } from "../lib/weekLabels";
 
 const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
 const TIMELINE_PATH = `/api/couples/${COUPLE_ID}/timeline`;
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
-const KOREAN_WEEK_ORDINALS = ["첫째", "둘째", "셋째", "넷째", "다섯째", "여섯째"];
-
 function formatWeekTitle(weekStart: string): string {
   return `${formatFriendlyWeekLabel(weekStart)} 리포트`;
 }
@@ -22,20 +21,6 @@ function formatShortWeekDate(weekStart: string): string {
   return year && month && day
     ? `${year}년 ${Number(month)}월 ${Number(day)}일 시작`
     : weekStart;
-}
-
-function formatFriendlyWeekLabel(weekStart: string): string {
-  const date = new Date(`${weekStart}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return weekStart;
-
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-  const firstOfMonth = new Date(Date.UTC(year, month, 1));
-  const firstMonday = 1 + ((8 - firstOfMonth.getUTCDay()) % 7);
-  const ordinal = Math.floor((day - firstMonday) / 7) + 1;
-
-  return `${month + 1}월 ${KOREAN_WEEK_ORDINALS[ordinal - 1] ?? `${ordinal}번째`} 주`;
 }
 
 function formatMinutes(value: number | null | undefined): string {

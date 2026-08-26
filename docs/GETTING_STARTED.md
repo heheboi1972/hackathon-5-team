@@ -38,6 +38,43 @@ python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().de
 ```
 (python 없으면 팀 채널에 있는 공용 키 복사)
 
+### 2.1 기존 Postgres 볼륨을 사용하는 경우: `first_met_at` 마이그레이션
+
+새 DB는 `postgres/init.sql`이 `first_met_at` 컬럼을 함께 생성하므로 별도 작업이 필요하지 않아요.
+이미 생성된 Postgres 볼륨에 새 API를 배포하기 전에는 아래 SQL을 **한 번 실행해야 합니다**.
+이 작업은 컬럼이 이미 있어도 안전하게 다시 실행할 수 있습니다. 볼륨을 삭제하지 마세요.
+
+Docker Compose 환경:
+
+```bash
+docker compose exec -T postgres psql -U couple -d couple_report -v ON_ERROR_STOP=1 -c "ALTER TABLE couples ADD COLUMN IF NOT EXISTS first_met_at DATE;"
+```
+
+또는 저장소의 migration 파일을 그대로 실행할 수 있습니다:
+
+```bash
+docker compose exec -T postgres psql -U couple -d couple_report -v ON_ERROR_STOP=1 < postgres/migrations/001_add_first_met_at.sql
+```
+
+직접 `psql`로 연결하는 환경:
+
+```bash
+psql "$POSTGRES_DSN" -v ON_ERROR_STOP=1 -c "ALTER TABLE couples ADD COLUMN IF NOT EXISTS first_met_at DATE;"
+```
+
+Windows PowerShell에서 환경 변수를 사용하는 경우:
+
+```powershell
+psql $env:POSTGRES_DSN -v ON_ERROR_STOP=1 -c "ALTER TABLE couples ADD COLUMN IF NOT EXISTS first_met_at DATE;"
+```
+
+위 명령의 핵심 SQL은 다음과 같습니다:
+
+```sql
+ALTER TABLE couples
+ADD COLUMN IF NOT EXISTS first_met_at DATE;
+```
+
 ## 3. 띄우기 (5분)
 
 ```bash
