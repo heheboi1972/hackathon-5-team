@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import ValidationError
 
-from ..deps import current_member
+from ..deps import AuthenticatedUser, current_member, current_user
 from ..models.api import NoteCreateRequest, NoteResponse, ReviewResponse, Who
 from ..services.projection import build_review
 from ..services.review_metrics import build_stored_review
@@ -16,18 +16,6 @@ from ..services.review_metrics import build_stored_review
 router = APIRouter(prefix="/api/couples", tags=["review"])
 
 KST = timezone(timedelta(hours=9))
-
-# Notes 쓰기 경로는 기존 2-5 스텁을 유지한다. GET review 지표/메모는 PostgreSQL을 읽는다.
-_STORED = {
-    "notes": [
-        {
-            "note_id": 7,
-            "author": "a",
-            "body": "시험 끝나고 싸움",
-            "created_at": datetime(2026, 8, 20, 9, 0, tzinfo=KST),
-        }
-    ],
-}
 
 
 def _with_timezone(value: datetime) -> datetime:
@@ -84,9 +72,11 @@ async def review(
 
 @router.post("/{couple_id}/notes", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
 async def create_note(
-    couple_id: str,
+    couple_id: UUID,
     payload: dict[str, Any],
+    request: Request,
     me: Who = Depends(current_member),
+    user: AuthenticatedUser = Depends(current_user),
 ) -> NoteResponse:
     try:
         body = NoteCreateRequest.model_validate(payload)
@@ -98,37 +88,30 @@ async def create_note(
     if range_end < range_start:
         raise _validation_error("range_end는 range_start보다 빠를 수 없습니다")
 
-    note = {
-        "note_id": max((note["note_id"] for note in _STORED["notes"]), default=0) + 1,
-        "author": me,
-        "body": body.body,
-        "range_start": range_start,
-        "range_end": range_end,
-        "created_at": datetime.now(KST),
-    }
-    _STORED["notes"].append(note)
-    return NoteResponse.model_validate(note)
+    row = await request.app.state.container.postgres.create_note(
+        couple_id, user.user_id, range_start, range_end, body.body
+    )
+    return NoteResponse.model_validate({**row, "author": me})
 
 
 @router.delete("/{couple_id}/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_note(
-    couple_id: str,
+    couple_id: UUID,
     note_id: int,
+    request: Request,
+    user: AuthenticatedUser = Depends(current_user),
     me: Who = Depends(current_member),
 ) -> Response:
-    note_index = next(
-        (index for index, note in enumerate(_STORED["notes"]) if note["note_id"] == note_id),
-        None,
-    )
-    if note_index is None:
+    author = await request.app.state.container.postgres.get_note_author(couple_id, note_id)
+    if author is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": "메모를 찾을 수 없습니다"},
         )
-    if _STORED["notes"][note_index]["author"] != me:
+    if author != user.user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "메모 작성자만 삭제할 수 있습니다"},
         )
-    _STORED["notes"].pop(note_index)
+    await request.app.state.container.postgres.delete_note(couple_id, note_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

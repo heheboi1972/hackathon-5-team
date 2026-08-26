@@ -546,6 +546,38 @@ class PostgresService:
             "notes": notes,
         }
 
+    async def create_note(
+        self, couple_id: UUID, author_user_id: UUID,
+        range_start: datetime, range_end: datetime, body: str,
+    ) -> dict[str, Any]:
+        async with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                """
+                INSERT INTO notes (couple_id, author, range_start, range_end, body)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING note_id, range_start, range_end, body, created_at
+                """,
+                (couple_id, author_user_id, range_start, range_end, body),
+            )
+            return await cur.fetchone()
+
+    async def get_note_author(self, couple_id: UUID, note_id: int) -> UUID | None:
+        async with self.pool.connection() as conn:
+            row = await (
+                await conn.execute(
+                    "SELECT author FROM notes WHERE couple_id=%s AND note_id=%s",
+                    (couple_id, note_id),
+                )
+            ).fetchone()
+            return row[0] if row else None
+
+    async def delete_note(self, couple_id: UUID, note_id: int) -> None:
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                "DELETE FROM notes WHERE couple_id=%s AND note_id=%s",
+                (couple_id, note_id),
+            )
+
     async def dissolve_couple(self, couple_id: UUID, user_id: UUID) -> None:
         async with self.pool.connection() as conn, conn.transaction():
             await self._lock(conn, couple_id)
