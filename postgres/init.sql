@@ -51,6 +51,7 @@ CREATE TABLE messages (
     body_encrypted TEXT NOT NULL,                     -- Fernet 암호화 본문 (base64, ASCII-safe)
     body_len    INTEGER NOT NULL,                    -- 저장 시 계산 (복호화 없이 지표)
     is_question BOOLEAN NOT NULL DEFAULT FALSE,
+    msg_type    VARCHAR(10) NOT NULL DEFAULT 'text', -- kakao_parser.MSG_TYPES. term_search가 텍스트만 필터링할 때 사용
     body_hash   VARCHAR(64) NOT NULL,                -- 중복 제거용 (sha256)
     UNIQUE (couple_id, body_hash),
     -- SET NULL 은 session_id 만 (PG15+). 컬럼을 안 적으면 couple_id 까지 NULL 로 만들어 not-null 위반 (ISSUE C7)
@@ -66,9 +67,10 @@ CREATE TABLE weekly_metrics (
     couple_id  UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
     week_start DATE NOT NULL,                        -- 월요일
     summary    JSONB NOT NULL,                       -- API_SPEC §4.1 summary
+    metrics    JSONB NOT NULL DEFAULT '{}',          -- 기준선·delta 재계산용 원시 지표 (metrics_from_stored 입력)
     summary_hash VARCHAR(64) NOT NULL,               -- sha256(summary). 바뀐 주차만 리포트 재생성 (API_SPEC §3.1 규칙 8)
     outliers   JSONB NOT NULL DEFAULT '[]',          -- moments 후보
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (couple_id, week_start)
 );
 
@@ -77,10 +79,9 @@ CREATE TABLE reports (
     week_start      DATE NOT NULL,
     status          VARCHAR(30) NOT NULL DEFAULT 'pending'
                     CHECK (status IN ('pending','generated','insufficient_baseline','failed')),
-    report          JSONB,                           -- API_SPEC §4.2 전체 JSON
-    execution_trace JSONB,                           -- 에이전트 실행 기록 (NFR-005)
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    report_json     JSONB,                           -- API_SPEC §4.2 전체 JSON + trace_id/execution_trace(NFR-005)
+    summary_hash    VARCHAR(64),                     -- 생성 시점 weekly_metrics.summary_hash 스냅샷 (재생성 판단)
+    generated_at    TIMESTAMPTZ,
     PRIMARY KEY (couple_id, week_start)
 );
 
@@ -141,12 +142,14 @@ CREATE TABLE weekly_terms (
 -- sender 컬럼을 두지 않는다 = 발화자별 집계가 구조적으로 불가능 (P-3 예외 "내 단어는 본인만" 보호).
 -- 값은 요청 시 본문을 메모리에서 복호화해 세고 즉시 폐기한 결과이며, 평문 본문은 디스크에 쓰지 않는다.
 CREATE TABLE term_count_cache (
-    couple_id   UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    term        VARCHAR(50) NOT NULL,        -- tokenize() 로 정규화된 질의어
-    week_start  DATE NOT NULL,
-    count       INTEGER NOT NULL,            -- 커플 합산
-    computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (couple_id, term, week_start)
+    couple_id      UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
+    term           VARCHAR(120) NOT NULL,      -- "{mode}:{정규화된 질의어}" (services/term_search.py _cache_key)
+    range_start    TIMESTAMPTZ,                -- NULL = 전체 기간
+    range_end      TIMESTAMPTZ,
+    source_version INTEGER NOT NULL,           -- coalesce(max(message_id),0) 스냅샷 — 재업로드 시 무효화 판단
+    result         JSONB NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE NULLS NOT DISTINCT (couple_id, term, range_start, range_end)
 );
 
 -- ---------------------------------------------------------------- 작업 큐 (TRD §4.1)

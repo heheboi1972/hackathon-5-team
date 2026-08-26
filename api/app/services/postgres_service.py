@@ -989,7 +989,7 @@ class PostgresService:
         ):
             await cur.execute(
                 """
-                SELECT week_start, status, report, execution_trace, updated_at
+                SELECT week_start, status, report_json
                   FROM reports WHERE couple_id=%s AND week_start=%s
                 """,
                 (couple_id, week_start),
@@ -1134,8 +1134,8 @@ class PostgresService:
                         """
                         INSERT INTO messages
                             (couple_id, sender, sent_at, body_encrypted,
-                             body_len, is_question, body_hash)
-                        VALUES (%s,%s,%s,convert_from(%s, 'UTF8'),%s,%s,%s)
+                             body_len, is_question, msg_type, body_hash)
+                        VALUES (%s,%s,%s,convert_from(%s, 'UTF8'),%s,%s,%s,%s)
                         ON CONFLICT (couple_id, body_hash) DO NOTHING
                         """,
                         [
@@ -1146,6 +1146,7 @@ class PostgresService:
                                 m["body_enc"],
                                 m["body_len"],
                                 m["is_question"],
+                                m["msg_type"],
                                 m["msg_hash"],
                             )
                             for m in new_messages

@@ -305,6 +305,7 @@ async def upload(
             "body_enc": container.cipher.encrypt(message.body),
             "body_len": message.body_len,
             "is_question": message.is_question,
+            "msg_type": message.msg_type,
         }
         for digest, message in new_pairs
     ]
