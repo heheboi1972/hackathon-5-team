@@ -243,7 +243,7 @@ export default function Onboarding() {
             <span className="onboarding-art-label">two hearts · one story</span>
           </div>
         </header>
-      {stage === "signup" && (
+      {false && stage === "signup" && (
         <Card>
           <div className="mb-5 flex items-center justify-between">
             <div className="space-y-1">
@@ -381,10 +381,25 @@ export default function Onboarding() {
                 <span className="onboarding-step-icon onboarding-step-icon--pink" aria-hidden="true">♡</span>
                 <div>
                   <Badge tone="neutral" className="onboarding-badge">1단계 · 시작</Badge>
-                  <h2>계정 만들기</h2>
-                  <p>리포트를 확인할 계정 정보를 입력해주세요.</p>
+                  <h2>{authMode === "signup" ? "계정 만들기" : "로그인"}</h2>
+                  <p>
+                    {authMode === "signup"
+                      ? "리포트를 확인할 계정 정보를 입력해주세요."
+                      : "가입할 때 사용한 이메일과 비밀번호를 입력해주세요."}
+                  </p>
                 </div>
               </div>
+              <button
+                type="button"
+                className="onboarding-auth-switch"
+                onClick={() => {
+                  setAuthMode((current) => (current === "signup" ? "login" : "signup"));
+                  setError(null);
+                }}
+              >
+                {authMode === "signup" ? "이미 계정이 있어요" : "처음이에요"}
+              </button>
+              {authMode === "signup" ? (
               <form className="onboarding-form" onSubmit={signup}>
                 <label className="onboarding-field">
                   <span>이메일</span>
@@ -428,6 +443,37 @@ export default function Onboarding() {
                   {isSubmitting ? "가입 중…" : "가입하고 계속하기"}
                 </Button>
               </form>
+              ) : (
+                <form className="onboarding-form" onSubmit={login}>
+                  <label className="onboarding-field">
+                    <span>이메일</span>
+                    <input
+                      type="email"
+                      value={loginForm.email}
+                      onChange={(event) => updateLoginForm("email", event.target.value)}
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      className="onboarding-input"
+                      required
+                    />
+                  </label>
+                  <label className="onboarding-field">
+                    <span>비밀번호</span>
+                    <input
+                      type="password"
+                      value={loginForm.password}
+                      onChange={(event) => updateLoginForm("password", event.target.value)}
+                      autoComplete="current-password"
+                      placeholder="비밀번호"
+                      className="onboarding-input"
+                      required
+                    />
+                  </label>
+                  <Button type="submit" className="onboarding-primary-button w-full" disabled={isSubmitting}>
+                    {isSubmitting ? "로그인 중…" : "로그인"}
+                  </Button>
+                </form>
+              )}
             </Card>
           )}
 

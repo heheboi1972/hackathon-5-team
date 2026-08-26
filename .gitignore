@@ -1,4 +1,6 @@
 .env
+.env.local
+web/.env.local
 __pycache__/
 *.pyc
 .venv/

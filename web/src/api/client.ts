@@ -2,8 +2,9 @@
 // 컴포넌트에서 직접 fetch 금지 — 반드시 이 모듈 경유 (SCAFFOLD §2)
 import type { ApiError, NoteCreateRequest, NoteResponse, ReviewResponse } from "./types";
 
-const USE_MOCK =
-  import.meta.env.VITE_USE_MOCK === "true" || import.meta.env.USE_MOCK === "true";
+// Only the Vite-prefixed flag may enable frontend fixtures. This keeps a
+// production build from accidentally inheriting a generic USE_MOCK variable.
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 const BASE = import.meta.env.VITE_API_BASE ?? ""; // 로컬은 vite proxy, 배포는 같은 Route 상대 경로
 
 const TOKEN_KEY = "couple_report_token";
@@ -30,7 +31,7 @@ export class ApiClientError extends Error {
   }
 }
 
-// VITE_USE_MOCK=true 또는 USE_MOCK=true면 API_SPEC 예시 JSON을 반환한다.
+// VITE_USE_MOCK=true일 때만 API_SPEC 예시 JSON을 반환한다.
 type MockLoader = () => Promise<{ default: unknown } | undefined>;
 
 const MOCK_ROUTES: [RegExp, string, MockLoader][] = [
