@@ -59,6 +59,15 @@ git checkout main && git pull origin main
 cd api && python -m pytest tests/ -q
 ```
 
+기존 PostgreSQL PVC에는 `postgres/init.sql`이 다시 실행되지 않으므로 새 컬럼이 추가된
+배포에서는 저장소의 마이그레이션을 먼저 적용한다. 각 파일은 재실행 가능해야 한다.
+
+```bash
+oc exec -i postgres-0 -n couple-report -- \
+  psql -v ON_ERROR_STOP=1 -U couple -d couple_report \
+  < postgres/migrations/001_add_couples_first_met_at.sql
+```
+
 ## 4. 빌드 파이프라인 실행
 
 ```bash
