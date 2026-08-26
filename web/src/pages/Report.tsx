@@ -41,6 +41,17 @@ function hourLabel(hour: number | null): string {
   return hour < 12 ? `오전 ${hour}시` : `오후 ${hour - 12}시`;
 }
 
+function formatMomentAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function statusLabel(status: ReportResponse["status"]): string {
   if (status === "generated") return "생성 완료";
   if (status === "pending") return "생성 중";
@@ -55,25 +66,83 @@ function statusMessage(status: ReportResponse["status"]): string {
   return "";
 }
 
+type ReportIconName = "mail" | "clock" | "sparkle" | "heart" | "quote" | "check" | "calendar";
+
+function ReportIcon({ name }: { name: ReportIconName }) {
+  if (name === "mail") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h17v11h-17z" /><path d="m4 7 8 6 8-6" /></svg>;
+  }
+  if (name === "clock") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" /><path d="M12 7.5v4.8l3.3 2" /></svg>;
+  }
+  if (name === "sparkle") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4z" /><path d="m19 16 .6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6z" /></svg>;
+  }
+  if (name === "heart") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.2S4 15.6 4 9.9C4 6.3 8.2 4.5 10.6 7c.7.7 1.1 1.4 1.4 2 .3-.6.7-1.3 1.4-2C15.8 4.5 20 6.3 20 9.9c0 5.7-8 10.3-8 10.3Z" /></svg>;
+  }
+  if (name === "quote") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7.5h5.5v5H8.4c.1 2 1.1 3.3 3.1 4v1.5C7.7 17.5 6 15.1 6 11.5zM13.5 7.5H19v5h-3.1c.1 2 1.1 3.3 3.1 4v1.5c-3.8-.5-5.5-2.9-5.5-6.5z" /></svg>;
+  }
+  if (name === "check") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="m8 12.2 2.6 2.6 5.5-5.6" /></svg>;
+  }
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="15" rx="2.5" /><path d="M8 3.5v4M16 3.5v4M4 10h16" /></svg>;
+}
+
+function ReportLetterIllustration() {
+  return (
+    <div className="report-letter-art" aria-hidden="true">
+      <span className="report-letter-art__halo" />
+      <span className="report-letter-art__heart report-letter-art__heart--one">♥</span>
+      <span className="report-letter-art__heart report-letter-art__heart--two">♡</span>
+      <span className="report-letter-art__sparkle report-letter-art__sparkle--one">✦</span>
+      <span className="report-letter-art__sparkle report-letter-art__sparkle--two">✧</span>
+      <span className="report-letter-art__note">우리의 이번 주 <b>♡</b></span>
+      <svg className="report-letter" viewBox="0 0 260 190" role="img" aria-label="하트가 담긴 주간 편지 일러스트">
+        <defs>
+          <linearGradient id="report-letter-paper" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fffefe" />
+            <stop offset="1" stopColor="#fff0f6" />
+          </linearGradient>
+          <linearGradient id="report-letter-flap" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ffb7ca" />
+            <stop offset="1" stopColor="#ff719c" />
+          </linearGradient>
+        </defs>
+        <path d="M12 126c29-26 50-34 69-28 20 6 27 25 47 22 24-3 29-30 59-33 22-2 40 8 60 29" fill="none" stroke="#ffb3c1" strokeWidth="2" strokeDasharray="3 7" />
+        <path d="M38 72h184v91H38z" fill="url(#report-letter-paper)" stroke="#ef9db4" strokeWidth="2.5" />
+        <path d="m40 75 90 68 90-68" fill="url(#report-letter-flap)" stroke="#ef789d" strokeWidth="2.5" strokeLinejoin="round" />
+        <path d="m40 160 62-53M220 160l-62-53" fill="none" stroke="#f6b7c8" strokeWidth="2" />
+        <path d="M130 126c-13-12-27-2-20 10 7 12 20 18 20 18s13-6 20-18c7-12-7-22-20-10Z" fill="#ff709b" stroke="#e95d89" strokeWidth="2" />
+        <path d="M130 126c-3-5-7-7-10-6" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" opacity=".85" />
+      </svg>
+    </div>
+  );
+}
+
 function SummaryMetric({
   label,
   couple,
   mine,
   format = formatCount,
+  icon,
 }: {
   label: string;
   couple: number | null | undefined;
   mine: number | null | undefined;
   format?: (value: number | null | undefined) => string;
+  icon: ReportIconName;
 }) {
   return (
-    <div className="rounded-lg bg-gray-50 p-3">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-gray-900">{format(couple)}</p>
-      <p className="mt-1 text-xs text-gray-500">
-        {mine === undefined ? "커플 합산" : `나 ${format(mine)}`}
-      </p>
-    </div>
+    <article className="report-metric-card">
+      <div className="report-metric-card__topline">
+        <span className="report-icon-bubble"><ReportIcon name={icon} /></span>
+        <p>{label}</p>
+      </div>
+      <p className="report-metric-card__value">{format(couple)}</p>
+      <p className="report-metric-card__detail">{mine === undefined ? "커플 합산" : `나 ${format(mine)}`}</p>
+    </article>
   );
 }
 
@@ -86,59 +155,48 @@ function ActivityCard({ activity }: { activity: WeekSummary["activity"] }) {
     : "활동 시간대 정보가 없어요.";
 
   return (
-    <Card>
-      <div className="flex items-start justify-between gap-3">
+    <Card className="report-card report-activity-card">
+      <div className="report-card-heading">
         <div>
-          <p className="text-sm font-medium text-rose-600">대화 리듬</p>
-          <h2 className="mt-1 text-lg font-semibold text-gray-900">활발한 시간</h2>
+          <p className="report-card-eyebrow">대화 리듬</p>
+          <h2>활발한 시간</h2>
         </div>
-        <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700">{topTime}</span>
+        <span className="report-activity-card__icon"><ReportIcon name="clock" /></span>
+      </div>
+      <div className="report-activity-card__peak">
+        <span>우리의 대화가 가장 반짝인 때</span>
+        <strong>{topTime}</strong>
       </div>
 
-      <div className="mt-5">
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>요일별 메시지</span>
-          <span>커플 합산</span>
-        </div>
-        <div className="mt-3 grid grid-cols-7 gap-2" aria-label="요일별 메시지 수">
+      <div className="report-chart-block">
+        <div className="report-chart-labels"><span>요일별 메시지</span><span>커플 합산</span></div>
+        <div className="report-weekday-chart" aria-label="요일별 메시지 수">
           {activity.by_weekday.map((count, index) => (
-            <div key={WEEKDAYS[index]} className="flex min-w-0 flex-col items-center gap-1">
-              <div className="flex h-20 w-full items-end justify-center rounded bg-gray-50 px-1">
+            <div key={WEEKDAYS[index]} className="report-weekday-chart__item">
+              <div className="report-weekday-chart__bar-wrap">
                 <div
-                  className="w-full rounded-t bg-rose-400"
+                  className="report-weekday-chart__bar"
                   style={{ height: `${weekdayMax ? Math.max((count / weekdayMax) * 100, 4) : 0}%` }}
                   title={`${WEEKDAYS[index]}요일 ${count}개`}
                 />
               </div>
-              <span className="text-xs text-gray-500">{WEEKDAYS[index]}</span>
-              <span className="text-[11px] text-gray-400">{count}</span>
+              <span>{WEEKDAYS[index]}</span>
+              <small>{count}</small>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="mt-5 border-t pt-4">
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>시간대별 메시지</span>
-          <span>0시 → 23시</span>
-        </div>
-        <div className="mt-3 flex h-20 items-end gap-1" aria-label="시간대별 메시지 수">
+      <div className="report-chart-block report-chart-block--hours">
+        <div className="report-chart-labels"><span>시간대별 메시지</span><span>0시 → 23시</span></div>
+        <div className="report-hour-chart" aria-label="시간대별 메시지 수">
           {activity.by_hour.map((count, hour) => (
-            <div key={hour} className="group flex h-full min-w-0 flex-1 items-end" title={`${hour}시 ${count}개`}>
-              <div
-                className="w-full rounded-t bg-sky-400 transition-colors group-hover:bg-sky-500"
-                style={{ height: `${hourMax ? Math.max((count / hourMax) * 100, 4) : 0}%` }}
-              />
+            <div key={hour} className="report-hour-chart__item" title={`${hour}시 ${count}개`}>
+              <div className="report-hour-chart__bar" style={{ height: `${hourMax ? Math.max((count / hourMax) * 100, 4) : 0}%` }} />
             </div>
           ))}
         </div>
-        <div className="mt-1 flex justify-between text-[10px] text-gray-400">
-          <span>0시</span>
-          <span>6시</span>
-          <span>12시</span>
-          <span>18시</span>
-          <span>23시</span>
-        </div>
+        <div className="report-hour-chart__labels"><span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>23시</span></div>
       </div>
     </Card>
   );
@@ -146,24 +204,18 @@ function ActivityCard({ activity }: { activity: WeekSummary["activity"] }) {
 
 function TermGroup({ title, terms, tone }: { title: string; terms: TermCount[]; tone: "positive" | "negative" }) {
   return (
-    <div>
-      <p className="text-sm font-medium text-gray-700">{title}</p>
+    <div className={`report-term-group report-term-group--${tone}`}>
+      <p>{title}</p>
       {terms.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="report-term-list">
           {terms.map((term) => (
-            <span
-              key={term.canonical}
-              className={[
-                "rounded-full px-3 py-1.5 text-sm",
-                tone === "positive" ? "bg-rose-50 text-rose-700" : "bg-sky-50 text-sky-700",
-              ].join(" ")}
-            >
-              {term.canonical} <span className="font-semibold">{term.count}</span>
+            <span key={term.canonical} className="report-term-chip">
+              {term.canonical} <b>{term.count}</b>
             </span>
           ))}
         </div>
       ) : (
-        <p className="mt-2 text-sm text-gray-400">표시할 단어가 없어요.</p>
+        <p className="report-empty-copy">표시할 단어가 없어요.</p>
       )}
     </div>
   );
@@ -171,19 +223,22 @@ function TermGroup({ title, terms, tone }: { title: string; terms: TermCount[]; 
 
 function MyTermsCard({ sentiment }: { sentiment: WeekSummary["sentiment"] }) {
   return (
-    <Card>
-      <p className="text-sm font-medium text-sky-600">나의 대화 습관</p>
-      <h2 className="mt-1 text-lg font-semibold text-gray-900">내 단어</h2>
-      <p className="mt-1 text-sm text-gray-500">이번 주 내가 자주 사용한 긍정·부정 단어예요.</p>
+    <Card className="report-card report-terms-card">
+      <div className="report-card-heading">
+        <div>
+          <p className="report-card-eyebrow report-card-eyebrow--lavender">나의 대화 습관</p>
+          <h2>내 단어</h2>
+        </div>
+        <span className="report-activity-card__icon report-activity-card__icon--lavender"><ReportIcon name="heart" /></span>
+      </div>
+      <p className="report-card-description">이번 주 내가 자주 사용한 긍정·부정 단어예요.</p>
       {sentiment ? (
-        <div className="mt-5 space-y-5">
+        <div className="report-term-groups">
           <TermGroup title="긍정 단어" terms={sentiment.pos} tone="positive" />
           <TermGroup title="부정 단어" terms={sentiment.neg} tone="negative" />
         </div>
       ) : (
-        <p className="mt-5 rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
-          아직 단어 사전이 준비되지 않았어요.
-        </p>
+        <p className="report-empty-panel">아직 단어 사전이 준비되지 않았어요.</p>
       )}
     </Card>
   );
@@ -201,10 +256,10 @@ export default function Report() {
 
   if (isLoading) {
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-6 sm:p-8">
-        <Card>
-          <p className="text-gray-600">주간 리포트를 불러오는 중이에요…</p>
-          <div className="mt-4 h-2 animate-pulse rounded bg-gray-200" />
+      <main className="report-page report-page--state">
+        <Card className="report-state-card">
+          <p>주간 리포트를 불러오는 중이에요…</p>
+          <div className="report-loading-line" />
         </Card>
       </main>
     );
@@ -212,12 +267,12 @@ export default function Report() {
 
   if (error || !data) {
     return (
-      <main className="mx-auto max-w-4xl p-6 sm:p-8">
-        <Card className="border-red-200 bg-red-50">
+      <main className="report-page report-page--state">
+        <Card className="report-state-card report-state-card--error">
           <Badge>불러오기 실패</Badge>
-          <h1 className="mt-2 text-lg font-semibold text-gray-900">리포트를 불러오지 못했어요.</h1>
-          <p className="mt-1 text-sm text-red-700">잠시 후 다시 시도해주세요.</p>
-          <Button className="mt-4" onClick={() => refetch()}>다시 시도</Button>
+          <h1>리포트를 불러오지 못했어요.</h1>
+          <p>잠시 후 다시 시도해주세요.</p>
+          <Button className="report-retry-button" onClick={() => refetch()}>다시 시도</Button>
         </Card>
       </main>
     );
@@ -230,76 +285,66 @@ export default function Report() {
   );
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6 sm:p-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Link to="/timeline" className="text-sm font-medium text-rose-600 hover:underline">← 타임라인으로</Link>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-gray-500">커플 대화 리포트</p>
-            <Badge tone={data.status === "failed" ? "neutral" : data.status === "pending" ? "b" : "neutral"}>
-              {statusLabel(data.status)}
-            </Badge>
+    <main className="report-page">
+      <div className="timeline-background-decor report-page__background" aria-hidden="true">
+        <span className="timeline-cloud timeline-cloud--one" />
+        <span className="timeline-cloud timeline-cloud--two" />
+        <span className="timeline-bg-heart timeline-bg-heart--one">♥</span>
+        <span className="timeline-bg-heart timeline-bg-heart--two">♡</span>
+        <span className="timeline-bg-sparkle timeline-bg-sparkle--one">✦</span>
+        <span className="timeline-bg-sparkle timeline-bg-sparkle--two">✧</span>
+        <span className="timeline-flight-path" />
+        <span className="timeline-petal timeline-petal--one" />
+        <span className="timeline-petal timeline-petal--two" />
+        <span className="timeline-edge-heart timeline-edge-heart--one">♡</span>
+        <span className="timeline-edge-heart timeline-edge-heart--two">♥</span>
+      </div>
+
+      <header className="report-hero">
+        <div className="report-hero__copy">
+          <Link to="/timeline" className="report-back-link">← 타임라인으로</Link>
+          <span className="report-eyebrow">OUR WEEKLY LETTER</span>
+          <h1>이번 주 우리의<br /><span>이야기를 담았어요 <em>♡</em></span></h1>
+          <p>대화 속 작은 변화와 기억하고 싶은 순간을 모았어요</p>
+          <div className="report-hero__meta">
+            <span className="report-week-pill"><ReportIcon name="calendar" />{formatWeekTitle(data.week_start)}</span>
+            <Badge tone={data.status === "pending" ? "b" : "neutral"}>{statusLabel(data.status)}</Badge>
+            {isFetching && data.status !== "pending" && <span className="report-fetching">업데이트 중…</span>}
           </div>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900">{formatWeekTitle(data.week_start)}</h1>
-          {isFetching && data.status !== "pending" && <p className="mt-1 text-xs text-gray-500">업데이트 중…</p>}
         </div>
+        <div className="report-hero__aside"><ReportLetterIllustration /></div>
       </header>
 
       {statusMessage(data.status) && (
-        <Card className={data.status === "failed" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}>
-          <p className={data.status === "failed" ? "text-sm text-red-700" : "text-sm text-amber-800"}>
-            {statusMessage(data.status)}
-          </p>
+        <Card className={`report-status-card ${data.status === "failed" ? "report-status-card--error" : "report-status-card--notice"}`}>
+          <span className="report-status-card__icon"><ReportIcon name="sparkle" /></span>
+          <p>{statusMessage(data.status)}</p>
         </Card>
       )}
 
       {summary && (
         <>
-          <section aria-labelledby="summary-title">
-            <div className="mb-3">
-              <h2 id="summary-title" className="text-lg font-semibold text-gray-900">이번 주 한눈에 보기</h2>
-              <p className="mt-1 text-sm text-gray-500">우리와 내 대화 흐름을 함께 살펴봤어요.</p>
+          <section className="report-section report-summary-section" aria-labelledby="summary-title">
+            <div className="report-section-heading">
+              <div><span className="report-section-kicker">A LITTLE LOOK BACK</span><h2 id="summary-title">이번 주 우리 이야기</h2></div>
+              <span className="report-section-note">대화 기록을 살펴봤어요</span>
             </div>
-            <Card>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <SummaryMetric label="대화 세션" couple={summary.session_count} mine={undefined} />
-                <SummaryMetric label="메시지" couple={summary.message_count} mine={undefined} />
-                <SummaryMetric
-                  label="질문 비율"
-                  couple={summary.question_rate.couple}
-                  mine={summary.question_rate.mine}
-                  format={formatPercent}
-                />
-                <SummaryMetric
-                  label="답장 간격 중앙값"
-                  couple={summary.reply_gap_median_min.couple}
-                  mine={summary.reply_gap_median_min.mine}
-                  format={formatMinutes}
-                />
-              </div>
-              <div className="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-3">
-                <SummaryMetric
-                  label="메시지 길이 중앙값"
-                  couple={summary.message_length_median.couple}
-                  mine={summary.message_length_median.mine}
-                  format={(value) => value === null || value === undefined ? "-" : `${value.toFixed(1)}자`}
-                />
-                <SummaryMetric
-                  label="대화 재개 지연"
-                  couple={summary.resume_delay_median_min.couple}
-                  mine={summary.resume_delay_median_min.mine}
-                  format={formatMinutes}
-                />
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">세션 길이 중앙값</p>
-                  <p className="mt-1 text-lg font-semibold text-gray-900">{formatMinutes(summary.session_length_median)}</p>
-                  <p className="mt-1 text-xs text-gray-500">우리 대화 기준</p>
-                </div>
+            <Card className="report-letter-card">
+              <div className="report-letter-card__heading"><span className="report-letter-card__icon"><ReportIcon name="mail" /></span><div><p>이번 주의 기록</p><h3>서로의 마음이 오간 시간이에요</h3></div><span className="report-letter-card__heart">♥</span></div>
+              <p className="report-letter-card__copy">우리와 내 대화 흐름을 함께 살펴봤어요.</p>
+              <div className="report-metric-grid">
+                <SummaryMetric label="대화 세션" couple={summary.session_count} mine={undefined} icon="mail" />
+                <SummaryMetric label="메시지" couple={summary.message_count} mine={undefined} icon="heart" />
+                <SummaryMetric label="질문 비율" couple={summary.question_rate.couple} mine={summary.question_rate.mine} format={formatPercent} icon="quote" />
+                <SummaryMetric label="답장 간격 중앙값" couple={summary.reply_gap_median_min.couple} mine={summary.reply_gap_median_min.mine} format={formatMinutes} icon="clock" />
+                <SummaryMetric label="메시지 길이 중앙값" couple={summary.message_length_median.couple} mine={summary.message_length_median.mine} format={(value) => value === null || value === undefined ? "-" : `${value.toFixed(1)}자`} icon="sparkle" />
+                <SummaryMetric label="대화 재개 지연" couple={summary.resume_delay_median_min.couple} mine={summary.resume_delay_median_min.mine} format={formatMinutes} icon="heart" />
+                <SummaryMetric label="세션 길이 중앙값" couple={summary.session_length_median} mine={undefined} format={formatMinutes} icon="clock" />
               </div>
             </Card>
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-2" aria-label="활동과 내 단어">
+          <section className="report-support-grid" aria-label="활동과 내 단어">
             <ActivityCard activity={summary.activity} />
             <MyTermsCard sentiment={summary.sentiment} />
           </section>
@@ -307,54 +352,46 @@ export default function Report() {
       )}
 
       {data.highlights.length > 0 && (
-        <section aria-labelledby="highlights-title">
-          <div className="mb-3">
-            <h2 id="highlights-title" className="text-lg font-semibold text-gray-900">이번 주의 발견</h2>
-            <p className="mt-1 text-sm text-gray-500">대화 흐름에서 눈여겨볼 만한 점을 정리했어요.</p>
-          </div>
-          <div className="space-y-3">
+        <section className="report-section" aria-labelledby="highlights-title">
+          <div className="report-section-heading"><div><span className="report-section-kicker">LITTLE THINGS WE NOTICED</span><h2 id="highlights-title">이번 주의 발견</h2></div><span className="report-section-note">대화 속 작은 반짝임</span></div>
+          <div className="report-highlight-grid">
             {data.highlights.map((highlight) => (
-              <HighlightCard
-                key={highlight.id}
-                highlight={highlight}
-                suggestion={data.suggestions.find((suggestion) => suggestion.linked_highlight === highlight.id)}
-              />
+              <div className="report-highlight-card" key={highlight.id}>
+                <span className="report-highlight-card__icon"><ReportIcon name="sparkle" /></span>
+                <HighlightCard highlight={highlight} suggestion={data.suggestions.find((suggestion) => suggestion.linked_highlight === highlight.id)} />
+              </div>
             ))}
           </div>
         </section>
       )}
 
       {additionalSuggestions.length > 0 && (
-        <section aria-labelledby="suggestions-title">
-          <h2 id="suggestions-title" className="mb-3 text-lg font-semibold text-gray-900">이번 주 제안</h2>
-          <div className="space-y-3">
+        <section className="report-section" aria-labelledby="suggestions-title">
+          <div className="report-section-heading"><div><span className="report-section-kicker">A LITTLE NOTE FOR NEXT WEEK</span><h2 id="suggestions-title">다음 주 우리에게</h2></div><span className="report-section-note">천천히 함께 해봐요</span></div>
+          <div className="report-suggestion-grid">
             {additionalSuggestions.map((suggestion) => (
-              <Card key={suggestion.id} className="border-rose-100 bg-rose-50/50">
-                <p className="text-sm text-rose-800">{suggestion.text}</p>
-              </Card>
+              <Card key={suggestion.id} className="report-suggestion-card"><span className="report-suggestion-card__icon"><ReportIcon name="check" /></span><p>{suggestion.text}</p></Card>
             ))}
           </div>
         </section>
       )}
 
       {data.moments.length > 0 && (
-        <section aria-labelledby="moments-title">
-          <div className="mb-3">
-            <h2 id="moments-title" className="text-lg font-semibold text-gray-900">기억해둘 순간</h2>
-            <p className="mt-1 text-sm text-gray-500">평소와 달랐던 대화의 순간이에요.</p>
-          </div>
-          <div className="space-y-3">
+        <section className="report-section" aria-labelledby="moments-title">
+          <div className="report-section-heading"><div><span className="report-section-kicker">MEMORIES TO KEEP</span><h2 id="moments-title">기억하고 싶은 순간</h2></div><span className="report-section-note">우리만의 작은 장면</span></div>
+          <div className="report-moments-list">
             {data.moments.map((moment, index) => (
-              <MomentCard key={`${moment.session_id}-${moment.at}-${index}`} moment={moment} />
+              <article className="report-moment-card" key={`${moment.session_id}-${moment.at}-${index}`}>
+                <div className="report-moment-card__rail"><span><ReportIcon name="quote" /></span></div>
+                <div className="report-moment-card__body"><div className="report-moment-card__meta"><time dateTime={moment.at}>{formatMomentAt(moment.at)}</time><span>SESSION {moment.session_id}</span></div><MomentCard moment={moment} /></div>
+              </article>
             ))}
           </div>
         </section>
       )}
 
       {!summary && data.highlights.length === 0 && data.moments.length === 0 && data.suggestions.length === 0 && (
-        <Card className="text-center">
-          <p className="text-gray-600">아직 표시할 리포트 내용이 없어요.</p>
-        </Card>
+        <Card className="report-empty-state"><span className="report-empty-state__icon"><ReportIcon name="mail" /></span><p>아직 표시할 리포트 내용이 없어요.</p></Card>
       )}
     </main>
   );
