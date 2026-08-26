@@ -128,7 +128,7 @@ function ReviewIllustration() {
       <span className="review-hero-art__sparkle review-hero-art__sparkle--one">✦</span>
       <span className="review-hero-art__sparkle review-hero-art__sparkle--two">✧</span>
       <span className="review-hero-art__bubble review-hero-art__bubble--one">오늘도<br />기억해요</span>
-      <span className="review-hero-art__bubble review-hero-art__bubble--two">우리 ♡</span>
+      <span className="review-hero-art__bubble review-hero-art__bubble--two">우리</span>
       <svg className="review-notebook" viewBox="0 0 280 190" role="img" aria-label="하트와 메모가 있는 돌아보기 노트 일러스트">
         <defs>
           <linearGradient id="review-paper" x1="0" y1="0" x2="1" y2="1">
@@ -308,8 +308,6 @@ export default function Review() {
   return (
     <main className="review-page">
       <div className="review-background-decor" aria-hidden="true">
-        <span className="review-decor-heart review-decor-heart--one">♡</span>
-        <span className="review-decor-heart review-decor-heart--two">♥</span>
         <span className="review-decor-sparkle review-decor-sparkle--one">✦</span>
         <span className="review-decor-sparkle review-decor-sparkle--two">✧</span>
         <span className="review-decor-cloud review-decor-cloud--one" />
@@ -319,7 +317,7 @@ export default function Review() {
 
       <header className="review-hero">
         <div className="review-hero__copy">
-          <span className="review-eyebrow">OUR LITTLE REVIEW ♡</span>
+          <span className="review-eyebrow">OUR LITTLE REVIEW</span>
           <h1>우리의 이 순간을<br /><span>천천히 돌아봐요</span></h1>
           <p>선택한 기간의 대화 흐름을 평소와 비교하고,<br className="review-hero__break" /> 기억하고 싶은 순간을 남겨보세요.</p>
         </div>

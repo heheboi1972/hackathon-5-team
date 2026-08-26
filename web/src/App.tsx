@@ -33,10 +33,9 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 const navigationItems = [
-  { label: "타임라인", icon: "home", path: "/", matches: (pathname: string) => pathname === "/" || pathname.startsWith("/timeline") },
+  { label: "홈", icon: "home", path: "/", matches: (pathname: string) => pathname === "/" || pathname.startsWith("/timeline") },
   { label: "주간 리포트", icon: "calendar", path: "/report", matches: (pathname: string) => pathname === "/report" || pathname.startsWith("/reports/") },
   { label: "돌아보기", icon: "chat", path: "/review", matches: (pathname: string) => pathname.startsWith("/review") },
-  { label: "챗봇", icon: "chat", path: "/chat", matches: (pathname: string) => pathname.startsWith("/chat") },
   { label: "대화 올리기", icon: "upload", path: "/upload", matches: (pathname: string) => pathname.startsWith("/upload") },
   { label: "설정", icon: "settings", path: "/settings", matches: (pathname: string) => pathname.startsWith("/settings") },
 ];
@@ -61,6 +60,11 @@ function BrandLink() {
   );
 }
 
+function ReportEntry() {
+  if (!USE_MOCK && !getToken()) return <Navigate to="/onboarding" replace />;
+  return <Report />;
+}
+
 function AppShell() {
   const { pathname } = useLocation();
   const isOnboarding = pathname === "/onboarding";
@@ -81,7 +85,7 @@ function AppShell() {
                     className="nav-link"
                     aria-current={isActive ? "page" : undefined}
                   >
-                    <span className="nav-link__icon"><NavIcon name={item.icon} /></span>
+                    {isActive && <span className="nav-link__icon"><NavIcon name={item.icon} /></span>}
                     {item.label}
                   </Link>
                 );
@@ -100,14 +104,74 @@ function AppShell() {
       <div className="app-shell__content">
         <Routes>
           <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/" element={<RequireAuth><Timeline /></RequireAuth>} />
-          <Route path="/timeline" element={<RequireAuth><Timeline /></RequireAuth>} />
-          <Route path="/upload" element={<RequireAuth><Upload /></RequireAuth>} />
-          <Route path="/report" element={<RequireAuth><Report /></RequireAuth>} />
-          <Route path="/reports/:week" element={<RequireAuth><Report /></RequireAuth>} />
-          <Route path="/review" element={<RequireAuth><Review /></RequireAuth>} />
-          <Route path="/chat" element={<RequireAuth><ChatPage /></RequireAuth>} />
-          <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+<Route
+  path="/"
+  element={
+    <RequireAuth>
+      <Timeline />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/timeline"
+  element={
+    USE_MOCK ? (
+      <Timeline />
+    ) : (
+      <RequireAuth>
+        <Timeline />
+      </RequireAuth>
+    )
+  }
+/>
+<Route
+  path="/upload"
+  element={
+    <RequireAuth>
+      <Upload />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/report"
+  element={
+    <RequireAuth>
+      <ReportEntry />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/reports/:week"
+  element={
+    <RequireAuth>
+      <Report />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/review"
+  element={
+    <RequireAuth>
+      <Review />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/chat"
+  element={
+    <RequireAuth>
+      <ChatPage />
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/settings"
+  element={
+    <RequireAuth>
+      <Settings />
+    </RequireAuth>
+  }
+/>
           <Route path="*" element={<Navigate to="/onboarding" replace />} />
         </Routes>
       </div>

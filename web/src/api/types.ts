@@ -79,6 +79,7 @@ export interface CoupleMeResponse {
   me?: Who | null;
   kakao_names?: Record<Who, string> | null;
   started_at?: string | null;
+  first_met_at?: string | null;
   data?: {
     first_week: string;
     last_week: string;
@@ -87,6 +88,10 @@ export interface CoupleMeResponse {
   } | null;
   /** 진행 중인 잡 (새로고침 후 진행률 복구용). 없으면 null */
   active_job?: { job_id: string; kind: JobKind; done: number; total: number } | null;
+}
+
+export interface CoupleSettingsUpdate {
+  first_met_at: string | null;
 }
 
 // ---------------------------------------------------------------- 3. 업로드 (FR-002)

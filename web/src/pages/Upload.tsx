@@ -36,7 +36,7 @@ function UploadHeroIllustration() {
       <span className="upload-hero-art__sparkle upload-hero-art__sparkle--one">✦</span>
       <span className="upload-hero-art__sparkle upload-hero-art__sparkle--two">✧</span>
       <span className="upload-hero-art__bubble upload-hero-art__bubble--one">우리의 기록<br />차곡차곡</span>
-      <span className="upload-hero-art__bubble upload-hero-art__bubble--two">우리 ♡</span>
+      <span className="upload-hero-art__bubble upload-hero-art__bubble--two">우리</span>
       <svg className="upload-hero-art__illustration" viewBox="0 0 300 190" role="img" aria-label="대화 파일을 클라우드에 올리는 일러스트">
         <defs>
           <linearGradient id="upload-cloud-gradient" x1="0" y1="0" x2="1" y2="1">
@@ -199,8 +199,6 @@ export default function Upload() {
       <div className="upload-background-decor" aria-hidden="true">
         <span className="upload-decor-cloud upload-decor-cloud--one" />
         <span className="upload-decor-cloud upload-decor-cloud--two" />
-        <span className="upload-decor-heart upload-decor-heart--one">♡</span>
-        <span className="upload-decor-heart upload-decor-heart--two">♥</span>
         <span className="upload-decor-sparkle upload-decor-sparkle--one">✦</span>
         <span className="upload-decor-sparkle upload-decor-sparkle--two">✧</span>
         <span className="upload-decor-petal upload-decor-petal--one" />
@@ -211,7 +209,7 @@ export default function Upload() {
       <header className="upload-hero">
         <div className="upload-hero__copy">
           <span className="upload-eyebrow">OUR CHAT ARCHIVE</span>
-          <h1>우리의 대화를<br /><span>가져와볼까요? ♡</span></h1>
+          <h1>우리의 대화를<br /><span>가져와볼까요?</span></h1>
           <p>카카오톡 대화 파일을 올리면<br className="upload-hero__break" /> 우리의 기록을 차근차근 정리해드려요.</p>
         </div>
         <div className="upload-hero__aside"><UploadHeroIllustration /></div>

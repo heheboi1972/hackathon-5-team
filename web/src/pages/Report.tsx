@@ -6,16 +6,36 @@ import Button from "../components/Button";
 import Card from "../components/Card";
 import HighlightCard from "../components/HighlightCard";
 import MomentCard from "../components/MomentCard";
-import type { ReportResponse, TermCount, WeekSummary } from "../api/types";
+import type { ReportResponse, TermCount, TimelineResponse, TimelineWeek, WeekSummary } from "../api/types";
 
 const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
+const TIMELINE_PATH = `/api/couples/${COUPLE_ID}/timeline`;
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
+const KOREAN_WEEK_ORDINALS = ["첫째", "둘째", "셋째", "넷째", "다섯째", "여섯째"];
 
 function formatWeekTitle(weekStart: string): string {
+  return `${formatFriendlyWeekLabel(weekStart)} 리포트`;
+}
+
+function formatShortWeekDate(weekStart: string): string {
   const [year, month, day] = weekStart.split("-");
   return year && month && day
-    ? `${year}년 ${Number(month)}월 ${Number(day)}일 주간 리포트`
-    : `${weekStart} 주간 리포트`;
+    ? `${year}년 ${Number(month)}월 ${Number(day)}일 시작`
+    : weekStart;
+}
+
+function formatFriendlyWeekLabel(weekStart: string): string {
+  const date = new Date(`${weekStart}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return weekStart;
+
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  const firstOfMonth = new Date(Date.UTC(year, month, 1));
+  const firstMonday = 1 + ((8 - firstOfMonth.getUTCDay()) % 7);
+  const ordinal = Math.floor((day - firstMonday) / 7) + 1;
+
+  return `${month + 1}월 ${KOREAN_WEEK_ORDINALS[ordinal - 1] ?? `${ordinal}번째`} 주`;
 }
 
 function formatMinutes(value: number | null | undefined): string {
@@ -66,6 +86,23 @@ function statusMessage(status: ReportResponse["status"]): string {
   return "";
 }
 
+function WeekSelectorItem({ week, selected }: { week: TimelineWeek; selected: boolean }) {
+  return (
+    <Link
+      to={`/reports/${week.week_start}`}
+      className={`report-week-selector__item${selected ? " is-selected" : ""}`}
+      aria-current={selected ? "page" : undefined}
+    >
+      <span className="report-week-selector__item-label">{formatFriendlyWeekLabel(week.week_start)}</span>
+      <span className="report-week-selector__item-date">{formatShortWeekDate(week.week_start)}</span>
+      <span className="report-week-selector__item-summary">
+        메시지 {formatCount(week.summary.message_count)} · 세션 {formatCount(week.summary.session_count)}
+      </span>
+      <Badge tone={week.report_status === "pending" ? "b" : "neutral"}>{statusLabel(week.report_status)}</Badge>
+    </Link>
+  );
+}
+
 type ReportIconName = "mail" | "clock" | "sparkle" | "heart" | "quote" | "check" | "calendar";
 
 function ReportIcon({ name }: { name: ReportIconName }) {
@@ -98,7 +135,7 @@ function ReportLetterIllustration() {
       <span className="report-letter-art__heart report-letter-art__heart--two">♡</span>
       <span className="report-letter-art__sparkle report-letter-art__sparkle--one">✦</span>
       <span className="report-letter-art__sparkle report-letter-art__sparkle--two">✧</span>
-      <span className="report-letter-art__note">우리의 이번 주 <b>♡</b></span>
+      <span className="report-letter-art__note">우리의 이번 주</span>
       <svg className="report-letter" viewBox="0 0 260 190" role="img" aria-label="하트가 담긴 주간 편지 일러스트">
         <defs>
           <linearGradient id="report-letter-paper" x1="0" y1="0" x2="1" y2="1">
@@ -246,14 +283,74 @@ function MyTermsCard({ sentiment }: { sentiment: WeekSummary["sentiment"] }) {
 
 export default function Report() {
   const { week: routeWeek } = useParams();
-  const week = routeWeek ?? "2026-08-17";
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const timelineQuery = useQuery({
+    queryKey: ["timeline"],
+    queryFn: () => api.get<TimelineResponse>(TIMELINE_PATH),
+    staleTime: 30_000,
+  });
+  const timelineWeeks = timelineQuery.data?.weeks ?? [];
+  const latestWeek = timelineWeeks[timelineWeeks.length - 1]?.week_start;
+  const routeWeekIsValid = routeWeek
+    ? timelineWeeks.some((timelineWeek) => timelineWeek.week_start === routeWeek)
+    : true;
+  const week = routeWeekIsValid ? routeWeek ?? latestWeek : undefined;
+  const reportQuery = useQuery({
     queryKey: ["reports", week],
     queryFn: () =>
       api.get<ReportResponse>(`/api/couples/${COUPLE_ID}/reports/${week}`),
     refetchInterval: (q) => (q.state.data?.status === "pending" ? 3000 : false),
+    enabled: timelineQuery.isSuccess && Boolean(week),
   });
 
+  if (timelineQuery.isPending || (!routeWeek && timelineQuery.isFetching)) {
+    return (
+      <main className="report-page report-page--state">
+        <Card className="report-state-card">
+          <p>주간 리포트를 불러오는 중이에요…</p>
+          <div className="report-loading-line" />
+        </Card>
+      </main>
+    );
+  }
+
+  if (timelineQuery.error && !routeWeek) {
+    return (
+      <main className="report-page report-page--state">
+        <Card className="report-state-card report-state-card--error">
+          <Badge>불러오기 실패</Badge>
+          <h1>주간 기록을 확인하지 못했어요.</h1>
+          <p>잠시 후 다시 시도해주세요.</p>
+          <Button className="report-retry-button" onClick={() => void timelineQuery.refetch()}>다시 시도</Button>
+        </Card>
+      </main>
+    );
+  }
+
+  if (timelineQuery.isSuccess && !week) {
+    return (
+      <main className="report-page report-page--state">
+        <Card className="report-state-card">
+          <Badge tone="neutral">아직 기록이 없어요</Badge>
+          <h1>표시할 주간 리포트가 없어요.</h1>
+          <p>대화 파일을 업로드하면 주간 리포트가 준비돼요.</p>
+        </Card>
+      </main>
+    );
+  }
+
+  if (routeWeek && timelineQuery.isSuccess && !routeWeekIsValid) {
+    return (
+      <main className="report-page report-page--state">
+        <Card className="report-state-card report-state-card--error">
+          <Badge>주차를 찾을 수 없음</Badge>
+          <h1>해당 주간 리포트를 찾지 못했어요.</h1>
+          <p>사용 가능한 주차를 선택해주세요.</p>
+        </Card>
+      </main>
+    );
+  }
+
+  const { data, isLoading, isFetching, error, refetch } = reportQuery;
   if (isLoading) {
     return (
       <main className="report-page report-page--state">
@@ -265,7 +362,7 @@ export default function Report() {
     );
   }
 
-  if (error || !data) {
+  if (error || !data || !week) {
     return (
       <main className="report-page report-page--state">
         <Card className="report-state-card report-state-card--error">
@@ -283,31 +380,47 @@ export default function Report() {
   const additionalSuggestions = data.suggestions.filter(
     (suggestion) => !linkedHighlightIds.has(suggestion.linked_highlight),
   );
-
   return (
     <main className="report-page">
       <div className="timeline-background-decor report-page__background" aria-hidden="true">
         <span className="timeline-cloud timeline-cloud--one" />
         <span className="timeline-cloud timeline-cloud--two" />
-        <span className="timeline-bg-heart timeline-bg-heart--one">♥</span>
-        <span className="timeline-bg-heart timeline-bg-heart--two">♡</span>
         <span className="timeline-bg-sparkle timeline-bg-sparkle--one">✦</span>
         <span className="timeline-bg-sparkle timeline-bg-sparkle--two">✧</span>
         <span className="timeline-flight-path" />
         <span className="timeline-petal timeline-petal--one" />
         <span className="timeline-petal timeline-petal--two" />
-        <span className="timeline-edge-heart timeline-edge-heart--one">♡</span>
-        <span className="timeline-edge-heart timeline-edge-heart--two">♥</span>
       </div>
 
+      <div className="report-layout">
+        <aside className="report-week-selector" aria-labelledby="report-week-selector-title">
+          <div className="report-week-selector__heading">
+            <span className="report-section-kicker">WEEKLY ARCHIVE</span>
+            <h2 id="report-week-selector-title">우리의 지난 기록</h2>
+            <p>살펴보고 싶은 주를 골라보세요.</p>
+          </div>
+          {timelineWeeks.length > 0 && (
+            <nav className="report-week-selector__list" aria-label="주간 리포트 선택">
+              {timelineWeeks.map((timelineWeek) => (
+                <WeekSelectorItem
+                  key={timelineWeek.week_start}
+                  week={timelineWeek}
+                  selected={timelineWeek.week_start === week}
+                />
+              ))}
+            </nav>
+          )}
+        </aside>
+
+        <div className="report-content">
       <header className="report-hero">
         <div className="report-hero__copy">
-          <Link to="/timeline" className="report-back-link">← 타임라인으로</Link>
+          <Link to="/timeline" className="report-back-link">← 홈으로</Link>
           <span className="report-eyebrow">OUR WEEKLY LETTER</span>
-          <h1>이번 주 우리의<br /><span>이야기를 담았어요 <em>♡</em></span></h1>
+          <h1>이번 주 우리의<br /><span>이야기를 담았어요</span></h1>
           <p>대화 속 작은 변화와 기억하고 싶은 순간을 모았어요</p>
           <div className="report-hero__meta">
-            <span className="report-week-pill"><ReportIcon name="calendar" />{formatWeekTitle(data.week_start)}</span>
+            <span className="report-week-pill"><ReportIcon name="calendar" />{formatWeekTitle(week)}</span>
             <Badge tone={data.status === "pending" ? "b" : "neutral"}>{statusLabel(data.status)}</Badge>
             {isFetching && data.status !== "pending" && <span className="report-fetching">업데이트 중…</span>}
           </div>
@@ -330,7 +443,7 @@ export default function Report() {
               <span className="report-section-note">대화 기록을 살펴봤어요</span>
             </div>
             <Card className="report-letter-card">
-              <div className="report-letter-card__heading"><span className="report-letter-card__icon"><ReportIcon name="mail" /></span><div><p>이번 주의 기록</p><h3>서로의 마음이 오간 시간이에요</h3></div><span className="report-letter-card__heart">♥</span></div>
+              <div className="report-letter-card__heading"><span className="report-letter-card__icon"><ReportIcon name="mail" /></span><div><p>이번 주의 기록</p><h3>서로의 마음이 오간 시간이에요</h3></div></div>
               <p className="report-letter-card__copy">우리와 내 대화 흐름을 함께 살펴봤어요.</p>
               <div className="report-metric-grid">
                 <SummaryMetric label="대화 세션" couple={summary.session_count} mine={undefined} icon="mail" />
@@ -393,6 +506,8 @@ export default function Report() {
       {!summary && data.highlights.length === 0 && data.moments.length === 0 && data.suggestions.length === 0 && (
         <Card className="report-empty-state"><span className="report-empty-state__icon"><ReportIcon name="mail" /></span><p>아직 표시할 리포트 내용이 없어요.</p></Card>
       )}
+        </div>
+      </div>
     </main>
   );
 }

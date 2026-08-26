@@ -7,6 +7,8 @@ const USE_MOCK =
 const BASE = import.meta.env.VITE_API_BASE ?? ""; // 로컬은 vite proxy, 배포는 같은 Route 상대 경로
 
 const TOKEN_KEY = "couple_report_token";
+let mockCoupleFirstMetAt: string | null = null;
+let mockCoupleFirstMetAtSet = false;
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -37,6 +39,7 @@ const MOCK_ROUTES: [RegExp, string, MockLoader][] = [
   [/^\/api\/couples\/join$/, "POST", () => import("./mock/join.json")],
   [/^\/api\/couples\/[^/]+\/confirm$/, "POST", () => import("./mock/confirm.json")],
   [/^\/api\/couples\/me$/, "GET", () => import("./mock/couples_me.json")],
+  [/^\/api\/couples\/me$/, "PATCH", () => import("./mock/couples_me.json")],
   [/^\/api\/couples\/[^/]+\/upload$/, "POST", () => import("./mock/upload.json")],
   [/^\/api\/jobs\/[^/]+$/, "GET", () => import("./mock/job.json")],
   [/^\/api\/couples\/[^/]+\/timeline$/, "GET", () => import("./mock/timeline.json")],
@@ -127,6 +130,27 @@ async function mockResponse<T>(path: string, method: string, body?: unknown): Pr
     if (routeMethod !== method || !re.test(pathname)) continue;
     const response = await load();
     const fixture = response?.default ?? undefined;
+    if (pathname === "/api/couples/me" && method === "PATCH") {
+      const payload = body as { first_met_at?: unknown } | undefined;
+      if (!payload || !("first_met_at" in payload) ||
+          (payload.first_met_at !== null && typeof payload.first_met_at !== "string")) {
+        throw new ApiClientError(422, "VALIDATION_ERROR", "first_met_at 형식이 올바르지 않습니다.");
+      }
+      mockCoupleFirstMetAt = payload.first_met_at;
+      mockCoupleFirstMetAtSet = true;
+    }
+    if (pathname === "/api/couples/me" && method === "GET" && mockCoupleFirstMetAtSet) {
+      return {
+        ...(fixture as Record<string, unknown>),
+        first_met_at: mockCoupleFirstMetAt,
+      } as T;
+    }
+    if (pathname === "/api/couples/me" && method === "PATCH") {
+      return {
+        ...(fixture as Record<string, unknown>),
+        first_met_at: mockCoupleFirstMetAt,
+      } as T;
+    }
     if (method === "GET" && /\/review$/.test(pathname)) {
       return alignReviewMockToRequest(path, fixture as ReviewResponse) as T;
     }
@@ -163,12 +187,17 @@ export async function request<T>(
   const text = await resp.text();
   const data = text ? JSON.parse(text) : null;
   if (!resp.ok) {
-    const err = (data ?? {}) as Partial<ApiError>;
+    const err = (data ?? {}) as Partial<ApiError> & { detail?: unknown };
+    const fastApiDetail =
+      typeof err.detail === "object" && err.detail !== null && !Array.isArray(err.detail)
+        ? err.detail as { code?: string; message?: string; detail?: Record<string, unknown> }
+        : undefined;
+    const apiError = err.error ?? fastApiDetail;
     throw new ApiClientError(
       resp.status,
-      err.error?.code ?? "ERROR",
-      err.error?.message ?? resp.statusText,
-      err.error?.detail,
+      apiError?.code ?? "ERROR",
+      apiError?.message ?? resp.statusText,
+      apiError?.detail,
     );
   }
   return data as T;
@@ -177,6 +206,7 @@ export async function request<T>(
 export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
+  patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),
   postForm: <T>(path: string, form: FormData) => request<T>("POST", path, undefined, { form }),
   delete: <T = void>(path: string) => request<T>("DELETE", path),
 };

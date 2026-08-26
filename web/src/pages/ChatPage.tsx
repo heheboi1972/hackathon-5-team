@@ -22,7 +22,7 @@ function ChatIllustration() {
       <span className="chat-hero-art__sparkle chat-hero-art__sparkle--one">✦</span>
       <span className="chat-hero-art__sparkle chat-hero-art__sparkle--two">✧</span>
       <span className="chat-hero-art__bubble chat-hero-art__bubble--one">기억을<br />찾아봐요</span>
-      <span className="chat-hero-art__bubble chat-hero-art__bubble--two">우리 ♡</span>
+      <span className="chat-hero-art__bubble chat-hero-art__bubble--two">우리</span>
       <svg className="chat-hero-art__phone" viewBox="0 0 270 170" role="img" aria-label="말풍선과 검색 아이콘이 있는 대화 기억 일러스트">
         <defs>
           <linearGradient id="chat-phone-shell" x1="0" y1="0" x2="1" y2="1">
@@ -53,8 +53,6 @@ export default function ChatPage() {
   return (
     <main className="chat-page">
       <div className="chat-background-decor" aria-hidden="true">
-        <span className="chat-decor-heart chat-decor-heart--one">♡</span>
-        <span className="chat-decor-heart chat-decor-heart--two">♥</span>
         <span className="chat-decor-sparkle chat-decor-sparkle--one">✦</span>
         <span className="chat-decor-sparkle chat-decor-sparkle--two">✧</span>
         <span className="chat-decor-cloud chat-decor-cloud--one" />
@@ -74,7 +72,7 @@ export default function ChatPage() {
         <header className="chat-hero">
           <div className="chat-hero__copy">
             <span className="chat-eyebrow">OUR CHAT MEMORY</span>
-            <h1>우리의 대화를<br /><span>다시 찾아봐요 ♡</span></h1>
+            <h1>우리의 대화를<br /><span>다시 찾아봐요</span></h1>
             <p>기억하고 싶은 대화나 궁금한 순간을 편하게 물어보세요.</p>
           </div>
           <div className="chat-hero__aside"><ChatIllustration /></div>

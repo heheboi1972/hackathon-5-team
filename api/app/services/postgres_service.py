@@ -273,7 +273,7 @@ class PostgresService:
                 """
                 SELECT c.couple_id, c.status, c.user_a, c.user_b,
                        ua.display_name AS display_name_a, ub.display_name AS display_name_b,
-                       c.kakao_name_a, c.kakao_name_b, c.started_at,
+                       c.kakao_name_a, c.kakao_name_b, c.started_at, c.first_met_at,
                        CASE WHEN c.user_a = %s THEN 'a' ELSE 'b' END AS me,
                        (SELECT min(date_trunc('week', m.sent_at)::date) FROM messages m WHERE m.couple_id=c.couple_id) AS first_week,
                        (SELECT max(date_trunc('week', m.sent_at)::date) FROM messages m WHERE m.couple_id=c.couple_id) AS last_week,
@@ -295,6 +295,25 @@ class PostgresService:
                 (user_id, user_id, user_id),
             )
             return await cur.fetchone()
+
+    async def update_couple_first_met_at(
+        self, couple_id: UUID, user_id: UUID, first_met_at: date | None
+    ) -> bool:
+        async with self.pool.connection() as conn, conn.transaction():
+            row = await (
+                await conn.execute(
+                    """
+                    UPDATE couples
+                       SET first_met_at = %s
+                     WHERE couple_id = %s
+                       AND (user_a = %s OR user_b = %s)
+                       AND status <> 'dissolved'
+                    RETURNING couple_id
+                    """,
+                    (first_met_at, couple_id, user_id, user_id),
+                )
+            ).fetchone()
+        return row is not None
 
     async def get_active_couple(
         self, couple_id: UUID, user_id: UUID

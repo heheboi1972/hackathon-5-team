@@ -4,33 +4,15 @@ import { api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
-import MetricChart from "../components/MetricChart";
+import ChatPanel from "../components/ChatPanel";
 import type { TimelineResponse, TimelineWeek } from "../api/types";
 
 const TIMELINE_PATH = "/api/couples/00000000-0000-0000-0000-000000000001/timeline";
-
-function reportStatusLabel(status: TimelineWeek["report_status"]): string {
-  if (status === "generated") return "생성 완료";
-  if (status === "pending") return "생성 중";
-  if (status === "insufficient_baseline") return "기준 데이터 부족";
-  return "처리 실패";
-}
+const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
 
 function formatWeekDate(weekStart: string): string {
   const [, month, day] = weekStart.split("-");
   return month && day ? `${Number(month)}월 ${Number(day)}일` : weekStart;
-}
-
-function topActivity(week: TimelineWeek): string {
-  const weekday = week.summary.activity.top_weekday;
-  const hour = week.summary.activity.top_hour;
-  if (weekday === null || hour === null) return "활발한 시간 정보가 없어요";
-  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
-  return `가장 활발한 시간: ${weekdays[weekday] ?? "-"}요일 ${hour}시`;
-}
-
-function percentText(value: number | null | undefined): string {
-  return value === null || value === undefined ? "-" : `${(value * 100).toFixed(1)}%`;
 }
 
 function summaryPeakHour(week: TimelineWeek): string {
@@ -145,7 +127,6 @@ export default function Timeline() {
   }
 
   const currentWeek = weeks[weeks.length - 1];
-  const weekGridCount = Math.min(weeks.length, 4);
   const summaryValues = [
     currentWeek.summary.message_count.toLocaleString(),
     `${currentWeek.summary.session_length_median}분`,
@@ -158,8 +139,6 @@ export default function Timeline() {
       <div className="timeline-background-decor" aria-hidden="true">
         <span className="timeline-cloud timeline-cloud--one" />
         <span className="timeline-cloud timeline-cloud--two" />
-        <span className="timeline-bg-heart timeline-bg-heart--one">♥</span>
-        <span className="timeline-bg-heart timeline-bg-heart--two">♡</span>
         <span className="timeline-bg-sparkle timeline-bg-sparkle--one">✦</span>
         <span className="timeline-bg-sparkle timeline-bg-sparkle--two">✧</span>
         <span className="timeline-flight-path" />
@@ -169,13 +148,11 @@ export default function Timeline() {
         <span className="timeline-petal timeline-petal--four" />
         <span className="timeline-edge-flower timeline-edge-flower--left"><i /><b /><em /></span>
         <span className="timeline-edge-flower timeline-edge-flower--right"><i /><b /><em /></span>
-        <span className="timeline-edge-heart timeline-edge-heart--one">♡</span>
-        <span className="timeline-edge-heart timeline-edge-heart--two">♥</span>
       </div>
       <header className="timeline-hero">
         <div className="timeline-hero__copy">
           <span className="timeline-eyebrow">OUR WEEKLY STORY</span>
-          <h1>이번 주 우리 대화는<br /><span>어땠을까요? <em>♡</em></span></h1>
+          <h1>이번 주 우리 대화는<br /><span>어땠을까요?</span></h1>
           <p>서로의 이야기가 쌓여 우리의 기록이 돼요</p>
         </div>
         <div className="timeline-hero__aside">
@@ -205,94 +182,12 @@ export default function Timeline() {
               </div>
               <strong className="timeline-summary-card__value">{summaryValues[index]}</strong>
               <span className="timeline-summary-card__description">{item.description}</span>
-              <span className="timeline-summary-card__decor" aria-hidden="true">{index % 2 ? "✧" : "♥"}</span>
             </article>
           ))}
         </div>
       </section>
 
-      <MetricChart weeks={weeks} />
-
-      <section className="timeline-weeks" aria-labelledby="timeline-weeks-title">
-        <div className="timeline-weeks__decor" aria-hidden="true">
-          <span className="timeline-weeks__cloud timeline-weeks__cloud--left" />
-          <span className="timeline-weeks__cloud timeline-weeks__cloud--right" />
-          <span className="timeline-weeks__heart timeline-weeks__heart--one">♥</span>
-          <span className="timeline-weeks__heart timeline-weeks__heart--two">♡</span>
-          <span className="timeline-weeks__petal timeline-weeks__petal--one" />
-          <span className="timeline-weeks__petal timeline-weeks__petal--two" />
-          <span className="timeline-weeks__sparkle timeline-weeks__sparkle--one">✦</span>
-          <span className="timeline-weeks__sparkle timeline-weeks__sparkle--two">✧</span>
-        </div>
-        <div className="timeline-section-heading">
-          <div>
-            <span className="timeline-section-kicker">OUR LITTLE ARCHIVE</span>
-            <h2 id="timeline-weeks-title">주차별 우리 이야기</h2>
-          </div>
-          <span className="timeline-section-note">{weeks.length}개의 기록</span>
-        </div>
-        <div className={`timeline-week-grid timeline-week-grid--count-${weekGridCount}`}>
-          {weeks.map((week) => (
-            <Card key={week.week_start} className={`timeline-week-card${week.in_progress ? " timeline-week-card--progress" : ""}`}>
-              <div className="timeline-week-card__header">
-                <div className="timeline-week-card__date-wrap">
-                  <span className="timeline-calendar"><TimelineIcon name="calendar" /></span>
-                  <div>
-                    <span className="timeline-week-card__overline">WEEKLY NOTE</span>
-                    <Link to={`/reports/${week.week_start}`} className="timeline-week-card__date">
-                      {formatWeekDate(week.week_start)}
-                    </Link>
-                  </div>
-                </div>
-                <Badge tone="neutral" className="timeline-status-badge">{reportStatusLabel(week.report_status)}</Badge>
-              </div>
-
-              <div className="timeline-week-card__metric">
-                <strong>{week.summary.message_count.toLocaleString()}</strong>
-                <span>messages</span>
-              </div>
-              <p className="timeline-week-card__activity">{topActivity(week)}</p>
-
-              <div className="timeline-week-card__art" aria-hidden="true">
-                <svg className="timeline-week-card__art-icon timeline-week-card__art-icon--envelope" viewBox="0 0 48 40">
-                  <rect x="5" y="9" width="38" height="25" rx="7" fill="rgba(255,255,255,.72)" stroke="currentColor" strokeWidth="2" />
-                  <path d="m7 12 15 12c1.2 1 2.8 1 4 0l15-12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  <path d="m18 22 5 4 5-4" fill="none" stroke="#ff789f" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-                <svg className="timeline-week-card__art-icon timeline-week-card__art-icon--sparkle" viewBox="0 0 48 40">
-                  <path d="m23 3 3.2 11.8L38 18l-11.8 3.2L23 33l-3.2-11.8L8 18l11.8-3.2Z" fill="rgba(255,255,255,.7)" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                  <path d="m39 27 1.4 4.6L45 33l-4.6 1.4L39 39l-1.4-4.6L33 33l4.6-1.4Z" fill="#ffd28c" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                </svg>
-                <svg className="timeline-week-card__art-icon timeline-week-card__art-icon--heart" viewBox="0 0 48 40">
-                  <path d="M24 34S8 25.5 8 14.8C8 8.6 15.6 5.8 20.1 11c1.6 1.9 2.9 3.1 3.9 3.1s2.3-1.2 3.9-3.1C32.4 5.8 40 8.6 40 14.8 40 25.5 24 34 24 34Z" fill="rgba(255,255,255,.68)" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                  <path d="m38 4 .9 3.1L42 8l-3.1.9L38 12l-.9-3.1L34 8l3.1-.9Z" fill="#c3a6ff" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                </svg>
-              </div>
-
-              <div className="timeline-week-card__details">
-                <span>우리 질문 {percentText(week.summary.question_rate.couple)}</span>
-                <span>내 질문 {percentText(week.summary.question_rate.mine)}</span>
-                <span>우리 답장 {week.summary.reply_gap_median_min.couple ?? "-"}분</span>
-                <span>내 답장 {week.summary.reply_gap_median_min.mine ?? "-"}분</span>
-              </div>
-
-              {week.summary.sentiment && (
-                <p className="timeline-week-card__sentiment">
-                  좋은 말 {week.summary.sentiment.pos.length}개 · 마음 쓰인 말 {week.summary.sentiment.neg.length}개
-                </p>
-              )}
-              {week.outlier_count > 0 && (
-                <p className="timeline-week-card__notice">특별히 긴 대화 {week.outlier_count}개</p>
-              )}
-              {week.in_progress && <p className="timeline-week-card__notice">현재 이 주차를 정리하고 있어요</p>}
-
-              <Link to={`/reports/${week.week_start}`} className="timeline-report-link">
-                리포트 보기 <span aria-hidden="true">→</span>
-              </Link>
-            </Card>
-          ))}
-        </div>
-      </section>
+      <ChatPanel coupleId={COUPLE_ID} />
     </main>
   );
 }
