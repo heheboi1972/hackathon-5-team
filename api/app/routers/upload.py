@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import unicodedata
 import zipfile
 from collections import defaultdict
 from datetime import date, timezone
@@ -105,15 +106,24 @@ def _map_senders(messages: list[Message], mapping: dict[str, str]) -> list[Messa
     ]
 
 
+def _normalize_hash_body(body: str) -> str:
+    normalized = unicodedata.normalize("NFC", body).replace("\r\n", "\n").replace("\r", "\n")
+    return "\n".join(line.rstrip() for line in normalized.split("\n")).strip()
+
+
 def _message_hash(message: Message) -> str:
     # PC·모바일 내보내기의 초 정밀도 차이를 제거한다 (ISSUE C5).
     minute = (
         message.sent_at.astimezone(timezone.utc)
         .replace(second=0, microsecond=0)
-        .isoformat()
+        .isoformat(timespec="minutes")
     )
-    source = f"{message.sender}|{minute}|{message.body}".encode()
-    return hashlib.sha256(source).hexdigest()
+    canonical = json.dumps(
+        [message.sender.strip().lower(), minute, _normalize_hash_body(message.body)],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _stored_messages(rows: list[dict[str, Any]], decrypt: Any) -> list[Message]:
@@ -175,6 +185,7 @@ def _week_payloads(
             {
                 "week_start": week_start,
                 "summary": summary,
+                "metrics": week["metrics"],
                 "summary_hash": hashlib.sha256(
                     summary_json.encode("utf-8")
                 ).hexdigest(),
@@ -264,8 +275,13 @@ async def upload(
 
     normalized = _map_senders(parsed_messages, mapping)
     stored_rows = await container.postgres.get_stored_messages(couple_id)
-    existing_hashes = {row["msg_hash"] for row in stored_rows}
-    seen = set(existing_hashes)
+    # DB hash는 동시성 검증에 사용한다. 중복 판별은 과거 hash 규칙으로 저장된
+    # 행도 안전하게 처리하도록 복호화한 기존 메시지에 현재 canonical 규칙을 적용한다.
+    stored_db_hashes = {str(row["msg_hash"]).strip() for row in stored_rows}
+    existing_messages = await asyncio.to_thread(
+        _stored_messages, stored_rows, container.cipher.decrypt
+    )
+    seen = {_message_hash(message) for message in existing_messages}
     new_pairs: list[tuple[str, Message]] = []
     for message in normalized:
         digest = _message_hash(message)
@@ -273,9 +289,6 @@ async def upload(
             seen.add(digest)
             new_pairs.append((digest, message))
 
-    existing_messages = await asyncio.to_thread(
-        _stored_messages, stored_rows, container.cipher.decrypt
-    )
     all_messages = sorted(
         existing_messages + [m for _, m in new_pairs], key=lambda m: m.sent_at
     )
@@ -295,15 +308,19 @@ async def upload(
         }
         for digest, message in new_pairs
     ]
+    changed_week_starts = {
+        week_start_of(row["sent_at"].date()) for row in new_rows
+    }
+    weeks_to_update = [w for w in weeks if w["week_start"] in changed_week_starts]
     try:
         result = await container.postgres.apply_upload(
             couple_id,
             user_id=user.user_id,
-            base_hashes=existing_hashes,
+            base_hashes=stored_db_hashes,
             kakao_names=mapping,
             new_messages=new_rows,
             sessions=sessions,
-            weeks=weeks,
+            weeks=weeks_to_update,
         )
     except RepositoryError as exc:
         code_status = (

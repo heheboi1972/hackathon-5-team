@@ -9,6 +9,25 @@ from uuid import uuid4
 from ..models.report import InterpretInput, SafetyInput, SelectInput, SuggestInput
 from ..services.metrics import agent_metric_input
 
+SELECTABLE_AGENT_METRICS = frozenset(
+    {
+        "question_rate",
+        "message_length_median",
+        "reply_gap_median_min",
+        "resume_delay_median_min",
+        "session_length_median",
+    }
+)
+_OUTLIER_METRIC_ALIASES = {
+    "reply_gap": "reply_gap_median_min",
+    "resume_delay": "resume_delay_median_min",
+    "session_length": "session_length_median",
+}
+
+
+def canonical_agent_metric(metric: str) -> str | None:
+    canonical = _OUTLIER_METRIC_ALIASES.get(metric, metric)
+    return canonical if canonical in SELECTABLE_AGENT_METRICS else None
 
 class ReportGenerationError(RuntimeError):
     def __init__(self, message: str, *, trace_id: str, execution_trace: list[dict[str, Any]]):
@@ -26,11 +45,14 @@ def _step(name: str, status: str, input_summary: dict[str, Any] | None = None,
 def _outlier_signals(outliers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     signals = []
     for index, item in enumerate(outliers):
+        metric = canonical_agent_metric(str(item.get("metric", "")))
+        if metric is None:
+            continue
         direction = item.get("direction")
         if direction not in {"high", "low", "up", "down"}:
             continue
         signals.append({
-            "metric": item.get("metric", "outlier"),
+            "metric": metric,
             "direction": "up" if direction in {"high", "up"} else "down",
             "magnitude": "clear", "comparable": True,
             "outlier_ref": f"outlier:{index}",
