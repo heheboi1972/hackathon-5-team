@@ -1,6 +1,6 @@
 // 역할: 온보딩 — 가입 → 초대코드 → 수락대기 → 수락 (참조: FR-000, FR-001, TRD §6.1) — 시여 담당
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, setToken } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -8,24 +8,30 @@ import Card from "../components/Card";
 import type {
   AuthResponse,
   ConfirmResponse,
+  CoupleMeResponse,
   InviteResponse,
   JoinResponse,
+  LoginRequest,
   SignupRequest,
 } from "../api/types";
 
 type OnboardingStage = "signup" | "invite" | "awaiting" | "active";
+type AuthMode = "signup" | "login";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "요청을 처리하지 못했어요.";
 }
 
 export default function Onboarding() {
+  const navigate = useNavigate();
   const [stage, setStage] = useState<OnboardingStage>("signup");
+  const [authMode, setAuthMode] = useState<AuthMode>("signup");
   const [form, setForm] = useState<SignupRequest>({
     email: "",
     password: "",
     display_name: "",
   });
+  const [loginForm, setLoginForm] = useState<LoginRequest>({ email: "", password: "" });
   const [invite, setInvite] = useState<InviteResponse | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [coupleId, setCoupleId] = useState<string | null>(null);
@@ -34,6 +40,24 @@ export default function Onboarding() {
 
   const updateForm = (field: keyof SignupRequest, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateLoginForm = (field: keyof LoginRequest, value: string) => {
+    setLoginForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const goToNextStageAfterAuth = async () => {
+    const me = await api.get<CoupleMeResponse>("/api/couples/me");
+    if (me.status === "active") {
+      navigate("/", { replace: true });
+      return;
+    }
+    if (me.couple_id && me.status === "awaiting_confirm") {
+      setCoupleId(me.couple_id);
+      setStage("awaiting");
+      return;
+    }
+    setStage("invite");
   };
 
   const signup = async (event: FormEvent<HTMLFormElement>) => {
@@ -64,6 +88,35 @@ export default function Onboarding() {
       });
       setToken(result.token);
       setStage("invite");
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const login = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = loginForm.email.trim();
+
+    if (!email.includes("@")) {
+      setError("이메일 주소를 입력해주세요.");
+      return;
+    }
+    if (loginForm.password.length < 1) {
+      setError("비밀번호를 입력해주세요.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const result = await api.post<AuthResponse>("/api/auth/login", {
+        email,
+        password: loginForm.password,
+      });
+      setToken(result.token);
+      await goToNextStageAfterAuth();
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -160,54 +213,105 @@ export default function Onboarding() {
 
       {stage === "signup" && (
         <Card>
-          <div className="mb-5 space-y-1">
-            <Badge tone="neutral">1단계</Badge>
-            <h2 className="text-lg font-semibold">계정 만들기</h2>
-            <p className="text-sm text-gray-600">리포트를 확인할 계정 정보를 입력해주세요.</p>
+          <div className="mb-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <Badge tone="neutral">1단계</Badge>
+              <h2 className="text-lg font-semibold">
+                {authMode === "signup" ? "계정 만들기" : "로그인"}
+              </h2>
+              <p className="text-sm text-gray-600">
+                {authMode === "signup"
+                  ? "리포트를 확인할 계정 정보를 입력해주세요."
+                  : "가입할 때 사용한 이메일과 비밀번호를 입력해주세요."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode(authMode === "signup" ? "login" : "signup");
+                setError(null);
+              }}
+              className="shrink-0 text-sm font-medium text-rose-600 hover:underline"
+            >
+              {authMode === "signup" ? "이미 계정이 있어요" : "처음이에요"}
+            </button>
           </div>
-          <form className="space-y-4" onSubmit={signup}>
-            <label className="block space-y-1 text-sm font-medium text-gray-700">
-              이메일
-              <input
-                type="email"
-                value={form.email}
-                onChange={(event) => updateForm("email", event.target.value)}
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
-                required
-              />
-            </label>
-            <label className="block space-y-1 text-sm font-medium text-gray-700">
-              비밀번호
-              <input
-                type="password"
-                value={form.password}
-                onChange={(event) => updateForm("password", event.target.value)}
-                autoComplete="new-password"
-                minLength={8}
-                placeholder="8자 이상"
-                className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
-                required
-              />
-            </label>
-            <label className="block space-y-1 text-sm font-medium text-gray-700">
-              표시 이름
-              <input
-                type="text"
-                value={form.display_name}
-                onChange={(event) => updateForm("display_name", event.target.value)}
-                autoComplete="name"
-                maxLength={20}
-                placeholder="1~20자"
-                className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
-                required
-              />
-            </label>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "가입 중…" : "가입하고 계속하기"}
-            </Button>
-          </form>
+
+          {authMode === "signup" ? (
+            <form className="space-y-4" onSubmit={signup}>
+              <label className="block space-y-1 text-sm font-medium text-gray-700">
+                이메일
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => updateForm("email", event.target.value)}
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  required
+                />
+              </label>
+              <label className="block space-y-1 text-sm font-medium text-gray-700">
+                비밀번호
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(event) => updateForm("password", event.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  placeholder="8자 이상"
+                  className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  required
+                />
+              </label>
+              <label className="block space-y-1 text-sm font-medium text-gray-700">
+                표시 이름
+                <input
+                  type="text"
+                  value={form.display_name}
+                  onChange={(event) => updateForm("display_name", event.target.value)}
+                  autoComplete="name"
+                  maxLength={20}
+                  placeholder="1~20자"
+                  className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  required
+                />
+              </label>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "가입 중…" : "가입하고 계속하기"}
+              </Button>
+            </form>
+          ) : (
+            <form className="space-y-4" onSubmit={login}>
+              <label className="block space-y-1 text-sm font-medium text-gray-700">
+                이메일
+                <input
+                  type="email"
+                  value={loginForm.email}
+                  onChange={(event) => updateLoginForm("email", event.target.value)}
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  required
+                />
+              </label>
+              <label className="block space-y-1 text-sm font-medium text-gray-700">
+                비밀번호
+                <input
+                  type="password"
+                  value={loginForm.password}
+                  onChange={(event) => updateLoginForm("password", event.target.value)}
+                  autoComplete="current-password"
+                  placeholder="비밀번호"
+                  className="w-full rounded border px-3 py-2 font-normal outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  required
+                />
+              </label>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "로그인 중…" : "로그인"}
+              </Button>
+            </form>
+          )}
         </Card>
       )}
 

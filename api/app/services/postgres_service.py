@@ -275,12 +275,12 @@ class PostgresService:
                        (SELECT count(*) FROM weekly_metrics w WHERE w.couple_id=c.couple_id) AS weeks_available,
                        (SELECT count(*) FROM messages m WHERE m.couple_id=c.couple_id) AS message_count,
                        j.job_id AS active_job_id, j.kind AS active_job_kind,
-                       j.progress_done AS active_job_done, j.progress_total AS active_job_total
+                       j.done AS active_job_done, j.total AS active_job_total
                   FROM couples c
                   JOIN users ua ON ua.user_id = c.user_a
                   LEFT JOIN users ub ON ub.user_id = c.user_b
                   LEFT JOIN LATERAL (
-                    SELECT job_id, kind, progress_done, progress_total FROM jobs
+                    SELECT job_id, kind, done, total FROM jobs
                      WHERE couple_id=c.couple_id AND status IN ('queued','running')
                      ORDER BY created_at DESC LIMIT 1
                   ) j ON true
@@ -568,7 +568,7 @@ class PostgresService:
             row = await (
                 await conn.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    INSERT INTO jobs (couple_id, kind, status, total, payload)
                     VALUES (%s, %s, %s, %s, %s) RETURNING job_id
                     """,
                     (couple_id, kind, initial, total, Jsonb(payload or {})),
@@ -586,8 +586,8 @@ class PostgresService:
             await cur.execute(
                 """
                 SELECT j.job_id, j.kind, j.status,
-                       j.progress_total AS total, j.progress_done AS done,
-                       j.progress_failed AS failed, j.current_week
+                       j.total AS total, j.done AS done,
+                       j.failed AS failed, j.current_week
                   FROM jobs j JOIN couples c ON c.couple_id=j.couple_id
                  WHERE j.job_id=%s AND (c.user_a=%s OR c.user_b=%s)
                 """,
@@ -628,7 +628,7 @@ class PostgresService:
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                UPDATE jobs SET progress_done=%s, progress_failed=%s,
+                UPDATE jobs SET done=%s, failed=%s,
                        current_week=%s, updated_at=now()
                  WHERE job_id=%s
                 """,
@@ -641,8 +641,8 @@ class PostgresService:
                 """
                 UPDATE jobs
                    SET status=%s, error=%s,
-                       progress_done=CASE WHEN %s IS NULL THEN progress_total ELSE progress_done END,
-                       progress_failed=CASE WHEN %s IS NULL THEN progress_failed ELSE greatest(progress_failed, 1) END,
+                       done=CASE WHEN %s::text IS NULL THEN total ELSE done END,
+                       failed=CASE WHEN %s::text IS NULL THEN failed ELSE greatest(failed, 1) END,
                        updated_at=now()
                  WHERE job_id=%s
                 """,
@@ -652,7 +652,7 @@ class PostgresService:
     async def set_job_total(self, job_id: UUID, total: int) -> None:
         async with self.pool.connection() as conn:
             await conn.execute(
-                "UPDATE jobs SET progress_total=%s, updated_at=now() WHERE job_id=%s",
+                "UPDATE jobs SET total=%s, updated_at=now() WHERE job_id=%s",
                 (total, job_id),
             )
 
@@ -1246,7 +1246,7 @@ class PostgresService:
                 report_total = len(changed)
                 await cur.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    INSERT INTO jobs (couple_id, kind, status, total, payload)
                     VALUES (%s,'embed_sessions',%s,%s,'{}'::jsonb) RETURNING job_id
                     """,
                     (couple_id, "queued" if embed_total else "done", embed_total),
@@ -1254,7 +1254,7 @@ class PostgresService:
                 embed_job_id = (await cur.fetchone())[0]
                 await cur.execute(
                     """
-                    INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                    INSERT INTO jobs (couple_id, kind, status, total, payload)
                     VALUES (%s,'report_backfill',%s,%s,%s) RETURNING job_id
                     """,
                     (couple_id, "queued" if report_total else "done", report_total,
@@ -1265,7 +1265,7 @@ class PostgresService:
                 if new_messages:
                     await cur.execute(
                         """
-                        INSERT INTO jobs (couple_id, kind, status, progress_total, payload)
+                        INSERT INTO jobs (couple_id, kind, status, total, payload)
                         VALUES (%s,'build_lexicon','queued',1,'{}'::jsonb)
                         """,
                         (couple_id,),

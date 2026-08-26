@@ -1,4 +1,4 @@
-"""실제 PostgreSQL 컬럼(report_json/progress_*)을 사용하는 report repository 검증."""
+"""실제 PostgreSQL 컬럼(report_json/jobs.total,done,failed)을 사용하는 report repository 검증."""
 
 import asyncio
 from datetime import date
@@ -43,8 +43,8 @@ async def _run():
             await conn.execute("""
                 CREATE TABLE jobs (
                   job_id uuid PRIMARY KEY DEFAULT gen_random_uuid(), couple_id uuid,
-                  kind text, status text, progress_total int DEFAULT 0,
-                  progress_done int DEFAULT 0, progress_failed int DEFAULT 0,
+                  kind text, status text, total int DEFAULT 0,
+                  done int DEFAULT 0, failed int DEFAULT 0,
                   current_week date, payload jsonb DEFAULT '{}', error text,
                   created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now())""")
             await conn.execute(

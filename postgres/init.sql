@@ -119,11 +119,11 @@ CREATE TABLE pokes (
 -- append-only: 한 번 분류된 term 은 재분류하지 않음 (재현성). seed 는 공용 시드 사전, llm 은 build_lexicon 잡
 CREATE TABLE couple_lexicon (
     couple_id UUID NOT NULL REFERENCES couples(couple_id) ON DELETE CASCADE,
-    term      VARCHAR(50) NOT NULL,
+    surface   VARCHAR(50) NOT NULL,
     canonical VARCHAR(50) NOT NULL,                  -- 철자 변형만 묶음 (조아→좋아). 동의어는 분리
-    polarity  VARCHAR(8)  NOT NULL CHECK (polarity IN ('pos','neg','neutral','exclude')),
+    sentiment VARCHAR(8)  NOT NULL CHECK (sentiment IN ('pos','neg','neutral','exclude')),
     source    VARCHAR(8)  NOT NULL DEFAULT 'llm' CHECK (source IN ('seed','llm')),
-    PRIMARY KEY (couple_id, term)
+    PRIMARY KEY (couple_id, surface)
 );
 
 -- 주차·사람별 집계 (평문). 양쪽 저장하되 API 응답은 요청자 본인 것만 (P-3 예외)
@@ -132,7 +132,7 @@ CREATE TABLE weekly_terms (
     week_start DATE NOT NULL,
     sender     CHAR(1) NOT NULL CHECK (sender IN ('a','b')),
     canonical  VARCHAR(50) NOT NULL,
-    polarity   VARCHAR(3) NOT NULL CHECK (polarity IN ('pos','neg')),
+    sentiment  VARCHAR(7) NOT NULL CHECK (sentiment IN ('pos','neg','neutral')),
     count      INTEGER NOT NULL,
     PRIMARY KEY (couple_id, week_start, sender, canonical)
 );
@@ -160,6 +160,7 @@ CREATE TABLE jobs (
     done         INTEGER NOT NULL DEFAULT 0,
     failed       INTEGER NOT NULL DEFAULT 0,
     current_week DATE,
+    payload      JSONB NOT NULL DEFAULT '{}',
     error        TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
