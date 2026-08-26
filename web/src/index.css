@@ -3382,7 +3382,7 @@
 
   .onboarding-page {
     position: relative;
-    min-height: calc(100vh - 4.75rem);
+    min-height: 100vh;
     overflow: hidden;
     isolation: isolate;
   }
@@ -3790,6 +3790,53 @@
   .onboarding-invite-stack { display: grid; gap: 1rem; }
   .onboarding-invite-stack .onboarding-primary-button { min-height: 2.7rem; }
 
+  .onboarding-invite-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .85rem;
+  }
+
+  .onboarding-invite-options button {
+    display: grid;
+    justify-items: start;
+    gap: .4rem;
+    min-width: 0;
+    padding: 1.1rem;
+    border: 1px solid rgba(215, 194, 242, .72);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, .72);
+    color: #665962;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+  }
+
+  .onboarding-invite-options button:hover,
+  .onboarding-invite-options button:focus-visible {
+    border-color: var(--color-coral-400);
+    box-shadow: 0 .7rem 1.5rem rgba(159, 115, 142, .12);
+    transform: translateY(-2px);
+    outline: none;
+  }
+
+  .onboarding-invite-options button > span { color: var(--color-coral-500); font-size: 1.25rem; }
+  .onboarding-invite-options strong { font-size: .9rem; }
+  .onboarding-invite-options small { color: var(--color-muted); font-size: .68rem; line-height: 1.55; }
+
+  .onboarding-back-button {
+    display: block;
+    margin: 1rem auto 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: .72rem;
+    font-weight: 750;
+  }
+
+  .onboarding-back-button:hover { color: var(--color-coral-600); text-decoration: underline; }
+
   .onboarding-invite-code {
     display: grid;
     justify-items: center;
@@ -3974,7 +4021,7 @@
 }
 
 @media (max-width: 680px) {
-  .onboarding-page { min-height: calc(100vh - 4rem); }
+  .onboarding-page { min-height: 100vh; }
   .onboarding-shell { width: min(calc(100% - 1.25rem), 42rem); padding: 1rem 0 3rem; }
   .onboarding-hero { min-height: 25rem; grid-template-columns: 1fr; align-items: start; gap: 0; padding: 1.15rem 1.15rem 0; border-radius: 1.6rem; }
   .onboarding-hero h1 { font-size: clamp(2rem, 10vw, 2.8rem); }
@@ -3984,6 +4031,7 @@
   .onboarding-progress::-webkit-scrollbar { display: none; }
   .onboarding-progress__step { flex: 0 0 6rem; }
   .onboarding-flow { width: 100%; }
+  .onboarding-invite-options { grid-template-columns: 1fr; }
   .onboarding-card { padding: 1.2rem !important; }
   .onboarding-decor-cloud,
   .onboarding-flight-path { display: none; }

@@ -1,5 +1,6 @@
 // 역할: 온보딩 — 가입 → 초대코드 → 즉시 연결 (참조: FR-000, FR-001, TRD §6.1) — 시여 담당
 import { useEffect, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api, getToken, setToken } from "../api/client";
 import Badge from "../components/Badge";
@@ -17,6 +18,7 @@ import type {
 
 type OnboardingStage = "signup" | "invite" | "awaiting" | "active";
 type AuthMode = "signup" | "login";
+type InviteMode = "create" | "join" | null;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "요청을 처리하지 못했어요.";
@@ -24,8 +26,10 @@ function errorMessage(error: unknown): string {
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [stage, setStage] = useState<OnboardingStage>("signup");
-  const [authMode, setAuthMode] = useState<AuthMode>("signup");
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [isRestoringSession, setIsRestoringSession] = useState(() => Boolean(getToken()));
   const [form, setForm] = useState<SignupRequest>({
     email: "",
     password: "",
@@ -33,9 +37,37 @@ export default function Onboarding() {
   });
   const [loginForm, setLoginForm] = useState<LoginRequest>({ email: "", password: "" });
   const [invite, setInvite] = useState<InviteResponse | null>(null);
+  const [inviteMode, setInviteMode] = useState<InviteMode>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isRestoringSession) return;
+
+    let cancelled = false;
+    const restoreSession = async () => {
+      try {
+        const me = await api.get<CoupleMeResponse>("/api/couples/me");
+        if (cancelled) return;
+        if (me.status === "active") navigate("/", { replace: true });
+        else if (me.couple_id && me.status === "awaiting_confirm") setStage("awaiting");
+        else setStage("invite");
+      } catch {
+        if (!cancelled) {
+          setToken(null);
+          queryClient.removeQueries({ queryKey: ["couple-me"] });
+        }
+      } finally {
+        if (!cancelled) setIsRestoringSession(false);
+      }
+    };
+
+    void restoreSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [isRestoringSession, navigate, queryClient]);
 
   useEffect(() => {
     if (!getToken() || (stage !== "invite" && stage !== "awaiting")) return;
@@ -115,6 +147,7 @@ export default function Onboarding() {
         display_name: displayName,
       });
       setToken(result.token);
+      queryClient.removeQueries({ queryKey: ["couple-me"] });
       setStage("invite");
     } catch (requestError) {
       setError(errorMessage(requestError));
@@ -144,6 +177,7 @@ export default function Onboarding() {
         password: loginForm.password,
       });
       setToken(result.token);
+      queryClient.removeQueries({ queryKey: ["couple-me"] });
       await goToNextStageAfterAuth();
     } catch (requestError) {
       setError(errorMessage(requestError));
@@ -352,7 +386,7 @@ export default function Onboarding() {
         </Card>
       )}
 
-        <ol className="onboarding-progress" aria-label="온보딩 진행 단계">
+        {!isRestoringSession && <ol className="onboarding-progress" aria-label="온보딩 진행 단계">
           {[
             ["signup", "가입"],
             ["invite", "초대"],
@@ -377,10 +411,16 @@ export default function Onboarding() {
               </li>
             );
           })}
-        </ol>
+        </ol>}
 
         <div className="onboarding-flow">
-          {stage === "signup" && (
+          {isRestoringSession ? (
+            <Card className="onboarding-card onboarding-state-card">
+              <Badge tone="neutral" className="onboarding-badge">로그인 확인 중</Badge>
+              <h2>이전 로그인을 불러오고 있어요</h2>
+              <p>잠시만 기다려주세요.</p>
+            </Card>
+          ) : stage === "signup" ? (
             <Card className="onboarding-card onboarding-card--signup">
               <div className="onboarding-card__heading">
                 <span className="onboarding-step-icon onboarding-step-icon--pink" aria-hidden="true">♡</span>
@@ -480,11 +520,36 @@ export default function Onboarding() {
                 </form>
               )}
             </Card>
-          )}
+          ) : null}
 
           {stage === "invite" && (
             <div className="onboarding-invite-stack">
-              <Card className="onboarding-card onboarding-card--invite">
+              {inviteMode === null && (
+                <Card className="onboarding-card onboarding-card--invite-choice">
+                  <div className="onboarding-card__heading">
+                    <span className="onboarding-step-icon onboarding-step-icon--lavender" aria-hidden="true">↗</span>
+                    <div>
+                      <Badge tone="neutral" className="onboarding-badge">2단계 · 우리 연결</Badge>
+                      <h2>어떻게 연결할까요?</h2>
+                      <p>한 사람은 코드를 만들고, 다른 사람은 받은 코드를 입력해주세요.</p>
+                    </div>
+                  </div>
+                  <div className="onboarding-invite-options">
+                    <button type="button" onClick={() => setInviteMode("create")}>
+                      <span aria-hidden="true">↗</span>
+                      <strong>초대 코드 만들기</strong>
+                      <small>상대방에게 전달할 코드를 발급해요</small>
+                    </button>
+                    <button type="button" onClick={() => setInviteMode("join")}>
+                      <span aria-hidden="true">♡</span>
+                      <strong>초대 코드 입력하기</strong>
+                      <small>상대방에게 받은 8자리 코드를 입력해요</small>
+                    </button>
+                  </div>
+                </Card>
+              )}
+
+              {inviteMode === "create" && <Card className="onboarding-card onboarding-card--invite">
                 <div className="onboarding-card__heading">
                   <span className="onboarding-step-icon onboarding-step-icon--lavender" aria-hidden="true">↗</span>
                   <div>
@@ -503,9 +568,12 @@ export default function Onboarding() {
                     <span>코드는 7일 동안 유효해요.</span>
                   </div>
                 )}
-              </Card>
+                <button type="button" className="onboarding-back-button" onClick={() => setInviteMode(null)}>
+                  다른 방법 선택
+                </button>
+              </Card>}
 
-              <Card className="onboarding-card onboarding-card--join">
+              {inviteMode === "join" && <Card className="onboarding-card onboarding-card--join">
                 <div className="onboarding-card__heading">
                   <span className="onboarding-step-icon onboarding-step-icon--peach" aria-hidden="true">♡</span>
                   <div>
@@ -528,7 +596,10 @@ export default function Onboarding() {
                     연결 요청
                   </Button>
                 </form>
-              </Card>
+                <button type="button" className="onboarding-back-button" onClick={() => setInviteMode(null)}>
+                  다른 방법 선택
+                </button>
+              </Card>}
             </div>
           )}
 

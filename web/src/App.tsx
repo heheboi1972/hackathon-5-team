@@ -114,11 +114,10 @@ function AppShell() {
 
   return (
     <div className="app-shell">
-      <header className={isOnboarding ? "site-header site-header--minimal" : "site-header"}>
+      {!isOnboarding && <header className="site-header">
         <div className="site-header__inner">
           <BrandLink />
-          {!isOnboarding && (
-            <nav className="site-nav" aria-label="주요 메뉴">
+          <nav className="site-nav" aria-label="주요 메뉴">
               {navigationItems.map((item) => {
                 const isActive = item.matches(pathname);
                 return (
@@ -133,17 +132,14 @@ function AppShell() {
                   </Link>
                 );
               })}
-            </nav>
-          )}
-          {!isOnboarding && (
-            <span className="profile-chip" aria-label="프로필">
+          </nav>
+          <span className="profile-chip" aria-label="프로필">
               <span className="profile-chip__name"></span>
               <span className="profile-chip__chevron" aria-hidden="true">⌄</span>
-            </span>
-          )}
-          {!isOnboarding && (pathname === "/" || pathname.startsWith("/timeline")) && <HomeDday />}
+          </span>
+          {(pathname === "/" || pathname.startsWith("/timeline")) && <HomeDday />}
         </div>
-      </header>
+      </header>}
       <div className="app-shell__content">
         <Routes>
           <Route path="/onboarding" element={<Onboarding />} />
