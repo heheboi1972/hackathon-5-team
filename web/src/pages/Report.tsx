@@ -201,7 +201,7 @@ export default function Report() {
 
   if (isLoading) {
     return (
-      <main className="mx-auto max-w-5xl space-y-4 p-8">
+      <main className="mx-auto max-w-4xl space-y-4 p-6 sm:p-8">
         <Card>
           <p className="text-gray-600">주간 리포트를 불러오는 중이에요…</p>
           <div className="mt-4 h-2 animate-pulse rounded bg-gray-200" />
@@ -212,7 +212,7 @@ export default function Report() {
 
   if (error || !data) {
     return (
-      <main className="mx-auto max-w-5xl p-8">
+      <main className="mx-auto max-w-4xl p-6 sm:p-8">
         <Card className="border-red-200 bg-red-50">
           <Badge>불러오기 실패</Badge>
           <h1 className="mt-2 text-lg font-semibold text-gray-900">리포트를 불러오지 못했어요.</h1>
@@ -230,7 +230,7 @@ export default function Report() {
   );
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-8">
+    <main className="mx-auto max-w-4xl space-y-6 p-6 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <Link to="/timeline" className="text-sm font-medium text-rose-600 hover:underline">← 타임라인으로</Link>
