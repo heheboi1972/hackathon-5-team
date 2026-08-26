@@ -28,17 +28,17 @@
 
 ---
 
-### FR-001: 커플 연결 (상호 동의)
+### FR-001: 커플 연결
 
 **API**: `POST /api/couples/invite`, `POST /api/couples/join`, `POST /api/couples/{id}/confirm`, `GET /api/couples/me`, `DELETE /api/couples/{id}`
 
-**상태 전이**: `pending` → `awaiting_confirm` → `active` → `dissolved`
+**상태 전이**: `pending` → `active` → `dissolved`
 
 **처리 규칙**
 - 한 사용자는 동시에 하나의 `active`/`awaiting_confirm` 커플에만 속한다
 - 초대 코드: 8자, 7일 만료, `pending` 동안 재사용
-- B가 코드 입력 → `awaiting_confirm` → **A가 수락해야** `active` (P-3)
-- A 거절 시 `user_b` 해제, `pending`으로 복귀
+- 상대방이 코드 입력하면 즉시 `active`; 초대자 화면도 상태 확인을 통해 완료로 전환
+- 양쪽이 코드를 발급했어도 한쪽 코드를 입력하면, 입력한 쪽의 미사용 코드는 폐기하고 연결
 - 해제(DELETE) 시 커플의 메시지·세션·지표·리포트·메모·Qdrant 포인트 **즉시 삭제** (P-5)
 - `active` 아니면 업로드·리포트·챗봇 모두 403
 

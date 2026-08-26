@@ -12,8 +12,7 @@ import Settings from "./pages/Settings";
 import Timeline from "./pages/Timeline";
 import Upload from "./pages/Upload";
 
-const USE_MOCK =
-  import.meta.env.VITE_USE_MOCK === "true" || import.meta.env.USE_MOCK === "true";
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const hasToken = Boolean(getToken());

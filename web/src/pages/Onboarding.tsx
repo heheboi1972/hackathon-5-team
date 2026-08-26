@@ -1,7 +1,7 @@
-// 역할: 온보딩 — 가입 → 초대코드 → 수락대기 → 수락 (참조: FR-000, FR-001, TRD §6.1) — 시여 담당
-import { useState, type FormEvent } from "react";
+// 역할: 온보딩 — 가입 → 초대코드 → 즉시 연결 (참조: FR-000, FR-001, TRD §6.1) — 시여 담당
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, setToken } from "../api/client";
+import { api, getToken, setToken } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -37,6 +37,30 @@ export default function Onboarding() {
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!getToken() || (stage !== "invite" && stage !== "awaiting")) return;
+
+    let cancelled = false;
+    const syncConnection = async () => {
+      try {
+        const me = await api.get<CoupleMeResponse>("/api/couples/me");
+        if (cancelled || !me.couple_id || !me.status) return;
+        setCoupleId(me.couple_id);
+        if (me.status === "active") setStage("active");
+        else if (me.status === "awaiting_confirm") setStage("awaiting");
+      } catch {
+        // 연결 완료 확인은 보조 요청이므로, 일시적 오류는 다음 주기에 다시 시도한다.
+      }
+    };
+
+    void syncConnection();
+    const timer = window.setInterval(() => void syncConnection(), 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [stage]);
 
   const updateForm = (field: keyof SignupRequest, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -153,7 +177,7 @@ export default function Onboarding() {
         invite_code: code,
       });
       setCoupleId(result.couple_id);
-      setStage("awaiting");
+      setStage(result.status === "active" ? "active" : "awaiting");
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -193,7 +217,57 @@ export default function Onboarding() {
       </div>
 
       <div className="onboarding-shell">
-      {stage === "signup" && (
+        <header className="onboarding-hero">
+          <div className="onboarding-hero__copy">
+            <p className="onboarding-eyebrow">OUR BEGINNING</p>
+            <h1>우리의 이야기를<br />함께 시작해볼까요?</h1>
+            <p className="onboarding-hero__subtitle">
+              가입하고 초대 코드로 연결하면<br />둘만의 대화 리포트를 준비할 수 있어요.
+            </p>
+            <div className="onboarding-hero__note">
+              <span className="onboarding-hero__note-icon" aria-hidden="true">↗</span>
+              <span>우리만의 기록을<br />차곡차곡 담아요</span>
+            </div>
+          </div>
+
+          <div className="onboarding-hero-art" aria-hidden="true">
+            <svg viewBox="0 0 360 220" role="img">
+              <defs>
+                <linearGradient id="onboardingBubblePink" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0" stopColor="#fff9fc" />
+                  <stop offset="1" stopColor="#ffdce9" />
+                </linearGradient>
+                <linearGradient id="onboardingBubbleLavender" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0" stopColor="#fbf8ff" />
+                  <stop offset="1" stopColor="#e9dbff" />
+                </linearGradient>
+              </defs>
+              <ellipse cx="184" cy="194" rx="118" ry="13" fill="#dfb7d2" opacity=".18" />
+              <path className="onboarding-art-path" d="M73 105c24-30 44-36 70-31 22 4 35 21 43 38" />
+              <path className="onboarding-art-path onboarding-art-path--lavender" d="M191 112c25 1 45-4 70-27 11-10 21-14 32-15" />
+              <circle className="onboarding-art-node onboarding-art-node--pink" cx="72" cy="106" r="8" />
+              <circle className="onboarding-art-node onboarding-art-node--lavender" cx="193" cy="113" r="8" />
+              <circle className="onboarding-art-node onboarding-art-node--peach" cx="293" cy="69" r="7" />
+              <g className="onboarding-art-bubble onboarding-art-bubble--lavender">
+                <path d="M28 48c0-17 14-30 31-30h72c17 0 31 13 31 30v23c0 17-14 30-31 30H82L59 119v-18h0C42 101 28 88 28 71Z" fill="url(#onboardingBubbleLavender)" />
+                <circle cx="69" cy="59" r="5" /><circle cx="95" cy="59" r="5" /><circle cx="121" cy="59" r="5" />
+              </g>
+              <g className="onboarding-art-bubble onboarding-art-bubble--pink">
+                <path d="M198 67c0-17 14-30 31-30h77c17 0 31 13 31 30v24c0 17-14 30-31 30h-42l-24 17v-17h-11c-17 0-31-13-31-30Z" fill="url(#onboardingBubblePink)" />
+                <path d="m243 72 9 9 19-21" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="5" />
+              </g>
+              <g className="onboarding-art-envelope">
+                <rect x="118" y="132" width="68" height="46" rx="10" />
+                <path d="m121 139 31 25 31-25M121 172l21-17M183 172l-21-17" />
+              </g>
+              <path className="onboarding-art-heart" d="M180 32c-8-12-29-5-25 10 3 10 25 25 25 25s22-15 25-25c4-15-17-22-25-10Z" />
+            </svg>
+            <span className="onboarding-art-sparkle onboarding-art-sparkle--one">✦</span>
+            <span className="onboarding-art-sparkle onboarding-art-sparkle--two">✧</span>
+            <span className="onboarding-art-label">two hearts · one story</span>
+          </div>
+        </header>
+      {false && stage === "signup" && (
         <Card>
           <div className="mb-5 flex items-center justify-between">
             <div className="space-y-1">
@@ -331,10 +405,25 @@ export default function Onboarding() {
                 <span className="onboarding-step-icon onboarding-step-icon--pink" aria-hidden="true">♡</span>
                 <div>
                   <Badge tone="neutral" className="onboarding-badge">1단계 · 시작</Badge>
-                  <h2>계정 만들기</h2>
-                  <p>리포트를 확인할 계정 정보를 입력해주세요.</p>
+                  <h2>{authMode === "signup" ? "계정 만들기" : "로그인"}</h2>
+                  <p>
+                    {authMode === "signup"
+                      ? "리포트를 확인할 계정 정보를 입력해주세요."
+                      : "가입할 때 사용한 이메일과 비밀번호를 입력해주세요."}
+                  </p>
                 </div>
               </div>
+              <button
+                type="button"
+                className="onboarding-auth-switch"
+                onClick={() => {
+                  setAuthMode((current) => (current === "signup" ? "login" : "signup"));
+                  setError(null);
+                }}
+              >
+                {authMode === "signup" ? "이미 계정이 있어요" : "처음이에요"}
+              </button>
+              {authMode === "signup" ? (
               <form className="onboarding-form" onSubmit={signup}>
                 <label className="onboarding-field">
                   <span>이메일</span>
@@ -378,6 +467,37 @@ export default function Onboarding() {
                   {isSubmitting ? "가입 중…" : "가입하고 계속하기"}
                 </Button>
               </form>
+              ) : (
+                <form className="onboarding-form" onSubmit={login}>
+                  <label className="onboarding-field">
+                    <span>이메일</span>
+                    <input
+                      type="email"
+                      value={loginForm.email}
+                      onChange={(event) => updateLoginForm("email", event.target.value)}
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      className="onboarding-input"
+                      required
+                    />
+                  </label>
+                  <label className="onboarding-field">
+                    <span>비밀번호</span>
+                    <input
+                      type="password"
+                      value={loginForm.password}
+                      onChange={(event) => updateLoginForm("password", event.target.value)}
+                      autoComplete="current-password"
+                      placeholder="비밀번호"
+                      className="onboarding-input"
+                      required
+                    />
+                  </label>
+                  <Button type="submit" className="onboarding-primary-button w-full" disabled={isSubmitting}>
+                    {isSubmitting ? "로그인 중…" : "로그인"}
+                  </Button>
+                </form>
+              )}
             </Card>
           )}
 

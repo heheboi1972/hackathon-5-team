@@ -14,7 +14,7 @@ CREATE TABLE users (
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
--- 상태 전이: pending(코드 발급) → awaiting_confirm(B 입력) → active(A 수락) → dissolved (API_SPEC §2)
+-- 상태 전이: pending(코드 발급) → active(상대방 코드 입력) → dissolved (API_SPEC §2)
 CREATE TABLE couples (
     couple_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_a            UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

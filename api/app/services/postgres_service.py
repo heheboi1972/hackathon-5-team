@@ -100,7 +100,7 @@ class PostgresService:
                       FROM couples
                      WHERE (user_a = u.user_id OR user_b = u.user_id)
                        AND status <> 'dissolved'
-                     ORDER BY created_at DESC
+                     ORDER BY (status = 'active') DESC, created_at DESC
                      LIMIT 1
                   ) c ON true
                  WHERE u.user_id = %s
@@ -173,8 +173,22 @@ class PostgresService:
 
     async def join_invite(self, user_id: UUID, invite_code: str) -> dict[str, Any]:
         async with self.pool.connection() as conn, conn.transaction():
-            await self._lock(conn, user_id)
             async with conn.cursor(row_factory=dict_row) as cur:
+                # 서로의 코드를 동시에 입력해도, 두 사용자 lock을 같은 순서로 잡는다.
+                await cur.execute(
+                    """
+                    SELECT couple_id, user_a FROM couples WHERE invite_code = %s
+                    """,
+                    (invite_code.upper(),),
+                )
+                invite = await cur.fetchone()
+                if not invite:
+                    raise RepositoryError(
+                        "INVITE_INVALID", "유효하지 않은 초대 코드입니다"
+                    )
+                for lock_user_id in sorted((user_id, invite["user_a"]), key=str):
+                    await self._lock(conn, lock_user_id)
+
                 await cur.execute(
                     """
                     SELECT c.couple_id, c.user_a, c.status, c.invite_expires_at,
@@ -202,10 +216,21 @@ class PostgresService:
                         "INVITE_STATE", "참여할 수 없는 초대 상태입니다"
                     )
 
+                # 양쪽이 모두 코드를 발급했어도, 코드를 입력한 쪽의 미사용 초대는
+                # 폐기하고 선택한 초대로 연결한다.
+                await cur.execute(
+                    """
+                    UPDATE couples
+                       SET status = 'dissolved', invite_code = NULL, invite_expires_at = NULL
+                     WHERE user_a = %s AND status = 'pending' AND couple_id <> %s
+                    """,
+                    (user_id, invite["couple_id"]),
+                )
                 await cur.execute(
                     """
                     SELECT 1 FROM couples
-                     WHERE (user_a = %s OR user_b = %s) AND status <> 'dissolved'
+                     WHERE (user_a = %s OR user_b = %s)
+                       AND status IN ('active', 'awaiting_confirm')
                      LIMIT 1
                     """,
                     (user_id, user_id),
@@ -217,7 +242,12 @@ class PostgresService:
 
                 await cur.execute(
                     """
-                    UPDATE couples SET user_b = %s, status = 'awaiting_confirm'
+                    UPDATE couples
+                       SET user_b = %s,
+                           status = 'active',
+                           started_at = COALESCE(started_at, CURRENT_DATE),
+                           invite_code = NULL,
+                           invite_expires_at = NULL
                      WHERE couple_id = %s AND status = 'pending'
                      RETURNING couple_id, status
                     """,
@@ -290,7 +320,7 @@ class PostgresService:
                      ORDER BY created_at DESC LIMIT 1
                   ) j ON true
                  WHERE (c.user_a=%s OR c.user_b=%s) AND c.status <> 'dissolved'
-                 ORDER BY c.created_at DESC LIMIT 1
+                 ORDER BY (c.status = 'active') DESC, c.created_at DESC LIMIT 1
                 """,
                 (user_id, user_id, user_id),
             )
