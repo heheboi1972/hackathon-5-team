@@ -181,6 +181,8 @@ export async function request<T>(
     method: normalizedMethod,
     headers,
     body: opts.form ?? (body !== undefined ? JSON.stringify(body) : undefined),
+    // 커플 연결 상태처럼 즉시 반영되어야 하는 인증 API 응답을 브라우저가 재사용하지 않게 한다.
+    cache: "no-store",
   });
 
   if (resp.status === 204) return undefined as T;
