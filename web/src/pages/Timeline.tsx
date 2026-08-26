@@ -58,22 +58,22 @@ function EnvelopeIllustration() {
       <svg className="timeline-envelope" viewBox="0 0 250 180" role="img" aria-label="편지와 하트가 담긴 봉투 일러스트">
         <defs>
           <linearGradient id="envelope-paper" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#fffdfd" />
-            <stop offset="1" stopColor="#fff2f7" />
+            <stop offset="0" stopColor="#fffdf8" />
+            <stop offset="1" stopColor="#f6e4e3" />
           </linearGradient>
           <linearGradient id="envelope-flap" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ffadc2" />
-            <stop offset="1" stopColor="#ff78a3" />
+            <stop offset="0" stopColor="#d6c9e1" />
+            <stop offset="1" stopColor="#b66f7c" />
           </linearGradient>
         </defs>
-        <path d="M9 112c25-24 43-31 61-27 18 4 25 20 43 19 22-1 29-27 58-30 21-2 38 7 57 26" fill="none" stroke="#ffb3c1" strokeDasharray="3 7" strokeLinecap="round" strokeWidth="2" opacity=".62" />
-        <path d="M41 57c0-8 6-14 14-14h140c8 0 14 6 14 14v82c0 8-6 14-14 14H55c-8 0-14-6-14-14Z" fill="url(#envelope-paper)" stroke="#ffb3c1" strokeWidth="3" />
-        <path d="m43 61 75 56c4 3 10 3 14 0l75-56" fill="#ffe8f0" stroke="#ffb3c1" strokeWidth="3" />
-        <path d="m43 139 61-51 14 11c4 3 10 3 14 0l14-11 61 51" fill="#fff4f8" stroke="#ffb3c1" strokeWidth="3" />
-        <path d="M53 48h144c6 0 11 5 11 11l-65 49c-4 3-10 3-14 0L42 59c0-6 5-11 11-11Z" fill="url(#envelope-flap)" stroke="#ff9db7" strokeWidth="3" />
-        <path d="M104 77h42v45h-42z" rx="4" fill="#fffdfd" stroke="#f7c0d1" strokeWidth="2" transform="rotate(-6 125 99)" />
-        <path d="M125 111c-13-8-17-14-13-19 3-4 8-3 13 2 5-5 10-6 13-2 4 5 0 11-13 19Z" fill="#ff78a3" />
-        <path d="M113 128h28M118 134h18" stroke="#f2bfd0" strokeLinecap="round" strokeWidth="2" />
+        <path d="M9 112c25-24 43-31 61-27 18 4 25 20 43 19 22-1 29-27 58-30 21-2 38 7 57 26" fill="none" stroke="#d8b86a" strokeDasharray="3 7" strokeLinecap="round" strokeWidth="2" opacity=".62" />
+        <path d="M41 57c0-8 6-14 14-14h140c8 0 14 6 14 14v82c0 8-6 14-14 14H55c-8 0-14-6-14-14Z" fill="url(#envelope-paper)" stroke="#c8878d" strokeWidth="3" />
+        <path d="m43 61 75 56c4 3 10 3 14 0l75-56" fill="#fbf2f0" stroke="#c8878d" strokeWidth="3" />
+        <path d="m43 139 61-51 14 11c4 3 10 3 14 0l14-11 61 51" fill="#fffdf8" stroke="#c8878d" strokeWidth="3" />
+        <path d="M53 48h144c6 0 11 5 11 11l-65 49c-4 3-10 3-14 0L42 59c0-6 5-11 11-11Z" fill="url(#envelope-flap)" stroke="#9f5969" strokeWidth="3" />
+        <path d="M104 77h42v45h-42z" rx="4" fill="#fffdf8" stroke="#e8c5c4" strokeWidth="2" transform="rotate(-6 125 99)" />
+        <path d="M125 111c-13-8-17-14-13-19 3-4 8-3 13 2 5-5 10-6 13-2 4 5 0 11-13 19Z" fill="#b66f7c" />
+        <path d="M113 128h28M118 134h18" stroke="#dba1a1" strokeLinecap="round" strokeWidth="2" />
       </svg>
     </div>
   );
@@ -151,9 +151,9 @@ export default function Timeline() {
       </div>
       <header className="timeline-hero">
         <div className="timeline-hero__copy">
-          <span className="timeline-eyebrow">OUR WEEKLY STORY</span>
-          <h1>이번 주 우리 대화는<br /><span>어땠을까요?</span></h1>
-          <p>서로의 이야기가 쌓여 우리의 기록이 돼요</p>
+          <span className="timeline-eyebrow">칠월칠석, 우리의 이야기</span>
+          <h1>견우와 직녀처럼,<br /><span>우리의 이야기를 이어가요</span></h1>
+          <p>서로의 대화가 쌓여<br />우리만의 이야기가 됩니다.</p>
         </div>
         <div className="timeline-hero__aside">
           <EnvelopeIllustration />

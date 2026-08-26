@@ -52,25 +52,25 @@ function SettingsIllustration() {
       <span className="settings-hero-art__sparkle settings-hero-art__sparkle--one">✦</span>
       <span className="settings-hero-art__sparkle settings-hero-art__sparkle--two">✦</span>
       <svg className="settings-hero-art__svg" viewBox="0 0 360 230" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="188" cy="205" rx="132" ry="18" fill="#EADCF7" fillOpacity=".62" />
-        <rect x="82" y="54" width="180" height="126" rx="24" fill="#FFFDFD" stroke="#F5B8CB" strokeWidth="3" />
+        <ellipse cx="188" cy="205" rx="132" ry="18" fill="#D6C9E1" fillOpacity=".62" />
+        <rect x="82" y="54" width="180" height="126" rx="24" fill="#FFFDF8" stroke="#C8878D" strokeWidth="3" />
         <rect x="101" y="75" width="142" height="79" rx="15" fill="url(#settings-card-gradient)" />
-        <circle cx="139" cy="110" r="19" fill="#FFE2EB" />
-        <path d="M130 111.5C130 106.8 133.8 103 138.5 103C143.2 103 147 106.8 147 111.5C147 116.2 143.2 120 138.5 120C133.8 120 130 116.2 130 111.5Z" fill="#FF8CAC" />
-        <path d="M124 140C126.6 131.7 132 127.5 138.5 127.5C145 127.5 150.4 131.7 153 140" stroke="#FF8CAC" strokeWidth="4" strokeLinecap="round" />
-        <rect x="169" y="98" width="52" height="8" rx="4" fill="#D6C1F3" />
-        <rect x="169" y="114" width="39" height="7" rx="3.5" fill="#F7C7B1" />
-        <rect x="169" y="129" width="47" height="7" rx="3.5" fill="#F8D9E3" />
-        <circle cx="273" cy="139" r="28" fill="#F0E5FF" stroke="#C9ADEB" strokeWidth="3" />
-        <path d="M273 121V127M273 151V157M255 139H261M285 139H291M260.3 126.3L264.5 130.5M281.5 147.5L285.7 151.7M285.7 126.3L281.5 130.5M264.5 147.5L260.3 151.7" stroke="#A98AD7" strokeWidth="3" strokeLinecap="round" />
-        <circle cx="273" cy="139" r="11" fill="#FFFDFD" stroke="#A98AD7" strokeWidth="3" />
-        <path d="M273 133V139L277 142" stroke="#A98AD7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M76 49C76 42.4 81.4 37 88 37C94.6 37 100 42.4 100 49C100 55.6 94.6 61 88 61C81.4 61 76 55.6 76 49Z" fill="#FFC9AD" fillOpacity=".72" />
-        <path d="M88 43V55M82 49H94" stroke="#D88D6E" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="139" cy="110" r="19" fill="#F6E4E3" />
+        <path d="M130 111.5C130 106.8 133.8 103 138.5 103C143.2 103 147 106.8 147 111.5C147 116.2 143.2 120 138.5 120C133.8 120 130 116.2 130 111.5Z" fill="#B66F7C" />
+        <path d="M124 140C126.6 131.7 132 127.5 138.5 127.5C145 127.5 150.4 131.7 153 140" stroke="#B66F7C" strokeWidth="4" strokeLinecap="round" />
+        <rect x="169" y="98" width="52" height="8" rx="4" fill="#9AAABD" />
+        <rect x="169" y="114" width="39" height="7" rx="3.5" fill="#DFC19F" />
+        <rect x="169" y="129" width="47" height="7" rx="3.5" fill="#E8C5C4" />
+        <circle cx="273" cy="139" r="28" fill="#EAE3F1" stroke="#9AAABD" strokeWidth="3" />
+        <path d="M273 121V127M273 151V157M255 139H261M285 139H291M260.3 126.3L264.5 130.5M281.5 147.5L285.7 151.7M285.7 126.3L281.5 130.5M264.5 147.5L260.3 151.7" stroke="#7891A6" strokeWidth="3" strokeLinecap="round" />
+        <circle cx="273" cy="139" r="11" fill="#FFFDF8" stroke="#7891A6" strokeWidth="3" />
+        <path d="M273 133V139L277 142" stroke="#7891A6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M76 49C76 42.4 81.4 37 88 37C94.6 37 100 42.4 100 49C100 55.6 94.6 61 88 61C81.4 61 76 55.6 76 49Z" fill="#F3E2CD" fillOpacity=".72" />
+        <path d="M88 43V55M82 49H94" stroke="#B28A42" strokeWidth="2.5" strokeLinecap="round" />
         <defs>
           <linearGradient id="settings-card-gradient" x1="101" y1="75" x2="243" y2="154" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#FFF0F4" />
-            <stop offset="1" stopColor="#F2EBFF" />
+            <stop stopColor="#F6E4E3" />
+            <stop offset="1" stopColor="#EAE3F1" />
           </linearGradient>
         </defs>
       </svg>
@@ -86,12 +86,12 @@ function SettingsHero({ status }: { status?: string }) {
   return (
     <header className="settings-hero">
       <div className="settings-hero__copy">
-        <span className="settings-eyebrow">OUR LITTLE SPACE</span>
+        <span className="settings-eyebrow">칠월칠석, 우리의 설정</span>
         <div className="settings-hero__title-row">
           <h1>
-            우리의 공간을
+            우리의 이야기를
             <br />
-            편안하게 설정해요
+            차분히 정리해요
           </h1>
           {status && <Badge tone="neutral">{status}</Badge>}
         </div>
@@ -246,7 +246,7 @@ export default function Settings() {
       <SettingsHero status={statusLabel(data.status)} />
 
       <section className="grid gap-4 md:grid-cols-2" aria-label="계정 및 커플 정보">
-        <Card className="settings-card settings-card--pink">
+        <Card className="settings-card settings-card--pink settings-card--account">
           <div className="settings-card__heading">
             <span className="settings-icon settings-icon--pink" aria-hidden="true">♡</span>
             <div>
@@ -302,7 +302,7 @@ export default function Settings() {
         </Card>
       </section>
 
-      <Card className="settings-card settings-card--pink">
+      <Card className="settings-card settings-card--pink settings-card--first-met">
         <div className="settings-card__heading">
           <span className="settings-icon settings-icon--pink" aria-hidden="true">♡</span>
           <div>

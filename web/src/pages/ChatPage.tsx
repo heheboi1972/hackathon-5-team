@@ -26,24 +26,24 @@ function ChatIllustration() {
       <svg className="chat-hero-art__phone" viewBox="0 0 270 170" role="img" aria-label="말풍선과 검색 아이콘이 있는 대화 기억 일러스트">
         <defs>
           <linearGradient id="chat-phone-shell" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#d9c6ff" />
-            <stop offset="1" stopColor="#ad8deb" />
+            <stop offset="0" stopColor="#d6c9e1" />
+            <stop offset="1" stopColor="#7891a6" />
           </linearGradient>
           <linearGradient id="chat-phone-screen" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#fffefe" />
-            <stop offset="1" stopColor="#fff0f5" />
+            <stop offset="0" stopColor="#fffdf8" />
+            <stop offset="1" stopColor="#f6e4e3" />
           </linearGradient>
         </defs>
-        <path d="M16 124c30-24 52-31 72-24 17 6 26 23 45 20 23-3 29-26 56-29 25-3 43 7 65 27" fill="none" stroke="#ffadc2" strokeWidth="2" strokeDasharray="3 7" />
-        <rect x="56" y="22" width="143" height="124" rx="20" fill="url(#chat-phone-shell)" stroke="#9877d0" strokeWidth="2.5" transform="rotate(-5 127 84)" />
-        <rect x="67" y="35" width="121" height="97" rx="12" fill="url(#chat-phone-screen)" stroke="#f2b4c5" strokeWidth="2" transform="rotate(-5 127 84)" />
-        <path d="M81 58h50a9 9 0 0 1 9 9v9a9 9 0 0 1-9 9H99l-8 6v-6h-10a9 9 0 0 1-9-9v-9a9 9 0 0 1 9-9Z" fill="#ffe1eb" stroke="#f28aaa" strokeWidth="1.8" transform="rotate(-5 104 74)" />
-        <path d="M111 91h50a9 9 0 0 1 9 9v9a9 9 0 0 1-9 9h-32l-8 6v-6h-10a9 9 0 0 1-9-9v-9a9 9 0 0 1 9-9Z" fill="#eee5ff" stroke="#b49be8" strokeWidth="1.8" transform="rotate(-5 136 105)" />
-        <path d="M104 73h19M126 73h8M129 105h22M126 105h-5" stroke="#ad7890" strokeWidth="2" strokeLinecap="round" transform="rotate(-5 127 84)" />
-        <circle cx="206" cy="47" r="19" fill="#fffaf0" stroke="#efb08b" strokeWidth="2" />
-        <circle cx="202" cy="43" r="6.5" fill="none" stroke="#d58d69" strokeWidth="2.2" />
-        <path d="m207 48 7 7" stroke="#d58d69" strokeWidth="2.2" strokeLinecap="round" />
-        <path d="M170 27h13" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" opacity=".8" />
+        <path d="M16 124c30-24 52-31 72-24 17 6 26 23 45 20 23-3 29-26 56-29 25-3 43 7 65 27" fill="none" stroke="#d8b86a" strokeWidth="2" strokeDasharray="3 7" />
+        <rect x="56" y="22" width="143" height="124" rx="20" fill="url(#chat-phone-shell)" stroke="#7891a6" strokeWidth="2.5" transform="rotate(-5 127 84)" />
+        <rect x="67" y="35" width="121" height="97" rx="12" fill="url(#chat-phone-screen)" stroke="#c8878d" strokeWidth="2" transform="rotate(-5 127 84)" />
+        <path d="M81 58h50a9 9 0 0 1 9 9v9a9 9 0 0 1-9 9H99l-8 6v-6h-10a9 9 0 0 1-9-9v-9a9 9 0 0 1 9-9Z" fill="#fbf2f0" stroke="#b66f7c" strokeWidth="1.8" transform="rotate(-5 104 74)" />
+        <path d="M111 91h50a9 9 0 0 1 9 9v9a9 9 0 0 1-9 9h-32l-8 6v-6h-10a9 9 0 0 1-9-9v-9a9 9 0 0 1 9-9Z" fill="#eae3f1" stroke="#7891a6" strokeWidth="1.8" transform="rotate(-5 136 105)" />
+        <path d="M104 73h19M126 73h8M129 105h22M126 105h-5" stroke="#814655" strokeWidth="2" strokeLinecap="round" transform="rotate(-5 127 84)" />
+        <circle cx="206" cy="47" r="19" fill="#fffdf8" stroke="#d8b86a" strokeWidth="2" />
+        <circle cx="202" cy="43" r="6.5" fill="none" stroke="#b28a42" strokeWidth="2.2" />
+        <path d="m207 48 7 7" stroke="#b28a42" strokeWidth="2.2" strokeLinecap="round" />
+        <path d="M170 27h13" stroke="#fffdf8" strokeWidth="2.5" strokeLinecap="round" opacity=".8" />
       </svg>
     </div>
   );
@@ -71,9 +71,9 @@ export default function ChatPage() {
         </nav>
         <header className="chat-hero">
           <div className="chat-hero__copy">
-            <span className="chat-eyebrow">OUR CHAT MEMORY</span>
-            <h1>우리의 대화를<br /><span>다시 찾아봐요</span></h1>
-            <p>기억하고 싶은 대화나 궁금한 순간을 편하게 물어보세요.</p>
+            <span className="chat-eyebrow">칠월칠석, 우리 대화 속 이야기</span>
+            <h1>우리의 대화 속에서<br /><span>기억을 찾아볼까요</span></h1>
+            <p>궁금했던 순간을 물어보면<br />우리의 기록 속에서 함께 찾아드려요.</p>
           </div>
           <div className="chat-hero__aside"><ChatIllustration /></div>
         </header>
