@@ -43,26 +43,28 @@ function EnvelopeIllustration() {
       <svg className="timeline-home-characters" viewBox="0 0 250 180" aria-hidden="true">
         <path d="M13 143c28-7 48-8 66-2M171 141c25-7 47-7 68 0" fill="none" stroke="#c6ace8" strokeDasharray="2 5" strokeLinecap="round" strokeWidth="2" opacity=".7" />
         <g className="timeline-home-character timeline-home-character--left">
-          <ellipse cx="28" cy="143" rx="15" ry="3" fill="#a98be1" opacity=".18" />
-          <path d="M18 137c1-15 6-24 13-26 9 2 13 11 15 26Z" fill="#9b83d5" stroke="#735a94" strokeLinejoin="round" strokeWidth="2" />
-          <path d="m24 116 8 7 8-7-2 18H25Z" fill="#d8c5ff" opacity=".85" />
-          <path d="M18 120c-5 3-7 7-9 11M43 120c5 3 7 7 9 11" fill="none" stroke="#735a94" strokeLinecap="round" strokeWidth="2" />
-          <circle cx="31" cy="101" r="8" fill="#ffd3be" stroke="#8b6370" strokeWidth="1.5" />
-          <path d="M23 100c0-8 4-12 10-11 6 0 9 4 8 10l-4-4-3 4-4-4-4 5Z" fill="#4f3944" />
-          <circle cx="31" cy="90" r="2.8" fill="#4f3944" />
-          <path d="M28 104h1M34 104h1" stroke="#4f3944" strokeLinecap="round" strokeWidth="1.4" />
-          <path d="M28 109c2 2 4 2 6 0" fill="none" stroke="#d77b8d" strokeLinecap="round" strokeWidth="1.2" />
+          <ellipse cx="28" cy="143" rx="18" ry="3" fill="#d98b9f" opacity=".18" />
+          <path d="M12 137c5-12 8-21 16-26 8 5 14 14 18 26Z" fill="#e889a4" stroke="#a95372" strokeLinejoin="round" strokeWidth="2" />
+          <path d="M17 129h27l-5 8H13Z" fill="#f7c4cf" opacity=".95" />
+          <path d="M20 113c-7 2-11 8-14 14M39 113c6 3 10 8 12 14" fill="none" stroke="#a95372" strokeLinecap="round" strokeWidth="2" />
+          <path d="M20 108c4-5 15-5 20 0l-2 12H22Z" fill="#fff2f4" stroke="#d47a91" strokeWidth="1.5" />
+          <circle cx="31" cy="99" r="8" fill="#ffd3be" stroke="#8b6370" strokeWidth="1.5" />
+          <path d="M22 99c0-9 5-13 11-12 6 0 10 5 8 12l-4-4-3 4-4-4-5 5Z" fill="#30232d" />
+          <path d="M39 91c5 1 7 4 7 8" fill="none" stroke="#30232d" strokeLinecap="round" strokeWidth="2.5" />
+          <circle cx="28" cy="103" r="1" fill="#4f3944" /><circle cx="34" cy="103" r="1" fill="#4f3944" />
+          <path d="M28 108c2 2 4 2 6 0" fill="none" stroke="#d77b8d" strokeLinecap="round" strokeWidth="1.2" />
         </g>
         <g className="timeline-home-character timeline-home-character--right">
-          <ellipse cx="222" cy="143" rx="15" ry="3" fill="#ff78a3" opacity=".18" />
-          <path d="M207 137c2-15 6-24 15-26 8 2 13 11 14 26Z" fill="#ff9db7" stroke="#bf6689" strokeLinejoin="round" strokeWidth="2" />
-          <path d="m213 116 9 7 8-7-2 18h-17Z" fill="#ffe8f0" opacity=".9" />
-          <path d="M209 120c-5 3-7 7-9 11M234 120c5 3 7 7 9 11" fill="none" stroke="#bf6689" strokeLinecap="round" strokeWidth="2" />
-          <circle cx="222" cy="101" r="8" fill="#ffd3be" stroke="#8b6370" strokeWidth="1.5" />
-          <path d="M214 99c1-8 5-11 10-10 7 0 10 5 9 12l-4-3-3 4-4-4-4 4Z" fill="#6b4b58" />
-          <path d="M214 97c-5 5-6 13-4 20M230 97c5 6 6 13 4 20" fill="none" stroke="#6b4b58" strokeLinecap="round" strokeWidth="3" />
-          <path d="M219 104h1M225 104h1" stroke="#4f3944" strokeLinecap="round" strokeWidth="1.4" />
-          <path d="M219 109c2 2 4 2 6 0" fill="none" stroke="#d77b8d" strokeLinecap="round" strokeWidth="1.2" />
+          <ellipse cx="222" cy="143" rx="18" ry="3" fill="#7195b6" opacity=".2" />
+          <path d="M208 137c1-16 6-27 14-28 9 2 15 13 16 28Z" fill="#5d92a7" stroke="#3e697d" strokeLinejoin="round" strokeWidth="2" />
+          <path d="M213 115h18l-4 23h-11Z" fill="#d9edf0" opacity=".95" />
+          <path d="M215 115h14l-7 10Z" fill="#f6d4a4" opacity=".9" />
+          <path d="M210 120c-5 3-7 8-9 14M234 120c5 3 7 8 9 14" fill="none" stroke="#3e697d" strokeLinecap="round" strokeWidth="2" />
+          <circle cx="222" cy="99" r="8" fill="#ffd3be" stroke="#8b6370" strokeWidth="1.5" />
+          <path d="M211 96c2-9 7-13 13-12 8 0 12 5 12 12h-5l-3-4-4 4-5-4-4 4Z" fill="#23344c" />
+          <path d="M210 94h25M214 91h17" stroke="#23344c" strokeLinecap="round" strokeWidth="2" />
+          <path d="M219 103h1M225 103h1" stroke="#4f3944" strokeLinecap="round" strokeWidth="1.4" />
+          <path d="M219 108c2 2 4 2 6 0" fill="none" stroke="#d77b8d" strokeLinecap="round" strokeWidth="1.2" />
         </g>
         <path d="M48 91l2 4 4 2-4 2-2 4-2-4-4-2 4-2Z" fill="#fff" opacity=".85" />
         <path d="M202 73l1.5 3 3 1.5-3 1.5-1.5 3-1.5-3-3-1.5 3-1.5Z" fill="#fff" opacity=".85" />
