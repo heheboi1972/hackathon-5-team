@@ -1,7 +1,7 @@
 // 역할: 온보딩 — 가입 → 초대코드 → 즉시 연결 (참조: FR-000, FR-001, TRD §6.1) — 시여 담당
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api, getToken, setToken } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -41,6 +41,7 @@ export default function Onboarding() {
   const [inviteCode, setInviteCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isRestoringSession) return;
@@ -187,6 +188,8 @@ export default function Onboarding() {
   };
 
   const createInvite = async () => {
+    setInviteMode("create");
+    setInvite(null);
     setIsSubmitting(true);
     setError(null);
     try {
@@ -197,6 +200,12 @@ export default function Onboarding() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const chooseInitialConversation = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    navigate("/upload", { state: { initialFile: file, redirectOnSuccess: "/" } });
   };
 
   const join = async (event: FormEvent<HTMLFormElement>) => {
@@ -386,15 +395,16 @@ export default function Onboarding() {
         </Card>
       )}
 
+        <section className="onboarding-workspace">
         {!isRestoringSession && <ol className="onboarding-progress" aria-label="온보딩 진행 단계">
           {[
-            ["signup", "가입"],
+            ["signup", "로그인"],
             ["invite", "초대"],
-            ["awaiting", "대기"],
             ["active", "완료"],
           ].map(([key, label], index) => {
-            const stages: OnboardingStage[] = ["signup", "invite", "awaiting", "active"];
-            const currentIndex = stages.indexOf(stage);
+            const stages: OnboardingStage[] = ["signup", "invite", "active"];
+            const visibleStage = stage === "awaiting" ? "invite" : stage;
+            const currentIndex = stages.indexOf(visibleStage);
             const complete = index <= currentIndex;
             return (
               <li
@@ -535,7 +545,7 @@ export default function Onboarding() {
                     </div>
                   </div>
                   <div className="onboarding-invite-options">
-                    <button type="button" onClick={() => setInviteMode("create")}>
+                    <button type="button" onClick={() => void createInvite()} disabled={isSubmitting}>
                       <span aria-hidden="true">↗</span>
                       <strong>초대 코드 만들기</strong>
                       <small>상대방에게 전달할 코드를 발급해요</small>
@@ -558,9 +568,13 @@ export default function Onboarding() {
                     <p>상대방에게 전달할 초대 코드를 발급해주세요.</p>
                   </div>
                 </div>
-                <Button onClick={createInvite} disabled={isSubmitting} className="onboarding-primary-button">
-                  {isSubmitting ? "발급 중…" : invite ? "코드 다시 확인하기" : "초대 코드 발급"}
-                </Button>
+                {!invite && (isSubmitting ? (
+                  <p className="onboarding-invite-loading">초대 코드를 발급하고 있어요…</p>
+                ) : (
+                  <Button onClick={() => void createInvite()} className="onboarding-primary-button">
+                    다시 발급하기
+                  </Button>
+                ))}
                 {invite && (
                   <div className="onboarding-invite-code">
                     <span className="onboarding-invite-code__label">우리만의 연결 코드</span>
@@ -604,14 +618,10 @@ export default function Onboarding() {
           )}
 
           {stage === "awaiting" && (
-            <Card className="onboarding-card onboarding-state-card onboarding-card--awaiting">
-              <div className="onboarding-state-visual onboarding-state-visual--waiting" aria-hidden="true">
-                <span>♡</span><i>↗</i>
-              </div>
-              <Badge tone="neutral" className="onboarding-badge">3단계 · 연결 확인 중</Badge>
-              <h2>연결을 마무리하고 있어요</h2>
-              <p>잠시 후 두 사람 모두 자동으로 연결 완료 화면으로 이동해요.</p>
-            </Card>
+            <div className="onboarding-connection-status" role="status">
+              <span aria-hidden="true">♡</span>
+              상대방과 연결을 확인하고 있어요…
+            </div>
           )}
 
           {stage === "active" && (
@@ -619,12 +629,23 @@ export default function Onboarding() {
               <div className="onboarding-state-visual onboarding-state-visual--active" aria-hidden="true">
                 <span>♥</span><i>✓</i>
               </div>
-              <Badge tone="neutral" className="onboarding-badge">4단계 · 연결 완료</Badge>
+              <Badge tone="neutral" className="onboarding-badge">3단계 · 연결 완료</Badge>
               <h2>우리의 공간이 연결됐어요</h2>
               <p>이제 대화 파일을 올리고 리포트를 준비할 수 있어요.</p>
-              <Link to="/upload" className="onboarding-primary-link">
-                대화 파일 업로드하기
-              </Link>
+              <input
+                ref={uploadInputRef}
+                type="file"
+                accept=".txt,.zip,text/plain,application/zip"
+                className="sr-only"
+                onChange={chooseInitialConversation}
+              />
+              <Button
+                type="button"
+                className="onboarding-primary-button"
+                onClick={() => uploadInputRef.current?.click()}
+              >
+                파일 선택하기
+              </Button>
             </Card>
           )}
 
@@ -634,6 +655,7 @@ export default function Onboarding() {
             </p>
           )}
         </div>
+        </section>
       </div>
     </main>
   );

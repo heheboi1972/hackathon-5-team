@@ -1,7 +1,7 @@
 // 역할: 업로드 — 드롭 → 이름 매핑 → 진행률 (참조: FR-002, API_SPEC §3, TRD §6.2) — 시여 담당
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ApiClientError, api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -29,14 +29,21 @@ function progressPercent(job: JobResponse | null): number {
 }
 
 export default function Upload() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const initialState = location.state as { initialFile?: File; redirectOnSuccess?: string } | null;
+  const initialFile = initialState?.initialFile instanceof File ? initialState.initialFile : null;
+  const redirectOnSuccessRef = useRef(
+    typeof initialState?.redirectOnSuccess === "string" ? initialState.redirectOnSuccess : null,
+  );
   const { data: coupleData } = useCoupleMe();
   const coupleId = coupleData?.couple_id;
   const activeJobId = coupleData?.active_job?.job_id ?? null;
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(initialFile);
   const [isDragging, setIsDragging] = useState(false);
-  const [stage, setStage] = useState<UploadStage>("idle");
-  const [mappingOpen, setMappingOpen] = useState(false);
+  const [stage, setStage] = useState<UploadStage>(initialFile ? "mapping" : "idle");
+  const [mappingOpen, setMappingOpen] = useState(Boolean(initialFile));
   const [mappingRequired, setMappingRequired] = useState(false);
   const [detectedSenders, setDetectedSenders] = useState<string[]>([]);
   const [nameMap, setNameMap] = useState({ a: "", b: "" });
@@ -44,6 +51,10 @@ export default function Upload() {
   const [job, setJob] = useState<JobResponse | null>(null);
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialFile) navigate(location.pathname, { replace: true, state: null });
+  }, [initialFile, location.pathname, navigate]);
 
   useEffect(() => {
     if (!trackedJobId && activeJobId && stage === "idle") {
@@ -70,6 +81,7 @@ export default function Upload() {
     if (nextJob.status === "done") {
       setStage("success");
       setTrackedJobId(null);
+      if (redirectOnSuccessRef.current) navigate(redirectOnSuccessRef.current, { replace: true });
     } else if (nextJob.status === "failed") {
       setStage("error");
       setError("파일은 업로드되었지만 후속 처리가 실패했어요.");
@@ -77,7 +89,7 @@ export default function Upload() {
     } else {
       setStage("processing");
     }
-  }, [jobQuery.data]);
+  }, [jobQuery.data, navigate]);
 
   const chooseFile = (candidate: File | undefined) => {
     if (!candidate) return;
