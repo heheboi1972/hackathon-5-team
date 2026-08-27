@@ -491,6 +491,50 @@ class PostgresService:
 
     # --------------------------------------------------------------- review
 
+    async def get_review_session_messages(
+        self,
+        couple_id: UUID,
+        session_id: int,
+        *,
+        offset: int,
+        limit: int,
+    ) -> dict[str, Any] | None:
+        """Return one verified session's encrypted messages in stable pages."""
+        async with (
+            self.pool.connection() as conn,
+            conn.cursor(row_factory=dict_row) as cur,
+        ):
+            await cur.execute(
+                """
+                SELECT COUNT(m.message_id) AS total
+                  FROM sessions s
+                  LEFT JOIN messages m
+                    ON m.couple_id = s.couple_id
+                   AND m.session_id = s.session_id
+                 WHERE s.couple_id = %s AND s.session_id = %s
+                 GROUP BY s.session_id
+                """,
+                (couple_id, session_id),
+            )
+            session = await cur.fetchone()
+            if session is None:
+                return None
+
+            await cur.execute(
+                """
+                SELECT message_id, sender, sent_at,
+                       convert_to(body_encrypted, 'UTF8') AS body_enc
+                  FROM messages
+                 WHERE couple_id = %s AND session_id = %s
+                 ORDER BY sent_at, message_id
+                 OFFSET %s LIMIT %s
+                """,
+                (couple_id, session_id, offset, limit),
+            )
+            messages = list(await cur.fetchall())
+
+        return {"total": int(session["total"]), "messages": messages}
+
     async def get_review_data(
         self,
         couple_id: UUID,

@@ -249,8 +249,20 @@ export interface SessionInfo {
   /** 현재 로그인한 사용자가 이 세션의 첫 메시지를 보냈는지 여부 */
   initiated_by_me: boolean;
   msg_count: number;
-  /** 돌아보기 세션을 펼쳤을 때 보여줄 원문 메시지. 구버전 API 응답에는 없을 수 있다. */
-  messages?: MomentMessage[];
+}
+
+export interface ReviewSessionMessage {
+  message_id: number;
+  at: string;
+  mine: boolean;
+  text: string;
+}
+
+export interface ReviewSessionMessagesResponse {
+  session_id: number;
+  total: number;
+  messages: ReviewSessionMessage[];
+  next_offset: number | null;
 }
 
 export interface NoteResponse {

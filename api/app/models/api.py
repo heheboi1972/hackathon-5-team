@@ -303,6 +303,20 @@ class SessionInfo(BaseModel):
     msg_count: int
 
 
+class ReviewSessionMessage(BaseModel):
+    message_id: int
+    at: datetime
+    mine: bool
+    text: str
+
+
+class ReviewSessionMessagesResponse(BaseModel):
+    session_id: int
+    total: int
+    messages: list[ReviewSessionMessage]
+    next_offset: int | None = None
+
+
 class ReviewRange(BaseModel):
     start: datetime
     end: datetime

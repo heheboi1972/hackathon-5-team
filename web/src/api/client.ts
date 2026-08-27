@@ -68,6 +68,7 @@ const MOCK_ROUTES: [RegExp, string, MockLoader][] = [
     () => import("./mock/regenerate.json"),
   ],
   [/^\/api\/couples\/[^/]+\/reports\/[^/]+$/, "GET", () => import("./mock/report_generated.json")],
+  [/^\/api\/couples\/[^/]+\/review\/sessions\/[^/]+\/messages$/, "GET", () => import("./mock/review_session_messages.json")],
   [/^\/api\/couples\/[^/]+\/review$/, "GET", () => import("./mock/review.json")],
   [/^\/api\/couples\/[^/]+\/notes$/, "POST", () => import("./mock/note.json")],
   [/^\/api\/couples\/[^/]+\/notes\/[^/]+$/, "DELETE", async () => undefined],

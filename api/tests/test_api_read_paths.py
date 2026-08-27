@@ -101,6 +101,21 @@ class _TimelineRepository:
         assert couple_id == COUPLE_ID and week_start == date.fromisoformat(WEEK)
         return UUID(int=9)
 
+    async def get_review_session_messages(self, couple_id, session_id, *, offset, limit):
+        assert couple_id == COUPLE_ID
+        if session_id != 1187:
+            return None
+        rows = [
+            {
+                "message_id": index + 1,
+                "sender": "a" if index % 2 == 0 else "b",
+                "sent_at": datetime(2026, 8, 19, 22, 10 + index, tzinfo=KST),
+                "body_enc": f"암호화된 메시지 {index + 1}",
+            }
+            for index in range(4)
+        ]
+        return {"total": len(rows), "messages": rows[offset:offset + limit]}
+
     async def get_review_data(self, couple_id, *, start=None, end=None, session_id=None):
         assert couple_id == COUPLE_ID
         session = {
@@ -311,6 +326,49 @@ def test_review_rejects_fifteen_day_range():
         f"{COUPLE}/review?start=2026-08-01T00:00:00&end=2026-08-16T00:00:00"
     )
     assert response.status_code == 400
+
+
+def test_review_session_messages_are_paginated_and_projected_for_requester():
+    response = _client("a").get(
+        f"{COUPLE}/review/sessions/1187/messages?offset=1&limit=2"
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "session_id": 1187,
+        "total": 4,
+        "messages": [
+            {
+                "message_id": 2,
+                "at": "2026-08-19T22:11:00+09:00",
+                "mine": False,
+                "text": "암호화된 메시지 2",
+            },
+            {
+                "message_id": 3,
+                "at": "2026-08-19T22:12:00+09:00",
+                "mine": True,
+                "text": "암호화된 메시지 3",
+            },
+        ],
+        "next_offset": 3,
+    }
+
+    partner_payload = _client("b").get(
+        f"{COUPLE}/review/sessions/1187/messages?offset=1&limit=2"
+    ).json()
+    assert [message["mine"] for message in partner_payload["messages"]] == [True, False]
+
+
+def test_review_session_messages_not_found_and_limit_validation():
+    missing = _client("a").get(f"{COUPLE}/review/sessions/9999/messages")
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["code"] == "NOT_FOUND"
+
+    too_large = _client("a").get(
+        f"{COUPLE}/review/sessions/1187/messages?limit=101"
+    )
+    assert too_large.status_code == 422
 
 
 @pytest.mark.parametrize(("path", "mock_name"), [

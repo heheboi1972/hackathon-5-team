@@ -2,18 +2,27 @@
 # 라우터는 응답 모델을 직접 만들지 않는다 — services.projection.build_review 만 호출 (ISSUE B3).
 # 지표는 {couple, mine} — 상대 값 미전송. 타입은 models.api의 review 전용 모델로 고정한다.
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import ValidationError
 
 from ..deps import AuthenticatedUser, current_member, current_user
-from ..models.api import NoteCreateRequest, NoteResponse, ReviewResponse, Who
+from ..models.api import (
+    NoteCreateRequest,
+    NoteResponse,
+    ReviewResponse,
+    ReviewSessionMessage,
+    ReviewSessionMessagesResponse,
+    Who,
+)
 from ..services.projection import build_review
 from ..services.review_metrics import build_stored_review
 
 router = APIRouter(prefix="/api/couples", tags=["review"])
+logger = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
 
@@ -68,6 +77,61 @@ async def review(
         )
     stored = build_stored_review(raw, mode=mode)
     return build_review(stored, me, raw["range_start"], raw["range_end"])
+
+
+@router.get(
+    "/{couple_id}/review/sessions/{session_id}/messages",
+    response_model=ReviewSessionMessagesResponse,
+)
+async def review_session_messages(
+    couple_id: UUID,
+    session_id: int,
+    request: Request,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=30, ge=1, le=100),
+    me: Who = Depends(current_member),
+) -> ReviewSessionMessagesResponse:
+    page = await request.app.state.container.postgres.get_review_session_messages(
+        couple_id,
+        session_id,
+        offset=offset,
+        limit=limit,
+    )
+    if page is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "대화 세션을 찾을 수 없습니다"},
+        )
+
+    try:
+        messages = [
+            ReviewSessionMessage(
+                message_id=row["message_id"],
+                at=row["sent_at"],
+                mine=row["sender"] == me,
+                text=request.app.state.container.cipher.decrypt(row["body_enc"]),
+            )
+            for row in page["messages"]
+        ]
+    except Exception as exc:
+        logger.warning(
+            "Could not decrypt review session messages couple_id=%s session_id=%s",
+            couple_id,
+            session_id,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "MESSAGE_DECRYPT_FAILED", "message": "대화 메시지를 불러오지 못했습니다"},
+        ) from exc
+
+    next_offset = offset + len(messages)
+    return ReviewSessionMessagesResponse(
+        session_id=session_id,
+        total=page["total"],
+        messages=messages,
+        next_offset=next_offset if next_offset < page["total"] else None,
+    )
 
 
 @router.post("/{couple_id}/notes", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)

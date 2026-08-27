@@ -1,5 +1,5 @@
 // 역할: 돌아보기 — 구간 선택 → 지표 vs 기준선 → 메모 (참조: FR-005, API_SPEC §5)
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { ApiClientError, api, IS_LOCAL_MOCK } from "../api/client";
 import Badge from "../components/Badge";
@@ -13,6 +13,7 @@ import type {
   NoteResponse,
   RangeMetrics,
   ReviewResponse,
+  ReviewSessionMessagesResponse,
 } from "../api/types";
 
 
@@ -75,6 +76,24 @@ function formatDateTime(value: string): string {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Seoul",
+  }).format(new Date(value));
+}
+
+function formatSessionDate(value: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+    timeZone: "Asia/Seoul",
+  }).format(new Date(value));
+}
+
+function formatSessionTime(value: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
     timeZone: "Asia/Seoul",
   }).format(new Date(value));
 }
@@ -222,36 +241,131 @@ function NoteList({ notes }: { notes: NoteResponse[] }) {
   );
 }
 
-function ReviewSessionCard({ session }: { session: ReviewResponse["sessions"][number] }) {
-  const hasMessages = Boolean(session.messages?.length);
+function ReviewSessionCard({
+  session,
+  coupleId,
+}: {
+  session: ReviewResponse["sessions"][number];
+  coupleId: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const canViewMessages = session.msg_count > 0;
+  const messageQuery = useInfiniteQuery({
+    queryKey: ["review-session-messages", coupleId, session.session_id],
+    enabled: isOpen && canViewMessages && Boolean(coupleId),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => api.get<ReviewSessionMessagesResponse>(
+      `/api/couples/${coupleId}/review/sessions/${session.session_id}/messages?offset=${Number(pageParam)}&limit=30`,
+    ),
+    getNextPageParam: (lastPage) => lastPage.next_offset ?? undefined,
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const messages = messageQuery.data?.pages.flatMap((page) => page.messages) ?? [];
+  const total = messageQuery.data?.pages[0]?.total ?? session.msg_count;
+  const toggleLabel = !canViewMessages
+    ? "메시지 없음"
+    : messageQuery.isLoading
+      ? "불러오는 중"
+      : isOpen
+        ? "메시지 닫기"
+        : "메시지 보기";
 
   return (
     <article className="review-session-card">
-      <div className="review-session-card__rail"><span><ReviewIcon name="quote" /></span></div>
-      <details className="review-session-card__details">
+      <details
+        className="review-session-card__details"
+        onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      >
         <summary className="review-session-card__summary">
           <div className="review-session-card__content">
-            <div className="review-session-card__topline"><p>SESSION #{session.session_id}</p></div>
-            <time dateTime={session.started_at}>{formatDateTime(session.started_at)} ~ {formatDateTime(session.ended_at)}</time>
-            <p className="review-session-card__meta"><ReviewIcon name="mail" /> 메시지 {session.msg_count.toLocaleString()}개</p>
-            <div className="review-session-card__action">
-              <Badge who={session.initiated_by_me ? "a" : "b"}>{session.initiated_by_me ? "내가 대화 시작" : "상대가 대화 시작"}</Badge>
-              <span className="review-session-card__toggle">{hasMessages ? "메시지 보기" : "메시지 없음"}</span>
+            <div className="review-session-card__date" aria-hidden="true">
+              <span>{new Intl.DateTimeFormat("ko-KR", { month: "short", timeZone: "Asia/Seoul" }).format(new Date(session.started_at))}</span>
+              <strong>{new Intl.DateTimeFormat("ko-KR", { day: "numeric", timeZone: "Asia/Seoul" }).format(new Date(session.started_at))}</strong>
+            </div>
+            <div className="review-session-card__intro">
+              <p className="review-session-card__eyebrow">CONVERSATION · #{session.session_id}</p>
+              <h3>{formatSessionDate(session.started_at)}의 대화</h3>
+              <time dateTime={session.started_at}>
+                {formatSessionTime(session.started_at)} — {formatSessionTime(session.ended_at)}
+              </time>
+            </div>
+            <div className="review-session-card__facts">
+              <span className="review-session-card__fact">
+                <ReviewIcon name="mail" />
+                <span>메시지</span>
+                <strong>{session.msg_count.toLocaleString()}개</strong>
+              </span>
+              <span className="review-session-card__starter">
+                {session.initiated_by_me ? "내가 대화 시작" : "상대가 대화 시작"}
+              </span>
+            </div>
+            <div className={`review-session-card__toggle${canViewMessages ? "" : " review-session-card__toggle--disabled"}`}>
+              <span>{toggleLabel}</span>
+              {canViewMessages && <i aria-hidden="true" />}
             </div>
           </div>
         </summary>
-        {hasMessages && (
-          <div className="review-session-card__messages" aria-label="대화 메시지">
-            <p className="review-session-card__messages-eyebrow">이 세션의 대화</p>
-            <div className="review-session-card__message-list">
-              {session.messages?.map((message, index) => (
-                <blockquote className="review-session-card__message" key={`${message.at}-${index}`}>
-                  <time dateTime={message.at}>{formatDateTime(message.at)}</time>
-                  <p>{message.text}</p>
-                </blockquote>
-              ))}
+        {isOpen && canViewMessages && (
+          <section className="review-session-card__messages" aria-label="대화 메시지" aria-live="polite">
+            <div className="review-session-card__messages-heading">
+              <div>
+                <p className="review-session-card__messages-eyebrow">OUR CHAT</p>
+                <h4>그날 나눈 이야기</h4>
+              </div>
+              <span>{messages.length.toLocaleString()} / {total.toLocaleString()}개</span>
             </div>
-          </div>
+
+            {messageQuery.isLoading && (
+              <div className="review-session-card__message-state">
+                <span className="review-session-card__loading-dot" aria-hidden="true" />
+                <p>암호화된 대화를 안전하게 불러오고 있어요.</p>
+              </div>
+            )}
+
+            {messageQuery.isError && (
+              <div className="review-session-card__message-state review-session-card__message-state--error">
+                <p>메시지를 불러오지 못했어요.</p>
+                <button type="button" onClick={() => messageQuery.refetch()}>다시 불러오기</button>
+              </div>
+            )}
+
+            {messageQuery.isSuccess && messages.length === 0 && (
+              <div className="review-session-card__message-state">
+                <p>표시할 메시지가 없어요.</p>
+              </div>
+            )}
+
+            {messages.length > 0 && (
+              <div className="review-session-card__message-list">
+                {messages.map((message) => (
+                  <article
+                    className={`review-session-card__message review-session-card__message--${message.mine ? "mine" : "partner"}`}
+                    key={message.message_id}
+                  >
+                    <span className="review-session-card__speaker" aria-hidden="true">
+                      {message.mine ? "나" : "상대"}
+                    </span>
+                    <div>
+                      <p>{message.text}</p>
+                      <time dateTime={message.at}>{formatDateTime(message.at)}</time>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {messageQuery.hasNextPage && (
+              <button
+                className="review-session-card__load-more"
+                type="button"
+                disabled={messageQuery.isFetchingNextPage}
+                onClick={() => messageQuery.fetchNextPage()}
+              >
+                {messageQuery.isFetchingNextPage ? "더 불러오는 중…" : "메시지 더 보기"}
+              </button>
+            )}
+          </section>
         )}
       </details>
     </article>
@@ -383,7 +497,9 @@ export default function Review() {
             <section className="review-section review-sessions-section" aria-labelledby="sessions-heading">
               <div className="review-section-heading"><div><span className="review-section-eyebrow">OUR CONVERSATIONS</span><h2 id="sessions-heading">우리의 대화 기록</h2></div><span className="review-section-count">{data.sessions.length}개</span></div>
               <div className="review-session-list">
-                {data.sessions.map((session) => <ReviewSessionCard key={session.session_id} session={session} />)}
+                {data.sessions.map((session) => (
+                  <ReviewSessionCard key={session.session_id} session={session} coupleId={coupleId ?? ""} />
+                ))}
               </div>
             </section>
           )}

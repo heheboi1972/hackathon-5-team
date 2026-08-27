@@ -380,7 +380,33 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 - `comment`는 `couple` 값만 사용한 숫자 없는 방향성 한 문장이다. 기존 지표 band 규칙으로 코드가 결정론적으로 만들며 LLM을 호출하지 않는다. (윤석 구현, 2026-08-25)
 - `message_length_median`·`session_length_median`은 이 화면에서 제외한다(타임라인·리포트에는 계속 있음).
 
-### 5.2 POST /api/couples/{couple_id}/notes
+### 5.2 GET /api/couples/{couple_id}/review/sessions/{session_id}/messages
+
+세션 카드를 펼칠 때 원문 메시지를 페이지 단위로 조회한다. 로그인한 사용자가 해당 커플의 구성원이어야 하며, 다른 커플의 세션은 조회할 수 없다.
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| offset | int | X | 기본값 0 |
+| limit | int | X | 기본값 30, 최대 100 |
+
+**Response 200**
+```json
+{
+  "session_id": 1187,
+  "total": 34,
+  "messages": [
+    { "message_id": 81001, "at": "...", "mine": true, "text": "오늘 하루는 어땠어?" }
+  ],
+  "next_offset": 30
+}
+```
+
+- `mine`은 저장 축(`a`/`b`)을 노출하지 않고 현재 요청자 기준으로 계산한다.
+- 본문은 DB에서 암호화 상태로 보관하며, 권한 확인 후 응답 생성 시점에만 복호화한다.
+- `next_offset`이 `null`이면 마지막 페이지다.
+- 존재하지 않거나 다른 커플에 속한 세션은 **404**를 반환한다.
+
+### 5.3 POST /api/couples/{couple_id}/notes
 
 | 필드 | 타입 | 필수 | 제약 |
 |---|---|---|---|
@@ -390,7 +416,7 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 
 **Response 201**: `{ "note_id", "author": "a", "body", "range_start", "range_end", "created_at" }`
 
-### 5.3 DELETE /api/couples/{couple_id}/notes/{note_id}
+### 5.4 DELETE /api/couples/{couple_id}/notes/{note_id}
 
 작성자만. **Response 204**
 
