@@ -22,7 +22,7 @@ export default function HighlightCard({
     <section className="space-y-1 rounded-lg border p-4">
       <p className="font-semibold">{highlight.observation}</p>
       <p className="text-sm text-gray-700">{joinInterpretations(highlight.interpretations)}</p>
-      {suggestion && <p className="text-sm text-rose-700">{suggestion.text}</p>}
+      {suggestion && <p className="text-sm text-rose-700">Tip: {suggestion.text}</p>}
     </section>
   );
 }

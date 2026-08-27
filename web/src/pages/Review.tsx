@@ -1,7 +1,7 @@
 // 역할: 돌아보기 — 구간 선택 → 지표 vs 기준선 → 메모 (참조: FR-005, API_SPEC §5)
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { ApiClientError, api } from "../api/client";
+import { ApiClientError, api, IS_LOCAL_MOCK } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -24,6 +24,10 @@ function toDateInputValue(date: Date): string {
 }
 
 function getInitialRange(): { start: string; end: string } {
+  if (IS_LOCAL_MOCK) {
+    return { start: "2026-08-17", end: "2026-08-19" };
+  }
+
   const end = new Date();
   const start = new Date(end);
   start.setDate(start.getDate() - 6);
@@ -218,6 +222,39 @@ function NoteList({ notes }: { notes: NoteResponse[] }) {
   );
 }
 
+function ReviewSessionCard({ session }: { session: ReviewResponse["sessions"][number] }) {
+  const hasMessages = Boolean(session.messages?.length);
+
+  return (
+    <article className="review-session-card">
+      <div className="review-session-card__rail"><span><ReviewIcon name="quote" /></span></div>
+      <details className="review-session-card__details">
+        <summary className="review-session-card__summary">
+          <div className="review-session-card__content">
+            <div className="review-session-card__topline"><p>SESSION #{session.session_id}</p><Badge who={session.initiator}>{session.initiator === "a" ? "나부터" : "상대부터"}</Badge></div>
+            <time dateTime={session.started_at}>{formatDateTime(session.started_at)} ~ {formatDateTime(session.ended_at)}</time>
+            <p className="review-session-card__meta"><ReviewIcon name="mail" /> 메시지 {session.msg_count.toLocaleString()}개</p>
+            <span className="review-session-card__toggle">{hasMessages ? "메시지 보기" : "메시지 없음"}<span aria-hidden="true">⌄</span></span>
+          </div>
+        </summary>
+        {hasMessages && (
+          <div className="review-session-card__messages" aria-label="대화 메시지">
+            <p className="review-session-card__messages-eyebrow">이 세션의 대화</p>
+            <div className="review-session-card__message-list">
+              {session.messages?.map((message, index) => (
+                <blockquote className="review-session-card__message" key={`${message.at}-${index}`}>
+                  <time dateTime={message.at}>{formatDateTime(message.at)}</time>
+                  <p>{message.text}</p>
+                </blockquote>
+              ))}
+            </div>
+          </div>
+        )}
+      </details>
+    </article>
+  );
+}
+
 export default function Review() {
   const { data: coupleData } = useCoupleMe();
   const coupleId = coupleData?.couple_id;
@@ -343,16 +380,7 @@ export default function Review() {
             <section className="review-section review-sessions-section" aria-labelledby="sessions-heading">
               <div className="review-section-heading"><div><span className="review-section-eyebrow">OUR LITTLE ARCHIVE</span><h2 id="sessions-heading">기억 속 대화 장면</h2></div><span className="review-section-count">{data.sessions.length}개</span></div>
               <div className="review-session-list">
-                {data.sessions.map((session) => (
-                  <article key={session.session_id} className="review-session-card">
-                    <div className="review-session-card__rail"><span><ReviewIcon name="quote" /></span></div>
-                    <div className="review-session-card__content">
-                      <div className="review-session-card__topline"><p>SESSION #{session.session_id}</p><Badge who={session.initiator}>{session.initiator === "a" ? "나부터" : "상대부터"}</Badge></div>
-                      <time dateTime={session.started_at}>{formatDateTime(session.started_at)} ~ {formatDateTime(session.ended_at)}</time>
-                      <p className="review-session-card__meta"><ReviewIcon name="mail" /> 메시지 {session.msg_count.toLocaleString()}개</p>
-                    </div>
-                  </article>
-                ))}
+                {data.sessions.map((session) => <ReviewSessionCard key={session.session_id} session={session} />)}
               </div>
             </section>
           )}
