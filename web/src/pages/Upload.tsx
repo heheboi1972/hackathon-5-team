@@ -1,5 +1,6 @@
 // 역할: 업로드 — 드롭 → 이름 매핑 → 진행률 (참조: FR-002, API_SPEC §3, TRD §6.2) — 시여 담당
-import { useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ApiClientError, api } from "../api/client";
 import Badge from "../components/Badge";
@@ -30,6 +31,7 @@ function progressPercent(job: JobResponse | null): number {
 export default function Upload() {
   const { data: coupleData } = useCoupleMe();
   const coupleId = coupleData?.couple_id;
+  const activeJobId = coupleData?.active_job?.job_id ?? null;
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -40,7 +42,42 @@ export default function Upload() {
   const [nameMap, setNameMap] = useState({ a: "", b: "" });
   const [result, setResult] = useState<UploadResponse | null>(null);
   const [job, setJob] = useState<JobResponse | null>(null);
+  const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!trackedJobId && activeJobId && stage === "idle") {
+      setTrackedJobId(activeJobId);
+      setStage("processing");
+    }
+  }, [activeJobId, stage, trackedJobId]);
+
+  const jobQuery = useQuery({
+    queryKey: ["job", trackedJobId],
+    queryFn: () => api.get<JobResponse>(`/api/jobs/${trackedJobId}`),
+    enabled: Boolean(trackedJobId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "done" || status === "failed" ? false : 2_000;
+    },
+  });
+
+  useEffect(() => {
+    const nextJob = jobQuery.data;
+    if (!nextJob) return;
+
+    setJob(nextJob);
+    if (nextJob.status === "done") {
+      setStage("success");
+      setTrackedJobId(null);
+    } else if (nextJob.status === "failed") {
+      setStage("error");
+      setError("파일은 업로드되었지만 후속 처리가 실패했어요.");
+      setTrackedJobId(null);
+    } else {
+      setStage("processing");
+    }
+  }, [jobQuery.data]);
 
   const chooseFile = (candidate: File | undefined) => {
     if (!candidate) return;
@@ -114,7 +151,7 @@ export default function Upload() {
       );
       setResult(uploadResult);
       setStage("processing");
-      await pollJob(uploadResult.job_id);
+      setTrackedJobId(uploadResult.job_id);
     } catch (requestError) {
       if (requestError instanceof ApiClientError && requestError.code === "NAME_MAPPING_REQUIRED") {
         const senders = requestError.detail?.senders;
@@ -131,26 +168,6 @@ export default function Upload() {
     }
   };
 
-  const pollJob = async (jobId: string) => {
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      const nextJob = await api.get<JobResponse>(`/api/jobs/${jobId}`);
-      setJob(nextJob);
-      if (nextJob.status === "done") {
-        setStage("success");
-        return;
-      }
-      if (nextJob.status === "failed") {
-        setStage("error");
-        setError("파일은 업로드되었지만 후속 처리가 실패했어요.");
-        return;
-      }
-      setStage("processing");
-      await new Promise((resolve) => window.setTimeout(resolve, 1000));
-    }
-    setStage("error");
-    setError("처리 상태를 확인하는 데 시간이 너무 오래 걸리고 있어요.");
-  };
-
   const reset = () => {
     setFile(null);
     setStage("idle");
@@ -160,6 +177,7 @@ export default function Upload() {
     setNameMap({ a: "", b: "" });
     setResult(null);
     setJob(null);
+    setTrackedJobId(null);
     setError(null);
     if (inputRef.current) inputRef.current.value = "";
   };
@@ -169,7 +187,7 @@ export default function Upload() {
 
   return (
     <main className="upload-page">
-      {!file && (
+      {!file && !isBusy && (
         <Card className="upload-drop-card">
           <div
             className={`upload-dropzone${isDragging ? " upload-dropzone--dragging" : ""}`}
@@ -241,7 +259,9 @@ export default function Upload() {
             </div>
             {job && <span className="upload-progress-card__percent">{percent}%</span>}
           </div>
-          <p className="upload-progress-card__warm-copy">우리의 대화를 정리하고 있어요 ✨</p>
+          <p className="upload-progress-card__warm-copy">
+            처리 시간이 길어져도 계속 확인해요. 새로고침하거나 다시 방문해도 진행 상태가 복구돼요.
+          </p>
           <div className="upload-progress-card__bar" aria-label="업로드 진행률">
             <div
               className={[

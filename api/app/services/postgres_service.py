@@ -317,7 +317,13 @@ class PostgresService:
                   LEFT JOIN LATERAL (
                     SELECT job_id, kind, done, total FROM jobs
                      WHERE couple_id=c.couple_id AND status IN ('queued','running')
-                     ORDER BY created_at DESC LIMIT 1
+                     ORDER BY CASE
+                                  WHEN kind IN ('report_backfill','report_single') THEN 0
+                                  WHEN kind = 'build_lexicon' THEN 1
+                                  ELSE 2
+                              END,
+                              created_at DESC
+                     LIMIT 1
                   ) j ON true
                  WHERE (c.user_a=%s OR c.user_b=%s) AND c.status <> 'dissolved'
                  ORDER BY (c.status = 'active') DESC, c.created_at DESC LIMIT 1
