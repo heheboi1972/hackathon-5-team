@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { api, getToken, IS_LOCAL_MOCK } from "./api/client";
+import { api, getToken } from "./api/client";
 import type { CoupleMeResponse } from "./api/types";
 import ChatPage from "./pages/ChatPage";
 import Onboarding from "./pages/Onboarding";
@@ -12,20 +12,16 @@ import Settings from "./pages/Settings";
 import Timeline from "./pages/Timeline";
 import Upload from "./pages/Upload";
 
-const USE_MOCK = IS_LOCAL_MOCK;
-const LOCAL_DEV_BYPASS = IS_LOCAL_MOCK;
-
 function RequireAuth({ children }: { children: ReactNode }) {
   const hasToken = Boolean(getToken());
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["couple-me"],
     queryFn: () => api.get<CoupleMeResponse>("/api/couples/me"),
-    enabled: !USE_MOCK && hasToken,
+    enabled: hasToken,
     retry: false,
   });
 
-  if (USE_MOCK || LOCAL_DEV_BYPASS) return <>{children}</>;
   if (!hasToken) return <Navigate to="/onboarding" replace />;
   if (isLoading) return null;
   if (isError || data?.status !== "active") return <Navigate to="/onboarding" replace />;
@@ -105,7 +101,7 @@ function BrandLink() {
 }
 
 function ReportEntry() {
-  if (!USE_MOCK && !getToken()) return <Navigate to="/onboarding" replace />;
+  if (!getToken()) return <Navigate to="/onboarding" replace />;
   return <Report />;
 }
 
@@ -144,7 +140,7 @@ function AppShell() {
         <Routes>
           <Route
             path="/onboarding"
-            element={LOCAL_DEV_BYPASS ? <Navigate to="/" replace /> : <Onboarding />}
+            element={<Onboarding />}
           />
 <Route
   path="/"
@@ -157,13 +153,9 @@ function AppShell() {
 <Route
   path="/timeline"
   element={
-    USE_MOCK ? (
+    <RequireAuth>
       <Timeline />
-    ) : (
-      <RequireAuth>
-        <Timeline />
-      </RequireAuth>
-    )
+    </RequireAuth>
   }
 />
 <Route
