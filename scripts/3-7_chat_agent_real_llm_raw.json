@@ -1,0 +1,113 @@
+{
+  "chat_intent": [
+    {
+      "index": 1,
+      "label": "fact_query — 사실 질문",
+      "message": "우리 언제 제주도 얘기했어?",
+      "expected": "fact_query",
+      "actual": "fact_query",
+      "ok": true,
+      "problems": []
+    },
+    {
+      "index": 2,
+      "label": "metric_query — 지표 질문",
+      "message": "우리 요즘 질문 많이 늘었어?",
+      "expected": "metric_query",
+      "actual": "metric_query",
+      "ok": true,
+      "problems": []
+    },
+    {
+      "index": 3,
+      "label": "report_query — 리포트 질문",
+      "message": "이번주 리포트 뭐라고 나왔어?",
+      "expected": "report_query",
+      "actual": "report_query",
+      "ok": true,
+      "problems": []
+    },
+    {
+      "index": 4,
+      "label": "other — 무관한 질문",
+      "message": "오늘 날씨 어때?",
+      "expected": "other",
+      "actual": "other",
+      "ok": true,
+      "problems": []
+    }
+  ],
+  "chat_answer": [
+    {
+      "intent": "fact_query",
+      "label": "우리 언제 제주도 얘기했어?",
+      "ok": true,
+      "output": {
+        "answer": "2026년 8월 10일에 \"다음 달에 제주도 가자!\"라고 말씀하시고, 8월 11일에 \"제주도 숙소 알아볼까?\"라고 대화하셨어요.",
+        "citations": [
+          {
+            "session_id": 1150,
+            "at": "2026-08-10T20:12:00+09:00",
+            "sender": "a",
+            "snippet": "다음 달에 제주도 가자!"
+          },
+          {
+            "session_id": 1151,
+            "at": "2026-08-11T09:03:00+09:00",
+            "sender": "b",
+            "snippet": "제주도 숙소 알아볼까?"
+          }
+        ],
+        "metrics": null
+      },
+      "problems": []
+    },
+    {
+      "intent": "metric_query",
+      "label": "우리 요즘 질문 많이 늘었어?",
+      "ok": true,
+      "output": {
+        "answer": "최근 질문 비율이 평소보다 높아진 것으로 보입니다. 현재 질문 비율은 20%이며, 지난 8주 평균(23%)보다 약간 낮아졌지만, 전반적으로 질문이 늘어난 편이에요.",
+        "citations": [],
+        "metrics": {
+          "range": {
+            "question_rate": {
+              "couple": 0.2,
+              "mine": 0.1
+            },
+            "reply_gap_median_min": {
+              "couple": 12,
+              "mine": 3
+            },
+            "message_count": 145
+          },
+          "baseline": {
+            "weeks": 8,
+            "question_rate": {
+              "couple": 0.23,
+              "mine": 0.22
+            },
+            "reply_gap_median_min": {
+              "couple": 5,
+              "mine": 4
+            },
+            "message_count": 132.5
+          },
+          "comment": "평소보다 답장 간격이 뚜렷하게 길어졌어요."
+        }
+      },
+      "problems": []
+    },
+    {
+      "intent": "report_query",
+      "label": "이번주 리포트 요약해줘",
+      "ok": true,
+      "output": {
+        "answer": "이번 주 리포트에서는 질문 비율이 증가해 ‘질문이 늘었어요’라는 관찰이 있었습니다. 오늘 서로 궁금한 점을 물어보는 것을 시도해 보시면 좋을 것 같습니다.",
+        "citations": [],
+        "metrics": null
+      },
+      "problems": []
+    }
+  ]
+}

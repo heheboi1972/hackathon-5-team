@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
@@ -106,6 +106,28 @@ def count_in_messages(
     }
 
 
+def top_terms(
+    messages: list[tuple[date, list[str]]],
+    *,
+    limit: int = 5,
+    exclude: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """전체 토큰 빈도 상위 limit개를 돌려준다. exclude(주로 couple_lexicon의 exclude 표면형)는 뺀다.
+
+    "가장 많이 쓴 단어가 뭐야?" 류 chat_supervisor 선분기(top_term)에서 쓴다 — count_term과 달리
+    특정 단어를 지정하지 않고 전체 순위를 묻는 질문이라 별도 함수로 둔다.
+    """
+    counts: Counter[str] = Counter()
+    exclude = exclude or set()
+    for _week_start, tokens in messages:
+        for token in tokens:
+            if token in exclude:
+                continue
+            counts[token] += 1
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
+    return [{"term": term, "count": count} for term, count in ranked]
+
+
 def format_answer(result: dict[str, Any], asked_about_person: bool = False) -> str:
     term, total = result["term"], result["total"]
     if total == 0:
@@ -121,6 +143,19 @@ def format_answer(result: dict[str, Any], asked_about_person: bool = False) -> s
         answer += " 누가 얼마나 썼는지는 알려드리지 않아요."
     return answer
 
+
+def format_top_terms_answer(result: dict[str, Any]) -> str:
+    terms = result.get("terms", [])
+    if not terms:
+        return "아직 단어를 셀 만한 대화 기록이 없어요."
+    top = terms[0]
+    if len(terms) == 1:
+        return f"가장 많이 쓴 단어는 '{top['term']}'이에요 ({top['count']}번)."
+    others = " · ".join(f"{item['term']} {item['count']}번" for item in terms[1:4])
+    return (
+        f"가장 많이 쓴 단어는 '{top['term']}'이에요 ({top['count']}번). "
+        f"그다음은 {others} 순이에요."
+    )
 
 def _week_start(value: datetime) -> date:
     local = value if value.tzinfo is None else value.astimezone(KST)
@@ -235,3 +270,29 @@ class TermSearchService:
             result=_cache_payload(result),
         )
         return result
+
+
+    async def top_terms(
+        self,
+        couple_id: UUID,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 5,
+    ) -> dict[str, Any]:
+        """전체 토큰 빈도 상위 limit개. couple_lexicon에서 sentiment=exclude로 분류된
+        표면형(PII·욕설·이름 등)은 순위에서 제외한다. count_term과 달리 캐시하지 않는다
+        (질문마다 대상 단어가 달라지는 count_term과 다르게 이건 요청 자체가 드물다)."""
+        _source_version, rows = await self.postgres.get_term_search_source(
+            couple_id, start=start, end=end
+        )
+        lexicon = await self.postgres.get_couple_lexicon(couple_id)
+        exclude = {
+            surface for surface, (_canonical, sentiment) in lexicon.items()
+            if sentiment == "exclude"
+        }
+        messages = await asyncio.to_thread(
+            _decrypt_and_tokenize, rows, self.cipher, "exact"
+        )
+        ranked = await asyncio.to_thread(top_terms, messages, limit=limit, exclude=exclude)
+        return {"terms": ranked}

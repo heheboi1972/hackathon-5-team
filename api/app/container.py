@@ -32,6 +32,7 @@ from .tools.get_report import get_latest_report_week, get_report
 from .tools.get_suggestion_templates import get_suggestion_templates
 from .tools.search_conversation import search_conversation
 from .tools.search_knowledge import search_knowledge
+from .tools.top_terms import top_terms
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +166,7 @@ async def build_container(settings: Settings) -> Container:
         get_report=partial(get_report, pg),
         get_latest_report_week=partial(get_latest_report_week, pg),
         count_term=partial(count_term, service=term_search),
+        top_terms=partial(top_terms, service=term_search),
     )
 
     jobs.register(

@@ -12,6 +12,7 @@ from app.agents.chat_answer_agent import ChatAnswerAgent
 from app.agents.chat_intent_agent import ChatIntentAgent
 from app.agents.chat_supervisor import ChatSupervisor
 from app.models.api import ChatRequest
+from app.models.report import ChatAnswerOutput as _ChatAnswerOutput
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -39,6 +40,7 @@ def _supervisor(
     get_report=None,
     get_latest_report_week=None,
     count_term=None,
+    top_terms=None,
 ):
     async def _default_search(*_args, **_kwargs):
         return []
@@ -55,6 +57,9 @@ def _supervisor(
     async def _default_count(*_args, **_kwargs):
         return {"term": "", "total": 0, "matched_forms": [], "by_week": []}
 
+    async def _default_top_terms(*_args, **_kwargs):
+        return {"terms": []}
+
     return ChatSupervisor(
         intent_agent or ChatIntentAgent(_MockAI()),
         answer_agent or ChatAnswerAgent(_MockAI()),
@@ -63,6 +68,7 @@ def _supervisor(
         get_report=get_report or _default_report,
         get_latest_report_week=get_latest_report_week or _default_latest_week,
         count_term=count_term or _default_count,
+        top_terms=top_terms or _default_top_terms,
     )
 
 
@@ -169,12 +175,105 @@ def test_term_count_pattern_matched_but_no_extractable_word_asks_again():
     asyncio.run(scenario())
 
 
-# ---------------------------------------------------------------- advice_request (LLM 0회)
+# ---------------------------------------------------------------- top_term (LLM 0회)
 
 
-def test_advice_request_regex_shortcut_never_calls_llm():
+def test_top_term_regex_shortcut_never_calls_llm_and_uses_top_terms_tool():
+    async def scenario():
+        async def top_terms(couple_id, *, start=None, end=None, limit=5):
+            assert limit == 5
+            return {"terms": [{"term": "사랑해", "count": 12}, {"term": "치킨", "count": 5}]}
+
+        supervisor = _supervisor(
+            intent_agent=_NeverCalled(), answer_agent=_NeverCalled(), top_terms=top_terms
+        )
+        result = await supervisor.run(uuid4(), "a", _request("우리가 가장 많이 쓴 단어가 뭐야?"))
+        assert result.intent == "top_term"
+        assert "사랑해" in result.answer and "12번" in result.answer
+        assert result.citations == []
+        assert result.metrics is None
+
+    asyncio.run(scenario())
+
+
+def test_top_term_no_terms_is_honest_not_invented():
     async def scenario():
         supervisor = _supervisor(intent_agent=_NeverCalled(), answer_agent=_NeverCalled())
+        result = await supervisor.run(uuid4(), "a", _request("제일 자주 쓰는 말이 뭐야?"))
+        assert result.intent == "top_term"
+        assert "없어요" in result.answer
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------------------------- 상대 날짜 표현 (focus_range 보강)
+
+
+def test_relative_date_phrase_is_parsed_into_focus_range_for_fact_query():
+    """request.focus_range가 비어 있어도 "이번주" 같은 문구가 있으면 검색 범위를 좁힌다."""
+    async def scenario():
+        seen = {}
+
+        async def search_conversation(couple_id, query, *, start=None, end=None, k=8):
+            seen["start"], seen["end"] = start, end
+            return []
+
+        supervisor = _supervisor(search_conversation=search_conversation)
+        await supervisor.run(uuid4(), "a", _request("이번주에 언제 만나기로 했었어?"))
+        assert seen["start"] is not None and seen["end"] is not None
+        assert seen["start"].weekday() == 0  # 월요일부터
+        assert seen["start"] <= seen["end"]
+
+    asyncio.run(scenario())
+
+
+def test_explicit_focus_range_wins_over_relative_date_phrase():
+    """request.focus_range가 이미 있으면 문구를 파싱해서 덮어쓰지 않는다."""
+    async def scenario():
+        seen = {}
+
+        async def search_conversation(couple_id, query, *, start=None, end=None, k=8):
+            seen["start"], seen["end"] = start, end
+            return []
+
+        supervisor = _supervisor(search_conversation=search_conversation)
+        start, end = datetime(2026, 1, 1, tzinfo=KST), datetime(2026, 1, 7, tzinfo=KST)
+        await supervisor.run(
+            uuid4(), "a",
+            _request("이번주에 언제 만나기로 했었어?", focus_range={"start": start, "end": end}),
+        )
+        assert seen["start"] == start and seen["end"] == end
+
+    asyncio.run(scenario())
+
+
+def test_relative_date_phrase_has_no_effect_when_absent():
+    """상대 날짜 표현이 문장에 없으면 여전히 기간 제한 없이(None) 검색한다 — 기존 동작 보존."""
+    async def scenario():
+        seen = {}
+
+        async def search_conversation(couple_id, query, *, start=None, end=None, k=8):
+            seen["start"], seen["end"] = start, end
+            return []
+
+        supervisor = _supervisor(search_conversation=search_conversation)
+        await supervisor.run(uuid4(), "a", _request("우리 언제 제주도 얘기했지?"))
+        assert seen["start"] is None and seen["end"] is None
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------- advice_request (감지 LLM 0회, 안내문 생성 LLM 1회)
+#
+# 2026-08-27: 안내 문구가 고정 문자열 → chat_answer 에이전트의 LLM 생성으로 바뀌었다(윤아 요청).
+# 그래도 "이 메시지가 advice_request인지 판단하는 것" 자체은 여전히 regex/LLM-classifier가
+# 결정론적으로 하므로, intent_agent(분류기)는 아래 두 테스트에서 여전히 호출되면 안 된다 —
+# 검증 대상이 바뀐 건 answer_agent(문구 생성) 쪽이다.
+
+
+def test_advice_request_regex_shortcut_never_calls_intent_classifier():
+    async def scenario():
+        supervisor = _supervisor(intent_agent=_NeverCalled())
         result = await supervisor.run(uuid4(), "a", _request("우리 어떻게 화해해야 할까?"))
         assert result.intent == "advice_request"
         assert result.answer is None
@@ -188,11 +287,46 @@ def test_advice_request_regex_shortcut_never_calls_llm():
 def test_advice_mixed_with_other_topic_still_wins_per_boundary_rule():
     """chat_intent.md 경계 규칙: 조언 요청이 섞이면 advice_request 우선."""
     async def scenario():
-        supervisor = _supervisor(intent_agent=_NeverCalled(), answer_agent=_NeverCalled())
+        supervisor = _supervisor(intent_agent=_NeverCalled())
         result = await supervisor.run(
             uuid4(), "a", _request("우리 대화 패턴 보고 어떻게 해야 할지 조언해줘")
         )
         assert result.intent == "advice_request"
+
+    asyncio.run(scenario())
+
+
+def test_advice_request_redirect_comes_from_answer_agent():
+    """2026-08-27: redirect 문구는 이제 chat_supervisor가 직접 안 만들고 answer_agent.run()이
+    돌려준 값을 그대로 옮긴다 — 이걸 가짜 answer_agent로 확인한다(고정 문구가 아님을 검증)."""
+    async def scenario():
+        calls: list[tuple[str, dict]] = []
+
+        class _FakeAnswerAgent:
+            async def run(self, intent, payload, **_kwargs):
+                calls.append((intent, payload))
+                return _ChatAnswerOutput(answer="테스트용 안내 문구입니다.", citations=[])
+
+        supervisor = _supervisor(intent_agent=_NeverCalled(), answer_agent=_FakeAnswerAgent())
+        result = await supervisor.run(uuid4(), "a", _request("우리 헤어지는 게 나을까?"))
+
+        assert calls and calls[0][0] == "advice_request"
+        assert calls[0][1]["message"] == "우리 헤어지는 게 나을까?"
+        assert result.redirect == "테스트용 안내 문구입니다."
+        assert result.answer is None
+
+    asyncio.run(scenario())
+
+
+def test_advice_request_reached_via_intent_classifier_when_regex_misses():
+    """감지 방식이 두 가지라(선분기 regex / chat_intent LLM 분류) 후자 경로도 같은 핸들러로
+    간다는 걸 확인한다. "괜찮은 관계야?"는 supervisor의 ADVICE_PATTERN(...관계일까 필요)엔
+    안 걸리지만, mock ChatIntentAgent의 힌트(...관계 만 있어도 매치)엔 걸린다."""
+    async def scenario():
+        supervisor = _supervisor()
+        result = await supervisor.run(uuid4(), "a", _request("우리 지금 괜찮은 관계야?"))
+        assert result.intent == "advice_request"
+        assert result.redirect
 
     asyncio.run(scenario())
 

@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from app.agents.base import AgentOutputError
-from app.agents.chat_answer_agent import ChatAnswerAgent, NO_RECORD_TEXT
+from app.agents.chat_answer_agent import ADVICE_FALLBACK_TEXT, ChatAnswerAgent, NO_RECORD_TEXT
 from app.agents.chat_intent_agent import ChatIntentAgent
 from app.agents.interpret_agent import InterpretAgent
 from app.agents.report_supervisor import (
@@ -612,6 +612,95 @@ def test_chat_answer_agent_report_query_pending_is_honest_not_invented():
             {"message": "이번주 리포트 뭐래?", "focus_range": None, "history": [], "report": None},
         )
         assert "준비되지" in output.answer
+        assert output.citations == []
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------ advice_request (2026-08-27, 고정 문구 → LLM 생성 전환)
+
+
+class _ScriptedAI:
+    """generate_json이 항상 미리 정해둔 dict를 돌려주는 가짜 실 LLM (provider_name != mock이라
+    ChatAnswerAgent.run()이 실제 LLM 분기를 타게 만든다)."""
+
+    provider_name = "watsonx"
+
+    def __init__(self, response: dict):
+        self.response = response
+
+    async def generate_json(self, *_args, **_kwargs):
+        return self.response
+
+
+def test_chat_answer_agent_advice_request_mock_uses_fallback_text():
+    """mock provider에서는 LLM을 안 부르므로 항상 고정 폴백 문구를 그대로 쓴다."""
+    async def scenario():
+        agent = ChatAnswerAgent(_MockAI())
+        output = await agent.run(
+            "advice_request", {"message": "화해하려면 어떻게 해야 할까?", "history": []}
+        )
+        assert output.answer == ADVICE_FALLBACK_TEXT
+        assert output.citations == []
+
+    asyncio.run(scenario())
+
+
+def test_chat_answer_agent_advice_request_uses_llm_text_when_safe():
+    """banned_patterns.txt에 안 걸리는 안전한 문장이면 LLM이 만든 문장을 그대로 쓴다 —
+    고정 문구로 덮어쓰지 않는다(이번 전환의 핵심: 더 이상 항상 같은 문장이 아니어야 함)."""
+    async def scenario():
+        ai = _ScriptedAI(
+            {
+                "answer": "요즘 연락이 뜸해서 신경 쓰이시는군요. 이 챗봇은 관계를 판단하지 않지만, "
+                "대신 요즘 대화가 어땠는지는 같이 볼 수 있어요.",
+                "citations": [],
+            }
+        )
+        agent = ChatAnswerAgent(ai)
+        output = await agent.run(
+            "advice_request", {"message": "요즘 연락 좀 뜸한데 어떡하지", "history": []}
+        )
+        assert output.answer != ADVICE_FALLBACK_TEXT
+        assert "신경 쓰이시는군요" in output.answer
+        assert output.citations == []
+
+    asyncio.run(scenario())
+
+
+def test_chat_answer_agent_advice_request_falls_back_when_llm_gives_advice():
+    """LLM이 규칙을 어기고 실제 조언("먼저 연락해보세요")을 만들면, banned_patterns.txt에
+    걸려서 무조건 고정 폴백 문구로 되돌아간다 — 이 서비스의 핵심 안전 원칙이라 LLM 혼자
+    믿지 않는다는 걸 확인하는 테스트."""
+    async def scenario():
+        ai = _ScriptedAI(
+            {"answer": "먼저 연락해보세요, 그러면 관계가 다시 편해질 거예요.", "citations": []}
+        )
+        agent = ChatAnswerAgent(ai)
+        output = await agent.run(
+            "advice_request", {"message": "어떻게 해야 할까", "history": []}
+        )
+        assert output.answer == ADVICE_FALLBACK_TEXT
+
+    asyncio.run(scenario())
+
+
+def test_chat_answer_agent_advice_request_forces_citations_empty():
+    """advice_request는 대화 인용 대상이 아니므로, LLM이 실수로 citations를 채워도 서버가
+    강제로 비운다."""
+    async def scenario():
+        ai = _ScriptedAI(
+            {
+                "answer": "요즘 연락이 뜸해서 신경 쓰이시는군요. 대화 기록은 같이 볼 수 있어요.",
+                "citations": [
+                    {"session_id": 1, "at": "2026-08-20T10:00:00+09:00", "sender": "a", "snippet": "안녕"}
+                ],
+            }
+        )
+        agent = ChatAnswerAgent(ai)
+        output = await agent.run(
+            "advice_request", {"message": "요즘 연락 뜸한데 어떡하지", "history": []}
+        )
         assert output.citations == []
 
     asyncio.run(scenario())

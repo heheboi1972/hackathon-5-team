@@ -403,14 +403,21 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 | history | array | X | 직전 대화 최대 6턴 `[{ role, content }]` |
 
 **처리 규칙**
-1. Supervisor가 intent 분류: `fact_query` / `metric_query` / `report_query` / `term_count` / `advice_request` / `other`
+1. Supervisor가 intent 분류: `fact_query` / `metric_query` / `report_query` / `term_count` / `top_term` / `advice_request` / `other`
 2. `fact_query` → 컬렉션 A 검색(couple_id 필터 + focus_range 가중) → 인용 포함 답변
 3. `metric_query` → `get_metrics` 툴 → 수치 답변
 4. `report_query` → `get_report` 툴 → 과거 리포트 내용 답변
 5. `term_count` → `count_term` 툴 → 템플릿 답변. **LLM 0회** — `몇 번`·`몇 회`·`얼마나 자주` 를 regex 로 먼저 잡아 대상 단어를 뽑고(따옴표 우선, 없으면 패턴 앞 어절), 실패할 때만 LLM 으로 단어만 추출한다. 숫자는 코드가 만든다 (P-2)
-6. `advice_request` → 검색 없이 **고정 리다이렉트 문구**, `answer: null`
-7. `other` → "대화 기록·지표·리포트에 대해 물어봐 주세요"
-8. 답변에 인용이 하나도 없으면 서버가 `answer`를 버리고 `"관련 기록을 찾지 못했어요"`로 대체 (근거 없는 말 금지)
+6. `top_term` (2026-08-27 추가) → `top_terms` 툴 → 템플릿 답변. **LLM 0회** — "가장/제일 많이 쓴 단어" 류를 regex 로 먼저 잡는다. `term_count`와 달리 특정 단어를 안 짚고 전체 순위를 묻는 질문이다
+7. `advice_request` → 검색·툴 호출 없이 안내 문구로 리다이렉트, `answer: null`. **감지는 여전히
+   LLM 0회**(regex `ADVICE_PATTERN` 또는 `chat_intent` 분류), 다만 안내 문구 자체는 **2026-08-27부터
+   `chat_answer`가 LLM 1회로 생성**(이전엔 완전 고정 문구였음, 윤아 요청). `banned_patterns.txt`
+   (safety_agent.py와 동일 목록)로 스캔해서 조언/판단 표현이 조금이라도 섞이면 무조건 기존 고정
+   문구(`ADVICE_FALLBACK_TEXT`, `chat_answer_agent.py`)로 폴백한다 — "관계를 판단하지 않는다"는
+   원칙을 LLM 혼자에게 맡기지 않는 이중 방어
+8. `other` → "대화 기록·지표·리포트에 대해 물어봐 주세요"
+9. 답변에 인용이 하나도 없으면 서버가 `answer`를 버리고 `"관련 기록을 찾지 못했어요"`로 대체 (근거 없는 말 금지)
+10. (2026-08-27 추가) `focus_range`가 비어 있어도 메시지에 "이번주"/"저번주"/"오늘"/"어제"/"이번달"/"저번달" 표현이 있으면 그걸 실제 날짜 범위로 파싱해 `fact_query`/`metric_query`/`report_query`/`term_count`/`top_term` 검색·집계에 그대로 쓴다(`chat_supervisor._effective_range()`). `focus_range`가 이미 있으면 그게 항상 우선이고 파싱은 보충용이다
 
 **`term_count` 세부 규칙**
 - **커플 합산만 답한다.** "내가 몇 번", "쟤가 몇 번" 처럼 사람을 지목해 물어도 합산으로 답하고 `"누가 얼마나 썼는지는 알려드리지 않아요"` 를 덧붙인다. 발화자별 횟수는 숨기는 게 아니라 **계산·저장하지 않는다** (`term_count_cache` 에 `sender` 컬럼 없음) — P-3 예외("내 단어는 본인만")가 우회로 무너지는 것을 막는다
@@ -420,6 +427,16 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 
 ```json
 { "intent": "term_count", "answer": "'사랑해'는 전체 대화에서 44번 나왔어요 (사랑해 41 · 사랑행 3).", "citations": [], "redirect": null, "trace_id": "uuid" }
+```
+
+**`top_term` 세부 규칙 (2026-08-27 추가)**
+- **커플 합산 빈도 상위 5개 중 답변엔 최대 4개만 노출**("1위 + 그다음 최대 3개"). `count_term`과 마찬가지로 발화자별 순위는 계산하지 않는다 (P-3 예외 보호)
+- `couple_lexicon`에서 `sentiment=exclude`로 분류된 표면형(PII·욕설·이름·호칭 등)은 순위에서 제외한다
+- 이 답변에도 인용을 붙이지 않는다(`citations: []`) — `term_count`와 같은 이유
+- 셀 만한 단어가 하나도 없으면 지어내지 말고 `"아직 단어를 셀 만한 대화 기록이 없어요."`
+
+```json
+{ "intent": "top_term", "answer": "가장 많이 쓴 단어는 '사랑해'이에요 (12번). 그다음은 치킨 5번 · 보고싶어 4번 순이에요.", "citations": [], "redirect": null, "trace_id": "uuid" }
 ```
 
 **Response 200**
@@ -453,9 +470,10 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 
 `metrics`는 metric_query 외에는 항상 `null`. 프론트는 이 카드를 돌아보기 화면과 동일한 컴포넌트로 그리면 됨(§5.1 `ReviewMetrics`와 타입 동일).
 
-**advice_request**
+**advice_request** (2026-08-27부터 `redirect` 문구가 LLM 생성 — 매번 똑같은 문장이 아닐 수 있음.
+아래는 mock/폴백 시 나오는 예시)
 ```json
-{ "intent": "advice_request", "answer": null, "citations": [], "redirect": "이 챗봇은 대화 기록을 찾아주는 도구예요. 관계가 어떤지는 저도 판단하지 않아요. 대신 요즘 대화가 어땠는지는 같이 볼 수 있어요.", "trace_id": "uuid" }
+{ "intent": "advice_request", "answer": null, "citations": [], "redirect": "요즘 연락이 뜸해서 신경 쓰이시는군요. 이 챗봇은 관계를 판단하지 않지만, 대신 요즘 대화가 어땠는지는 같이 볼 수 있어요.", "trace_id": "uuid" }
 ```
 
 **에러**: 503 LLM_UNAVAILABLE (Mock 모드면 고정 응답 반환)
@@ -479,6 +497,7 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 | `search_knowledge` | `(metric, direction, k=5) → [{doc, section, text, source}]` | 지식 dict (`data/knowledge/interpretations`, 메모리) |
 | `get_suggestion_templates` | `(metric, direction) → [{template_id, text}]` | 지식 dict (`data/knowledge/templates.json`, 메모리) |
 | `count_term` | `(couple_id, term, start?, end?) → {term, total, matched_forms: [{form, count}], by_week: [{week_start, count}]}` | **커플 합산, 발화자별 미제공.** 감성 사전과 무관 — 임의 단어를 센다. 캐시(`term_count_cache`) 히트면 즉시, 미스면 본문을 메모리에서 복호화해 세고 캐시 후 폐기(~1-2s). LLM 미사용 |
+| `top_terms` | `(couple_id, start?, end?, limit=5) → {terms: [{term, count}, ...]}` (2026-08-27 추가) | **커플 합산 빈도 상위 N개, 발화자별 미제공.** `count_term`과 같은 원문 소스를 쓰지만 대상 단어를 안 받고 전체 순위를 낸다. `couple_lexicon`의 `sentiment=exclude` 표면형은 뺀다. 캐시 없음(요청 자체가 드묾). LLM 미사용 |
 
 ---
 

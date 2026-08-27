@@ -14,10 +14,13 @@ from app.services.term_search import (
     TermSearchValidationError,
     count_in_messages,
     format_answer,
+    format_top_terms_answer,
     match_tokens,
     normalize_query,
+    top_terms,
 )
 from app.tools.count_term import count_term as count_term_tool
+from app.tools.top_terms import top_terms as top_terms_tool
 
 LEXICON = {
     "좋아": ("좋아", "pos"),
@@ -89,6 +92,34 @@ def test_invalid_query(query):
         normalize_query(query)
 
 
+def test_top_terms_ranks_by_count_then_alphabetically_and_excludes():
+    messages = [
+        (date(2026, 8, 17), ["사랑해", "치킨", "사랑해"]),
+        (date(2026, 8, 18), ["치킨", "민준아", "치킨"]),
+    ]
+    ranked = top_terms(messages, limit=5, exclude={"민준아"})
+    assert ranked == [
+        {"term": "치킨", "count": 3},
+        {"term": "사랑해", "count": 2},
+    ]
+
+
+def test_top_terms_limit_and_empty_input():
+    messages = [(date(2026, 8, 17), ["가", "나", "다"])]
+    assert len(top_terms(messages, limit=2)) == 2
+    assert top_terms([], limit=5) == []
+
+
+def test_format_top_terms_answer():
+    assert "없어요" in format_top_terms_answer({"terms": []})
+    single = format_top_terms_answer({"terms": [{"term": "사랑해", "count": 7}]})
+    assert "사랑해" in single and "7번" in single
+    multi = format_top_terms_answer(
+        {"terms": [{"term": "사랑해", "count": 7}, {"term": "치킨", "count": 3}]}
+    )
+    assert "사랑해" in multi and "치킨" in multi and "3번" in multi
+
+
 def test_invalid_mode():
     with pytest.raises(TermSearchValidationError):
         match_tokens(["사랑해"], "사랑해", mode="contains")
@@ -154,5 +185,23 @@ def test_service_cache_miss_hit_invalidation_and_tool_have_no_ai_calls():
 
         # service/tool 생성자와 호출 경로 어디에도 AIService가 없다.
         assert not hasattr(service, "ai")
+
+    asyncio.run(scenario())
+
+
+def test_service_top_terms_ranks_and_excludes_lexicon_exclude_entries():
+    async def scenario():
+        cipher = BodyCipher(Fernet.generate_key().decode("ascii"))
+        repo = _Repository(cipher)
+        couple_id = uuid4()
+        # repo 기본 행: "사랑해 치킨" + "사랑해요 사랑해" (exact 토큰화라 "사랑해"/"사랑해요" 구분)
+        repo.lexicons[couple_id] = {"치킨": ("치킨", "exclude")}
+        service = TermSearchService(repo, cipher)
+
+        result = await top_terms_tool(couple_id, service=service, limit=5)
+        terms = {item["term"]: item["count"] for item in result["terms"]}
+        assert "치킨" not in terms  # exclude로 분류된 표면형은 순위에서 빠진다
+        assert terms["사랑해"] == 2
+        assert terms["사랑해요"] == 1
 
     asyncio.run(scenario())

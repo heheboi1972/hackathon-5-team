@@ -6,7 +6,7 @@ export type CoupleStatus = "pending" | "awaiting_confirm" | "active" | "dissolve
 export type ReportStatus = "generated" | "insufficient_baseline" | "pending" | "failed";
 export type JobStatus = "queued" | "running" | "done" | "failed";
 export type JobKind = "embed_sessions" | "build_lexicon" | "report_backfill" | "report_single";
-export type Intent = "fact_query" | "metric_query" | "report_query" | "term_count" | "advice_request" | "other";
+export type Intent = "fact_query" | "metric_query" | "report_query" | "term_count" | "top_term" | "advice_request" | "other";
 export type Sentiment = "positive" | "neutral" | "notable";
 
 // ---------------------------------------------------------------- 공통
