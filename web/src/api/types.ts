@@ -203,6 +203,7 @@ export interface Suggestion {
   text: string;
 }
 
+
 export interface Moment {
   kind: string;
   at: string;
@@ -212,12 +213,14 @@ export interface Moment {
   text: string;
   /** 관련 원문 메시지. 구버전 API 응답에는 없을 수 있어 optional로 둔다. */
   messages?: MomentMessage[];
+  snippet?: string | null;
 }
 
 export interface MomentMessage {
   at: string;
   text: string;
 }
+
 
 export interface ReportResponse {
   week_start: string;

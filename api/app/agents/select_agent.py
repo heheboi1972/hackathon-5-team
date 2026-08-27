@@ -52,18 +52,21 @@ def select_candidates(
     ranked.sort(key=lambda item: _rank(*item))
 
     selected: list[tuple[MetricSignal, bool]] = []
+
+    def add_unique(item: tuple[MetricSignal, bool]) -> None:
+        signal, _ = item
+        key = (signal.metric, signal.direction)
+        if any((chosen.metric, chosen.direction) == key for chosen, _ in selected):
+            return
+        selected.append(item)
+
     positive = [item for item in ranked if item[1] and item[0].valence == "positive"]
     negative = [item for item in ranked if item[1] and item[0].valence == "negative"]
     if positive and negative:
-        selected.extend((positive[0], negative[0]))
+        add_unique(positive[0])
+        add_unique(negative[0])
     for item in ranked:
-        key = (item[0].metric, item[0].direction, item[0].outlier_ref)
-        if any(
-            (chosen.metric, chosen.direction, chosen.outlier_ref) == key
-            for chosen, _ in selected
-        ):
-            continue
-        selected.append(item)
+        add_unique(item)
         if len(selected) >= min(limit, 3):
             break
 

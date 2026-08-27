@@ -33,6 +33,7 @@ _RESPONSE_FORMAT: dict[str, Any] = {
             "properties": {
                 "highlights": {
                     "type": "array",
+                    "maxItems": 1,
                     "items": {
                         "type": "object",
                         "properties": {
