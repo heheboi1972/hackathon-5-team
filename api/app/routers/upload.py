@@ -28,10 +28,7 @@ from ..models.api import DateRange, JobRef, ParsedInfo, ReportJobsInfo, UploadRe
 from ..services.kakao_parser import (
     Message,
     classify,
-    decode_export,
-    parse_android,
-    parse_bracket,
-    parse_ios,
+    parse_export_with_format,
     tokenize,
 )
 from ..services.metrics import (
@@ -56,10 +53,7 @@ def _error(
 
 
 def _parse(data: bytes) -> tuple[str, list[Message]]:
-    fmt, text = decode_export(data)
-    messages = {"pc": parse_bracket, "android": parse_android, "ios": parse_ios}[fmt](
-        text
-    )
+    fmt, messages = parse_export_with_format(data)
     if not messages:
         raise ValueError("메시지를 찾을 수 없습니다")
     return fmt, messages

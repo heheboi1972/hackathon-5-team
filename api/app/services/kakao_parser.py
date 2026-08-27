@@ -25,6 +25,8 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 KST = ZoneInfo("Asia/Seoul")
+MAX_ZIP_TXT_FILES = 20
+MAX_ZIP_TXT_BYTES = 50 * 1024 * 1024
 
 # ---------------------------------------------------------------- 데이터 모델
 
@@ -404,7 +406,30 @@ def detect_format(text: str) -> str:
     raise ValueError("알 수 없는 카카오톡 내보내기 형식입니다")
 
 
+def _txt_entries_from_zip(data: bytes) -> tuple[zipfile.ZipFile, list[zipfile.ZipInfo]]:
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    entries = [
+        item
+        for item in archive.infolist()
+        if not item.is_dir() and item.filename.lower().endswith(".txt")
+    ]
+    if not entries:
+        archive.close()
+        raise ValueError("zip 안에 .txt가 없습니다")
+    if len(entries) > MAX_ZIP_TXT_FILES:
+        archive.close()
+        raise ValueError(f"zip 안의 .txt는 최대 {MAX_ZIP_TXT_FILES}개까지 처리할 수 있습니다")
+    if any(item.flag_bits & 0x1 for item in entries):
+        archive.close()
+        raise ValueError("암호화된 zip 파일은 처리할 수 없습니다")
+    if sum(item.file_size for item in entries) > MAX_ZIP_TXT_BYTES:
+        archive.close()
+        raise ValueError("zip 안의 .txt 압축 해제 크기는 최대 50MB까지 처리할 수 있습니다")
+    return archive, entries
+
+
 def _extract_txt_from_zip(data: bytes) -> bytes:
+    """단일 텍스트가 필요한 이전 호출자를 위해 가장 큰 TXT를 반환한다."""
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         txts = [n for n in z.namelist() if n.lower().endswith(".txt")]
         if not txts:
@@ -424,8 +449,42 @@ def decode_export(data: bytes) -> tuple[str, str]:
 
 
 def parse_export(data: bytes) -> list[Message]:
-    fmt, text = decode_export(data)
-    return {"pc": parse_bracket, "android": parse_android, "ios": parse_ios}[fmt](text)
+    return parse_export_with_format(data)[1]
+
+
+def parse_export_with_format(data: bytes) -> tuple[str, list[Message]]:
+    """일반 TXT 또는 ZIP 안의 모든 분할 TXT를 파싱해 하나의 대화로 병합한다."""
+    if data[:2] != b"PK":
+        fmt, text = decode_export(data)
+        return fmt, {"pc": parse_bracket, "android": parse_android, "ios": parse_ios}[fmt](text)
+
+    archive, entries = _txt_entries_from_zip(data)
+    try:
+        formats: set[str] = set()
+        messages: list[Message] = []
+        for entry in entries:
+            raw = archive.read(entry)
+            if len(raw) > MAX_ZIP_TXT_BYTES:
+                raise ValueError("zip 안의 TXT 파일이 너무 큽니다")
+            text = raw.decode("utf-8-sig")
+            fmt = detect_format(text)
+            parsed = {"pc": parse_bracket, "android": parse_android, "ios": parse_ios}[fmt](text)
+            if not parsed:
+                raise ValueError("zip 안의 TXT에서 메시지를 찾을 수 없습니다")
+            formats.add(fmt)
+            messages.extend(parsed)
+    finally:
+        archive.close()
+
+    if len(formats) != 1:
+        raise ValueError("zip 안의 TXT 대화 형식이 서로 다릅니다")
+
+    # 카카오톡 분할 파일은 경계 메시지가 겹칠 수 있다. DB와 같은 의미의
+    # 발화자·시각·본문 키로 먼저 제거하고 전체를 시간순으로 정렬한다.
+    unique: dict[tuple[str, datetime, str], Message] = {}
+    for message in messages:
+        unique.setdefault((message.sender, message.sent_at, message.body), message)
+    return formats.pop(), sorted(unique.values(), key=lambda message: message.sent_at)
 
 
 # ---------------------------------------------------------------- 커플 서비스 검증

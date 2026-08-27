@@ -1,5 +1,7 @@
 # 역할: 파서 테스트 — is_question (TC-PARSE-004), tokenize (TC-METRIC-007),
 #       형식 감지·픽스처 파싱 (TC-PARSE-001~003), 24시간제 폰 설정 (TC-PARSE-006)
+import io
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -10,6 +12,7 @@ from app.services.kakao_parser import (
     parse_android,
     parse_bracket,
     parse_export,
+    parse_export_with_format,
     parse_ios,
     tokenize,
     validate_couple,
@@ -82,6 +85,39 @@ def test_fixture_parses_to_same_conversation(name):
 def test_detect_format_rejects_unknown():
     with pytest.raises(ValueError):
         detect_format("그냥 아무 텍스트\n두 번째 줄")
+
+
+def test_zip_parses_all_split_txt_files_and_deduplicates_boundary():
+    first = (
+        "2026. 7. 24. 오전 10:36, 민수 : 경계 메시지\r\n"
+        "2026. 7. 24. 오전 10:37, 영희 : 첫 파일 답장"
+    )
+    second = (
+        "2026. 7. 24. 오전 10:36, 민수 : 경계 메시지\r\n"
+        "2026. 8. 27. 오전 9:26, 영희 : 마지막 메시지"
+    )
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("Talk_part-1.txt", first)
+        archive.writestr("Talk_part-2.txt", second)
+
+    fmt, messages = parse_export_with_format(buffer.getvalue())
+
+    assert fmt == "ios"
+    assert len(messages) == 3
+    assert messages[0].sent_at.month == 7
+    assert messages[-1].sent_at.month == 8
+    assert [message.sent_at for message in messages] == sorted(message.sent_at for message in messages)
+
+
+def test_zip_rejects_mixed_chat_formats():
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("ios.txt", "2026. 8. 27. 오전 9:26, 민수 : 안녕")
+        archive.writestr("pc.txt", "--- 2026년 8월 27일 목요일 ---\r\n[영희] [오전 9:27] 안녕")
+
+    with pytest.raises(ValueError, match="형식이 서로 다릅니다"):
+        parse_export_with_format(buffer.getvalue())
 
 
 # --- Android 최신 앱: 대괄호 형식 + 내부 줄바꿈도 CRLF (실제 샘플로 확인) ---
