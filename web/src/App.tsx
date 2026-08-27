@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { api, getToken } from "./api/client";
+import { api, getToken, IS_LOCAL_MOCK } from "./api/client";
 import type { CoupleMeResponse } from "./api/types";
 import ChatPage from "./pages/ChatPage";
 import Onboarding from "./pages/Onboarding";
@@ -12,7 +12,8 @@ import Settings from "./pages/Settings";
 import Timeline from "./pages/Timeline";
 import Upload from "./pages/Upload";
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+const USE_MOCK = IS_LOCAL_MOCK;
+const LOCAL_DEV_BYPASS = IS_LOCAL_MOCK;
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const hasToken = Boolean(getToken());
@@ -24,7 +25,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
     retry: false,
   });
 
-  if (USE_MOCK) return <>{children}</>;
+  if (USE_MOCK || LOCAL_DEV_BYPASS) return <>{children}</>;
   if (!hasToken) return <Navigate to="/onboarding" replace />;
   if (isLoading) return null;
   if (isError || data?.status !== "active") return <Navigate to="/onboarding" replace />;
@@ -75,7 +76,7 @@ function formatDDay(firstMetAt: string | null | undefined): string | null {
   return dayDifference > 0 ? `D+${dayDifference}` : `D-${Math.abs(dayDifference)}`;
 }
 
-function HomeDday() {
+function DdayBadge() {
   const { data } = useQuery({
     queryKey: ["couple-me"],
     queryFn: () => api.get<CoupleMeResponse>("/api/couples/me"),
@@ -84,8 +85,8 @@ function HomeDday() {
   const dday = formatDDay(data?.first_met_at);
 
   return (
-    <span className={`site-header__home-dday${dday ? "" : " is-unset"}`} aria-label={`D-DAY ${dday ?? "미설정"}`}>
-      <span className="site-header__home-dday-label">D-DAY</span>
+    <span className={`site-header__dday${dday ? "" : " is-unset"}`} aria-label={`D-DAY ${dday ?? "미설정"}`}>
+      <span className="site-header__dday-label">D-DAY</span>
       <strong>{dday ?? "미설정"}</strong>
     </span>
   );
@@ -135,14 +136,16 @@ function AppShell() {
           </nav>
           <span className="profile-chip" aria-label="프로필">
               <span className="profile-chip__name"></span>
-              <span className="profile-chip__chevron" aria-hidden="true">⌄</span>
           </span>
-          {(pathname === "/" || pathname.startsWith("/timeline")) && <HomeDday />}
+          <DdayBadge />
         </div>
       </header>}
       <div className="app-shell__content">
         <Routes>
-          <Route path="/onboarding" element={<Onboarding />} />
+          <Route
+            path="/onboarding"
+            element={LOCAL_DEV_BYPASS ? <Navigate to="/" replace /> : <Onboarding />}
+          />
 <Route
   path="/"
   element={

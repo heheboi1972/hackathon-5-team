@@ -203,6 +203,7 @@ export interface Suggestion {
   text: string;
 }
 
+
 export interface Moment {
   kind: string;
   at: string;
@@ -210,8 +211,16 @@ export interface Moment {
   value_min?: number | null;
   baseline_median_min?: number | null;
   text: string;
+  /** 관련 원문 메시지. 구버전 API 응답에는 없을 수 있어 optional로 둔다. */
+  messages?: MomentMessage[];
   snippet?: string | null;
 }
+
+export interface MomentMessage {
+  at: string;
+  text: string;
+}
+
 
 export interface ReportResponse {
   week_start: string;
@@ -236,6 +245,8 @@ export interface SessionInfo {
   ended_at: string;
   initiator: Who;
   msg_count: number;
+  /** 돌아보기 세션을 펼쳤을 때 보여줄 원문 메시지. 구버전 API 응답에는 없을 수 있다. */
+  messages?: MomentMessage[];
 }
 
 export interface NoteResponse {

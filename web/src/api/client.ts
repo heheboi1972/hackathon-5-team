@@ -2,9 +2,14 @@
 // 컴포넌트에서 직접 fetch 금지 — 반드시 이 모듈 경유 (SCAFFOLD §2)
 import type { ApiError, NoteCreateRequest, NoteResponse, ReviewResponse } from "./types";
 
-// Only the Vite-prefixed flag may enable frontend fixtures. This keeps a
-// production build from accidentally inheriting a generic USE_MOCK variable.
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+// Fixtures are available automatically from the local Vite server. Keep this
+// explicitly DEV-only so a production build always uses the real API/auth
+// flow, even if a mock-looking environment variable is present there.
+const LOCAL_HOSTNAMES = ["localhost", "127.0.0.1", "::1", "[::1]"];
+export const IS_LOCAL_MOCK =
+  import.meta.env.DEV &&
+  (import.meta.env.VITE_USE_MOCK === "true" ||
+    (typeof window !== "undefined" && LOCAL_HOSTNAMES.includes(window.location.hostname)));
 const BASE = import.meta.env.VITE_API_BASE ?? ""; // 로컬은 vite proxy, 배포는 같은 Route 상대 경로
 
 const TOKEN_KEY = "couple_report_token";
@@ -183,7 +188,7 @@ export async function request<T>(
   opts: { form?: FormData } = {},
 ): Promise<T> {
   const normalizedMethod = method.toUpperCase();
-  if (USE_MOCK) return mockResponse<T>(path, normalizedMethod, body);
+  if (IS_LOCAL_MOCK) return mockResponse<T>(path, normalizedMethod, body);
 
   const headers: Record<string, string> = {};
   const token = getToken();
