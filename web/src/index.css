@@ -2605,14 +2605,14 @@
 
   .review-sessions-section { margin-top: 1.65rem; }
   .review-section-count { padding-top: .45rem; color: var(--color-subtle); font-size: .7rem; }
-  .review-session-scroll-shell { position: relative; }
+  .review-session-scroll-shell { position: relative; background: transparent; }
   .review-session-list { display: grid; gap: .9rem; }
-  .review-session-list--scrollable { max-height: 21.3rem; overflow-y: auto; overscroll-behavior: contain; padding: .18rem .55rem .18rem .18rem; scrollbar-color: rgba(255, 120, 163, .48) rgba(255, 240, 245, .75); scrollbar-width: thin; }
+  .review-session-list--scrollable { max-height: 21.3rem; overflow-y: auto; overscroll-behavior: contain; padding: .18rem .55rem .18rem .18rem; border: 0; background: transparent; box-shadow: none; scrollbar-color: rgba(255, 120, 163, .48) transparent; scrollbar-width: thin; }
   .review-session-list--scrollable:focus-visible { border-radius: 1.45rem; outline: 3px solid rgba(255, 120, 163, .2); outline-offset: 3px; }
   .review-session-list::-webkit-scrollbar { width: .45rem; }
-  .review-session-list::-webkit-scrollbar-track { border-radius: 999px; background: rgba(255, 240, 245, .75); }
+  .review-session-list::-webkit-scrollbar-track { background: transparent; }
   .review-session-list::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(255, 120, 163, .48); }
-  .review-session-scroll-hint { display: block; width: fit-content; margin: .55rem auto 0; padding: .32rem .72rem; border-radius: 999px; background: rgba(255, 240, 245, .82); color: var(--color-coral-700); font-size: .59rem; font-weight: 780; }
+  .review-session-scroll-hint { display: block; width: fit-content; margin: .55rem auto 0; color: var(--color-coral-700); font-size: .59rem; font-weight: 780; }
   .review-session-card { min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 6.2rem; }
   .review-session-card__details { min-width: 0; overflow: hidden; border: 1px solid rgba(255, 179, 193, .34); border-radius: 1.45rem; background: rgba(255, 255, 255, .9); box-shadow: 0 .65rem 1.8rem rgba(108, 71, 85, .08); transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease; }
   .review-session-card__details:hover { border-color: rgba(255, 120, 163, .46); box-shadow: 0 .9rem 2.2rem rgba(108, 71, 85, .12); transform: translateY(-2px); }
