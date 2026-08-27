@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
+import CalendarDatePicker from "../components/CalendarDatePicker";
 import Card from "../components/Card";
 import Modal from "../components/Modal";
 import type { CoupleMeResponse, CoupleSettingsUpdate, Who } from "../api/types";
@@ -229,16 +230,13 @@ export default function Settings() {
             updateFirstMetAt.mutate({ first_met_at: firstMetAt || null });
           }}
         >
-          <label className="flex min-w-0 flex-1 flex-col gap-2 text-sm font-medium text-gray-700" htmlFor="first-met-at">
-            처음 만난 날
-            <input
-              id="first-met-at"
-              type="date"
-              value={firstMetAt}
-              onChange={(event) => setFirstMetAt(event.target.value)}
-              className="rounded-md border border-line bg-white px-3 py-2 text-sm text-ink shadow-sm outline-none transition focus:border-coral-400 focus:ring-2 focus:ring-coral-200"
-            />
-          </label>
+          <CalendarDatePicker
+            label="처음 만난 날"
+            value={firstMetAt}
+            onChange={setFirstMetAt}
+            allowClear
+            className="settings-date-picker"
+          />
           <Button type="submit" disabled={updateFirstMetAt.isPending}>
             {updateFirstMetAt.isPending ? "저장 중..." : "저장"}
           </Button>

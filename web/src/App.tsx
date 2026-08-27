@@ -86,7 +86,7 @@ function DdayBadge() {
 
   return (
     <span className={`site-header__dday${dday ? "" : " is-unset"}`} aria-label={`D-DAY ${dday ?? "미설정"}`}>
-      <span className="site-header__dday-label">D-DAY</span>
+      {!dday && <span className="site-header__dday-label">D-DAY</span>}
       <strong>{dday ?? "미설정"}</strong>
     </span>
   );

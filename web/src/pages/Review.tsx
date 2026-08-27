@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type UIEvent } from "react";
 import { ApiClientError, api, IS_LOCAL_MOCK } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
+import CalendarDatePicker from "../components/CalendarDatePicker";
 import Card from "../components/Card";
 import Modal from "../components/Modal";
 import { useCoupleMe } from "../hooks/useCoupleMe";
@@ -489,15 +490,23 @@ export default function Review() {
           {isFetching && !isLoading && <span className="review-fetching">조회 중…</span>}
         </div>
         <div className="review-date-fields">
-          <label className="review-date-field">
-            <span>시작일</span>
-            <span className="review-date-input"><ReviewIcon name="calendar" /><input type="date" value={start} max={end || undefined} onChange={(event) => setStart(event.target.value)} /></span>
-          </label>
+          <CalendarDatePicker
+            label="시작일"
+            value={start}
+            max={end || undefined}
+            rangeStart={start}
+            rangeEnd={end}
+            onChange={setStart}
+          />
           <span className="review-date-arrow" aria-hidden="true">→</span>
-          <label className="review-date-field">
-            <span>종료일</span>
-            <span className="review-date-input"><ReviewIcon name="calendar" /><input type="date" value={end} min={start || undefined} onChange={(event) => setEnd(event.target.value)} /></span>
-          </label>
+          <CalendarDatePicker
+            label="종료일"
+            value={end}
+            min={start || undefined}
+            rangeStart={start}
+            rangeEnd={end}
+            onChange={setEnd}
+          />
         </div>
         <div className="review-range-summary"><span>선택한 범위</span><strong>{start && end ? formatDateRange(start, end) : "날짜를 선택해주세요"}</strong></div>
         {rangeError && <p role="alert" className="review-form-error">{rangeError}</p>}
