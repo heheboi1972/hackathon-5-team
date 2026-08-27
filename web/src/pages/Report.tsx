@@ -6,11 +6,10 @@ import Button from "../components/Button";
 import Card from "../components/Card";
 import HighlightCard from "../components/HighlightCard";
 import MomentCard from "../components/MomentCard";
+import { useCoupleMe } from "../hooks/useCoupleMe";
 import type { ReportResponse, TermCount, TimelineResponse, TimelineWeek, WeekSummary } from "../api/types";
 import { formatFriendlyWeekLabel } from "../lib/weekLabels";
 
-const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
-const TIMELINE_PATH = `/api/couples/${COUPLE_ID}/timeline`;
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 function formatShortWeekDate(weekStart: string): string {
   const [year, month, day] = weekStart.split("-");
@@ -233,9 +232,12 @@ function MyTermsCard({ sentiment }: { sentiment: WeekSummary["sentiment"] }) {
 
 export default function Report() {
   const { week: routeWeek } = useParams();
+  const { data: coupleData } = useCoupleMe();
+  const coupleId = coupleData?.couple_id;
   const timelineQuery = useQuery({
-    queryKey: ["timeline"],
-    queryFn: () => api.get<TimelineResponse>(TIMELINE_PATH),
+    queryKey: ["timeline", coupleId],
+    queryFn: () => api.get<TimelineResponse>(`/api/couples/${coupleId}/timeline`),
+    enabled: Boolean(coupleId),
     staleTime: 30_000,
   });
   const timelineWeeks = timelineQuery.data?.weeks ?? [];
@@ -245,11 +247,11 @@ export default function Report() {
     : true;
   const week = routeWeekIsValid ? routeWeek ?? latestWeek : undefined;
   const reportQuery = useQuery({
-    queryKey: ["reports", week],
+    queryKey: ["reports", coupleId, week],
     queryFn: () =>
-      api.get<ReportResponse>(`/api/couples/${COUPLE_ID}/reports/${week}`),
+      api.get<ReportResponse>(`/api/couples/${coupleId}/reports/${week}`),
     refetchInterval: (q) => (q.state.data?.status === "pending" ? 3000 : false),
-    enabled: timelineQuery.isSuccess && Boolean(week),
+    enabled: timelineQuery.isSuccess && Boolean(coupleId) && Boolean(week),
   });
 
   if (timelineQuery.isPending || (!routeWeek && timelineQuery.isFetching)) {

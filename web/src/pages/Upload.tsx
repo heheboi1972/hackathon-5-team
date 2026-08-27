@@ -6,12 +6,12 @@ import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import Modal from "../components/Modal";
+import { useCoupleMe } from "../hooks/useCoupleMe";
 import type { JobResponse, UploadResponse } from "../api/types";
 
 type UploadStage = "idle" | "mapping" | "uploading" | "processing" | "success" | "error";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
-const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "업로드를 처리하지 못했어요.";
@@ -28,6 +28,8 @@ function progressPercent(job: JobResponse | null): number {
 }
 
 export default function Upload() {
+  const { data: coupleData } = useCoupleMe();
+  const coupleId = coupleData?.couple_id;
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -74,6 +76,11 @@ export default function Upload() {
   const onUpload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!file) return;
+    if (!coupleId) {
+      setStage("error");
+      setError("연결된 커플 정보를 확인할 수 없습니다.");
+      return;
+    }
 
     const a = nameMap.a.trim();
     const b = nameMap.b.trim();
@@ -102,7 +109,7 @@ export default function Upload() {
 
     try {
       const uploadResult = await api.postForm<UploadResponse>(
-        `/api/couples/${COUPLE_ID}/upload`,
+        `/api/couples/${coupleId}/upload`,
         form,
       );
       setResult(uploadResult);

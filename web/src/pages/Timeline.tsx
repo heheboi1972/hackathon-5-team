@@ -6,11 +6,9 @@ import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import ChatPanel from "../components/ChatPanel";
-import type { CoupleMeResponse, TimelineResponse } from "../api/types";
+import { useCoupleMe } from "../hooks/useCoupleMe";
+import type { TimelineResponse } from "../api/types";
 
-const TIMELINE_PATH = "/api/couples/00000000-0000-0000-0000-000000000001/timeline";
-const COUPLE_ME_PATH = "/api/couples/me";
-const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
 
 function EnvelopeIllustration() {
   return (
@@ -143,14 +141,12 @@ function MonthlyCalendar({ firstMetAt }: { firstMetAt?: string | null }) {
 }
 
 export default function Timeline() {
+  const { data: coupleData } = useCoupleMe();
+  const coupleId = coupleData?.couple_id;
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["timeline"],
-    queryFn: () => api.get<TimelineResponse>(TIMELINE_PATH),
-    staleTime: 30_000,
-  });
-  const { data: coupleData } = useQuery({
-    queryKey: ["couple-me"],
-    queryFn: () => api.get<CoupleMeResponse>(COUPLE_ME_PATH),
+    queryKey: ["timeline", coupleId],
+    queryFn: () => api.get<TimelineResponse>(`/api/couples/${coupleId}/timeline`),
+    enabled: Boolean(coupleId),
     staleTime: 30_000,
   });
 
@@ -231,7 +227,7 @@ export default function Timeline() {
         </div>
       </section>
 
-      <ChatPanel coupleId={COUPLE_ID} />
+      {coupleId && <ChatPanel coupleId={coupleId} />}
     </main>
   );
 }

@@ -1,7 +1,6 @@
+import { useCoupleMe } from "../hooks/useCoupleMe";
 import { Link } from "react-router-dom";
 import ChatPanel from "../components/ChatPanel";
-
-const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
 
 function ChatPageIcon({ name }: { name: "calendar" | "message" | "settings" }) {
   if (name === "calendar") {
@@ -50,6 +49,8 @@ function ChatIllustration() {
 }
 
 export default function ChatPage() {
+  const { data: coupleData } = useCoupleMe();
+  const coupleId = coupleData?.couple_id;
   return (
     <main className="chat-page">
       <div className="chat-background-decor" aria-hidden="true">
@@ -77,7 +78,7 @@ export default function ChatPage() {
           </div>
           <div className="chat-hero__aside"><ChatIllustration /></div>
         </header>
-        <ChatPanel coupleId={COUPLE_ID} />
+        {coupleId && <ChatPanel coupleId={coupleId} />}
       </div>
     </main>
   );

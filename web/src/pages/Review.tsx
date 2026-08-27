@@ -5,6 +5,7 @@ import { ApiClientError, api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
+import { useCoupleMe } from "../hooks/useCoupleMe";
 import type {
   BaselineMetrics,
   CoupleMine,
@@ -14,9 +15,6 @@ import type {
   ReviewResponse,
 } from "../api/types";
 
-const COUPLE_ID = "00000000-0000-0000-0000-000000000001";
-const REVIEW_BASE_PATH = `/api/couples/${COUPLE_ID}/review`;
-const NOTES_PATH = `/api/couples/${COUPLE_ID}/notes`;
 
 function toDateInputValue(date: Date): string {
   const year = date.getFullYear();
@@ -221,6 +219,8 @@ function NoteList({ notes }: { notes: NoteResponse[] }) {
 }
 
 export default function Review() {
+  const { data: coupleData } = useCoupleMe();
+  const coupleId = coupleData?.couple_id;
   const initialRange = getInitialRange();
   const [start, setStart] = useState(initialRange.start);
   const [end, setEnd] = useState(initialRange.end);
@@ -228,19 +228,22 @@ export default function Review() {
   const [noteError, setNoteError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const rangeError = getRangeError(start, end);
-  const queryKey = ["review", start, end];
+  const queryKey = ["review", coupleId, start, end];
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey,
-    enabled: !rangeError,
+    enabled: Boolean(coupleId) && !rangeError,
     queryFn: () => api.get<ReviewResponse>(
-      `${REVIEW_BASE_PATH}?start=${encodeURIComponent(toIsoStart(start))}&end=${encodeURIComponent(toIsoEnd(end))}`,
+      `/api/couples/${coupleId}/review?start=${encodeURIComponent(toIsoStart(start))}&end=${encodeURIComponent(toIsoEnd(end))}`,
     ),
     staleTime: 30_000,
   });
 
   const noteMutation = useMutation({
-    mutationFn: (payload: NoteCreateRequest) => api.post<NoteResponse>(NOTES_PATH, payload),
+    mutationFn: (payload: NoteCreateRequest) => {
+      if (!coupleId) throw new Error("연결된 커플 정보를 확인할 수 없습니다.");
+      return api.post<NoteResponse>(`/api/couples/${coupleId}/notes`, payload);
+    },
     onSuccess: (note) => {
       queryClient.setQueryData<ReviewResponse>(queryKey, (current) =>
         current ? { ...current, notes: [...current.notes, note] } : current,
