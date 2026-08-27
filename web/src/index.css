@@ -2462,13 +2462,11 @@
   .report-moment-detail { min-width: 0; border: 1px solid rgba(255,179,193,.45); border-radius: 1.15rem; background: rgba(255,255,255,.9); box-shadow: var(--shadow-soft); overflow: hidden; }
   .report-moment-detail__summary { display: flex; min-height: 4.2rem; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem; color: var(--color-muted); line-height: 1.65; cursor: pointer; list-style: none; }
   .report-moment-detail__summary::-webkit-details-marker { display: none; }
-  .report-moment-detail__summary::after { content: ""; width: .45rem; height: .45rem; flex: 0 0 auto; border-right: 1.5px solid var(--color-coral-500); border-bottom: 1.5px solid var(--color-coral-500); transform: rotate(45deg) translateY(-.15rem); transition: transform 180ms ease; }
-  .report-moment-detail[open] .report-moment-detail__summary::after { transform: rotate(225deg) translate(-.1rem, -.05rem); }
   .report-moment-detail__summary:focus-visible { outline: 3px solid rgba(255,120,163,.3); outline-offset: -3px; }
   .report-moment-detail__summary-label { min-width: 0; }
-  .report-moment-detail__toggle { display: inline-flex; flex: 0 0 auto; align-items: center; gap: .28rem; color: var(--color-coral-600); font-size: .66rem; font-weight: 800; white-space: nowrap; }
-  .report-moment-detail__toggle span { display: inline-block; font-size: .9rem; line-height: 1; transition: transform 180ms ease; }
-  .report-moment-detail[open] .report-moment-detail__toggle span { transform: rotate(180deg); }
+  .report-moment-detail__toggle { display: inline-flex; flex: 0 0 auto; align-items: center; gap: .45rem; color: var(--color-coral-600); font-size: .66rem; font-weight: 800; white-space: nowrap; }
+  .report-moment-detail__toggle::after { width: .45rem; height: .45rem; border-right: 1.5px solid var(--color-coral-500); border-bottom: 1.5px solid var(--color-coral-500); content: ""; transform: rotate(45deg) translateY(-.1rem); transition: transform 180ms ease; }
+  .report-moment-detail[open] .report-moment-detail__toggle::after { transform: rotate(225deg) translate(-.1rem, -.05rem); }
   .report-moment-detail__messages { padding: .05rem 1.1rem 1rem; border-top: 1px solid rgba(255,179,193,.25); background: linear-gradient(145deg, rgba(255,250,252,.86), rgba(250,247,255,.76)); }
   .report-moment-detail__eyebrow { margin-top: .8rem; color: var(--color-coral-600); font-size: .62rem; font-weight: 850; letter-spacing: .08em; }
   .report-moment-detail__message-list { display: grid; gap: .5rem; margin-top: .55rem; }
@@ -2624,8 +2622,8 @@
   .review-session-card__meta { display: inline-flex; align-items: center; gap: .32rem; margin-top: .55rem; color: var(--color-subtle); font-size: .68rem; }
   .review-session-card__meta svg { width: .88rem; height: .88rem; color: var(--color-coral-500); }
   .review-session-card__toggle { position: absolute; right: 1rem; bottom: .95rem; display: inline-flex; align-items: center; gap: .3rem; color: var(--color-coral-600); font-size: .64rem; font-weight: 800; }
-  .review-session-card__toggle span { display: inline-block; font-size: .9rem; line-height: 1; transition: transform 180ms ease; }
-  .review-session-card__details[open] .review-session-card__toggle span { transform: rotate(180deg); }
+  .review-session-card__toggle::after { width: .45rem; height: .45rem; border-right: 1.5px solid var(--color-coral-500); border-bottom: 1.5px solid var(--color-coral-500); content: ""; transform: rotate(45deg) translateY(-.1rem); transition: transform 180ms ease; }
+  .review-session-card__details[open] .review-session-card__toggle::after { transform: rotate(225deg) translate(-.1rem, -.05rem); }
   .review-session-card__messages { padding: .05rem 1rem 1rem; border: 1px solid rgba(255, 179, 193, .28); border-top: 0; background: linear-gradient(145deg, rgba(255, 250, 252, .86), rgba(250, 247, 255, .76)); }
   .review-session-card__messages-eyebrow { margin-top: .8rem; color: var(--color-coral-600); font-size: .62rem; font-weight: 850; letter-spacing: .08em; }
   .review-session-card__message-list { display: grid; gap: .5rem; margin-top: .55rem; }

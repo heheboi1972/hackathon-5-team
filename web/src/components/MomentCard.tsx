@@ -30,7 +30,7 @@ export default function MomentCard({ moment }: { moment: Moment }) {
           className="report-moment-detail__toggle"
           aria-hidden="true"
         >
-          {hasMessages ? "메시지 보기" : "상세 보기"} <span>⌄</span>
+          {hasMessages ? "메시지 보기" : "상세 보기"}
         </span>
       </summary>
 
@@ -59,4 +59,3 @@ export default function MomentCard({ moment }: { moment: Moment }) {
     </details>
   );
 }
-

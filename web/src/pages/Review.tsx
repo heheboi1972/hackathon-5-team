@@ -234,7 +234,7 @@ function ReviewSessionCard({ session }: { session: ReviewResponse["sessions"][nu
             <div className="review-session-card__topline"><p>SESSION #{session.session_id}</p><Badge who={session.initiator}>{session.initiator === "a" ? "나부터" : "상대부터"}</Badge></div>
             <time dateTime={session.started_at}>{formatDateTime(session.started_at)} ~ {formatDateTime(session.ended_at)}</time>
             <p className="review-session-card__meta"><ReviewIcon name="mail" /> 메시지 {session.msg_count.toLocaleString()}개</p>
-            <span className="review-session-card__toggle">{hasMessages ? "메시지 보기" : "메시지 없음"}<span aria-hidden="true">⌄</span></span>
+            <span className="review-session-card__toggle">{hasMessages ? "메시지 보기" : "메시지 없음"}</span>
           </div>
         </summary>
         {hasMessages && (
