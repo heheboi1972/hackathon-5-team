@@ -2622,7 +2622,8 @@
   .review-session-card__content > time { display: block; margin-top: .45rem; color: var(--color-muted); font-size: .74rem; }
   .review-session-card__meta { display: inline-flex; align-items: center; gap: .32rem; margin-top: .55rem; color: var(--color-subtle); font-size: .68rem; }
   .review-session-card__meta svg { width: .88rem; height: .88rem; color: var(--color-coral-500); }
-  .review-session-card__toggle { position: absolute; right: 1rem; bottom: .95rem; display: inline-flex; align-items: center; gap: .3rem; color: var(--color-coral-600); font-size: .64rem; font-weight: 800; }
+  .review-session-card__action { display: grid; justify-items: end; gap: .38rem; margin-top: .35rem; }
+  .review-session-card__toggle { display: inline-flex; align-items: center; gap: .3rem; color: var(--color-coral-600); font-size: .64rem; font-weight: 800; }
   .review-session-card__toggle::after { width: .45rem; height: .45rem; border-right: 1.5px solid var(--color-coral-500); border-bottom: 1.5px solid var(--color-coral-500); content: ""; transform: rotate(45deg) translateY(-.1rem); transition: transform 180ms ease; }
   .review-session-card__details[open] .review-session-card__toggle::after { transform: rotate(225deg) translate(-.1rem, -.05rem); }
   .review-session-card__messages { padding: .05rem 1rem 1rem; border: 1px solid rgba(255, 179, 193, .28); border-top: 0; background: linear-gradient(145deg, rgba(255, 250, 252, .86), rgba(250, 247, 255, .76)); }

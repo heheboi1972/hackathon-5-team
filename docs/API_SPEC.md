@@ -93,7 +93,11 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 | email | string | O |
 | password | string | O |
 
-**Response 200**: `{ "user_id", "token" }` · **에러**: 401 UNAUTHORIZED
+**Response 200**: `{ "user_id", "token", "couple_id?", "couple_status?" }`
+
+- 활성 커플에 연결된 계정은 `couple_id`와 `couple_status: "active"`를 함께 반환한다.
+- 연결되지 않은 계정은 두 커플 필드를 `null`로 반환한다.
+- **에러**: 401 UNAUTHORIZED
 
 ---
 
@@ -347,7 +351,7 @@ API 응답에서 발화자는 항상 `"a"` / `"b"`. 실제 이름은 `GET /api/c
 ```json
 {
   "range": { "start": "...", "end": "..." },
-  "sessions": [{ "session_id": 1187, "started_at": "...", "ended_at": "...", "initiator": "a", "msg_count": 34 }],
+  "sessions": [{ "session_id": 1187, "started_at": "...", "ended_at": "...", "initiator": "a", "initiated_by_me": true, "msg_count": 34 }],
   "metrics": {
     "range": {
       "question_rate": { "couple": 0.2, "mine": 0.1 },

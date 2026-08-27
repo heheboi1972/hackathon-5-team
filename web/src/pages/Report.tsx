@@ -66,12 +66,18 @@ function statusMessage(status: ReportResponse["status"]): string {
   return "";
 }
 
+function scrollReportToTop(): void {
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
+}
+
 function WeekSelectorItem({ week, selected }: { week: TimelineWeek; selected: boolean }) {
   return (
     <Link
       to={`/reports/${week.week_start}`}
       className={`report-week-selector__item${selected ? " is-selected" : ""}`}
       aria-current={selected ? "page" : undefined}
+      onClick={scrollReportToTop}
     >
       <span className="report-week-selector__item-label">{formatFriendlyWeekLabel(week.week_start)}</span>
       <span className="report-week-selector__item-date">{formatShortWeekDate(week.week_start)}</span>
@@ -420,7 +426,7 @@ export default function Report() {
 
       {data.moments.length > 0 && (
         <section className="report-section" aria-labelledby="moments-title">
-          <div className="report-section-heading"><div><span className="report-section-kicker">MEMORIES TO KEEP</span><h2 id="moments-title">기억하고 싶은 순간</h2></div><span className="report-section-note">우리만의 작은 장면</span></div>
+          <div className="report-section-heading"><div><span className="report-section-kicker">A DIFFERENT RHYTHM</span><h2 id="moments-title">평소와 달라졌어요</h2></div><span className="report-section-note">달라진 대화 흐름</span></div>
           <div className="report-moments-list">
             {data.moments.map((moment, index) => (
               <article className="report-moment-card" key={`${moment.session_id}-${moment.at}-${index}`}>

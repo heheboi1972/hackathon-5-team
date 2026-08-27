@@ -51,6 +51,8 @@ class LoginRequest(BaseModel):
 class AuthResponse(BaseModel):
     user_id: str
     token: str
+    couple_id: str | None = None
+    couple_status: CoupleStatus | None = None
 
 
 # ---------------------------------------------------------------- 2. 커플 연결 (FR-001)
@@ -297,6 +299,7 @@ class SessionInfo(BaseModel):
     started_at: datetime
     ended_at: datetime
     initiator: Who
+    initiated_by_me: bool
     msg_count: int
 
 

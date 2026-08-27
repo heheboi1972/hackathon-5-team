@@ -36,7 +36,7 @@ export default function MomentCard({ moment }: { moment: Moment }) {
 
       <div
         className="report-moment-detail__messages"
-        aria-label="기억하고 싶은 순간의 메시지"
+        aria-label="평소와 달라진 순간의 메시지"
       >
         <p className="report-moment-detail__eyebrow">
           {hasMessages ? "이 순간의 대화" : "이 순간의 기록"}

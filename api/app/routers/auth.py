@@ -18,7 +18,10 @@ def _token(request: Request, user_id: str) -> str:
 
 
 @router.post(
-    "/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
+    "/signup",
+    response_model=AuthResponse,
+    response_model_exclude_none=True,
+    status_code=status.HTTP_201_CREATED,
 )
 async def signup(body: SignupRequest, request: Request) -> AuthResponse:
     email = str(body.email).strip().casefold()
@@ -51,5 +54,8 @@ async def login(body: LoginRequest, request: Request) -> AuthResponse:
             },
         )
     return AuthResponse(
-        user_id=str(row["user_id"]), token=_token(request, str(row["user_id"]))
+        user_id=str(row["user_id"]),
+        token=_token(request, str(row["user_id"])),
+        couple_id=str(row["couple_id"]) if row.get("couple_id") else None,
+        couple_status=row.get("couple_status"),
     )

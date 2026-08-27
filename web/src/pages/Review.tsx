@@ -231,10 +231,13 @@ function ReviewSessionCard({ session }: { session: ReviewResponse["sessions"][nu
       <details className="review-session-card__details">
         <summary className="review-session-card__summary">
           <div className="review-session-card__content">
-            <div className="review-session-card__topline"><p>SESSION #{session.session_id}</p><Badge who={session.initiator}>{session.initiator === "a" ? "나부터" : "상대부터"}</Badge></div>
+            <div className="review-session-card__topline"><p>SESSION #{session.session_id}</p></div>
             <time dateTime={session.started_at}>{formatDateTime(session.started_at)} ~ {formatDateTime(session.ended_at)}</time>
             <p className="review-session-card__meta"><ReviewIcon name="mail" /> 메시지 {session.msg_count.toLocaleString()}개</p>
-            <span className="review-session-card__toggle">{hasMessages ? "메시지 보기" : "메시지 없음"}</span>
+            <div className="review-session-card__action">
+              <Badge who={session.initiated_by_me ? "a" : "b"}>{session.initiated_by_me ? "내가 대화 시작" : "상대가 대화 시작"}</Badge>
+              <span className="review-session-card__toggle">{hasMessages ? "메시지 보기" : "메시지 없음"}</span>
+            </div>
           </div>
         </summary>
         {hasMessages && (
@@ -378,7 +381,7 @@ export default function Review() {
 
           {data.sessions.length > 0 && (
             <section className="review-section review-sessions-section" aria-labelledby="sessions-heading">
-              <div className="review-section-heading"><div><span className="review-section-eyebrow">OUR LITTLE ARCHIVE</span><h2 id="sessions-heading">기억 속 대화 장면</h2></div><span className="review-section-count">{data.sessions.length}개</span></div>
+              <div className="review-section-heading"><div><span className="review-section-eyebrow">OUR CONVERSATIONS</span><h2 id="sessions-heading">우리의 대화 기록</h2></div><span className="review-section-count">{data.sessions.length}개</span></div>
               <div className="review-session-list">
                 {data.sessions.map((session) => <ReviewSessionCard key={session.session_id} session={session} />)}
               </div>

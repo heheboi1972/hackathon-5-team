@@ -137,9 +137,13 @@ def build_review(stored: dict[str, Any], me: Who, start: datetime, end: datetime
     `review_comment()`가 숫자 없이 방향만 코드로 생성해서 `stored`에 담아 넘겨준다(LLM 미사용 —
     B4를 재현성 있게 보장하기 위함) — 여기서는 그대로 통과시키기만 한다(윤아+윤석 병합, 2026-08-25).
     """
+    sessions = [
+        {**session, "initiated_by_me": session["initiator"] == me}
+        for session in stored["sessions"]
+    ]
     return ReviewResponse.model_validate({
         "range": {"start": start, "end": end},
-        "sessions": stored["sessions"],
+        "sessions": sessions,
         "metrics": {
             "range": project_metrics(stored["metrics"]["range"], me),
             "baseline": project_metrics(stored["metrics"]["baseline"], me),

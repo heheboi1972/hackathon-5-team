@@ -108,13 +108,20 @@ export default function Onboarding() {
     setLoginForm((current) => ({ ...current, [field]: value }));
   };
 
-  const goToNextStageAfterAuth = async () => {
-    const me = await api.get<CoupleMeResponse>("/api/couples/me");
-    if (me.status === "active") {
+  const goToNextStageAfterAuth = async (auth: AuthResponse) => {
+    let coupleId = auth.couple_id;
+    let coupleStatus = auth.couple_status;
+    if (coupleStatus === undefined) {
+      // API 롤링 배포 중 구버전 로그인 응답을 받아도 기존 상태 조회로 안전하게 전환한다.
+      const me = await api.get<CoupleMeResponse>("/api/couples/me");
+      coupleId = me.couple_id;
+      coupleStatus = me.status;
+    }
+    if (coupleStatus === "active") {
       navigate("/", { replace: true });
       return;
     }
-    if (me.couple_id && me.status === "awaiting_confirm") {
+    if (coupleId && coupleStatus === "awaiting_confirm") {
       setStage("awaiting");
       return;
     }
@@ -179,7 +186,7 @@ export default function Onboarding() {
       });
       setToken(result.token);
       queryClient.removeQueries({ queryKey: ["couple-me"] });
-      await goToNextStageAfterAuth();
+      await goToNextStageAfterAuth(result);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {

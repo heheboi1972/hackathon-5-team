@@ -87,6 +87,16 @@ class _TimelineRepository:
         assert couple_id == COUPLE_ID
         return deepcopy(load_mock("report_stored")) if week_start == date.fromisoformat(WEEK) else None
 
+    async def get_messages_in_sessions(self, couple_id, session_ids):
+        assert couple_id == COUPLE_ID
+        assert session_ids == [1187]
+        return [{
+            "session_id": 1187,
+            "sender": "b",
+            "sent_at": datetime(2026, 8, 19, 23, 41, tzinfo=KST),
+            "body_enc": "응, 잘 자. 내일 이야기하자",
+        }]
+
     async def create_report_job(self, couple_id, week_start):
         assert couple_id == COUPLE_ID and week_start == date.fromisoformat(WEEK)
         return UUID(int=9)
@@ -141,7 +151,8 @@ def _client(me: str, timeline_rows: list[dict] | None = None) -> TestClient:
     for mod in (timeline, reports, review):
         app.include_router(mod.router)
     app.state.container = SimpleNamespace(
-        postgres=_TimelineRepository(timeline_rows)
+        postgres=_TimelineRepository(timeline_rows),
+        cipher=SimpleNamespace(decrypt=lambda value: value),
     )
     app.dependency_overrides[current_member] = lambda: me
     return TestClient(app)

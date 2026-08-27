@@ -162,5 +162,7 @@ def test_review_projection_keeps_only_couple_and_requester_axis():
         for metric in ("question_rate", "reply_gap_median_min"):
             assert a["metrics"][section][metric]["couple"] == b["metrics"][section][metric]["couple"]
             assert a["metrics"][section][metric]["mine"] != b["metrics"][section][metric]["mine"]
+    assert a["sessions"][0]["initiated_by_me"] is True
+    assert b["sessions"][0]["initiated_by_me"] is False
     encoded = json.dumps({"a_response": a, "b_response": b}, ensure_ascii=False)
     assert '"a":' not in encoded and '"b":' not in encoded

@@ -77,7 +77,20 @@ class PostgresService:
             conn.cursor(row_factory=dict_row) as cur,
         ):
             await cur.execute(
-                "SELECT user_id, email, password_hash, display_name FROM users WHERE email = %s",
+                """
+                SELECT u.user_id, u.email, u.password_hash, u.display_name,
+                       c.couple_id, c.status AS couple_status
+                  FROM users u
+                  LEFT JOIN LATERAL (
+                    SELECT couple_id, status
+                      FROM couples
+                     WHERE (user_a = u.user_id OR user_b = u.user_id)
+                       AND status <> 'dissolved'
+                     ORDER BY (status = 'active') DESC, created_at DESC
+                     LIMIT 1
+                  ) c ON true
+                 WHERE u.email = %s
+                """,
                 (email,),
             )
             return await cur.fetchone()
