@@ -189,12 +189,14 @@ function ActivityCard({ activity }: { activity: WeekSummary["activity"] }) {
 }
 
 function TermGroup({ title, terms, tone }: { title: string; terms: TermCount[]; tone: "positive" | "negative" }) {
+  const topTerms = terms.slice(0, 3);
+
   return (
     <div className={`report-term-group report-term-group--${tone}`}>
       <p>{title}</p>
-      {terms.length > 0 ? (
+      {topTerms.length > 0 ? (
         <div className="report-term-list">
-          {terms.map((term) => (
+          {topTerms.map((term) => (
             <span key={term.canonical} className="report-term-chip">
               {term.canonical} <b>{term.count}</b>
             </span>
