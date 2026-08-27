@@ -4344,8 +4344,8 @@
     animation: timeline-home-characters-float 5s ease-in-out infinite;
   }
 
-  .timeline-home-character--left { transform-origin: 31px 143px; }
-  .timeline-home-character--right { transform-origin: 222px 143px; }
+  .timeline-home-character--left { transform-origin: 88px 163px; }
+  .timeline-home-character--right { transform-origin: 176px 163px; }
 
   .timeline-home-envelope-art__heart,
   .timeline-home-envelope-art__sparkle,
