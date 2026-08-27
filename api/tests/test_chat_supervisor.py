@@ -284,6 +284,29 @@ def test_advice_request_regex_shortcut_never_calls_intent_classifier():
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "우리 어떻게 화해해야 할까?",
+        "이 정도면 헤어지는 게 나을까?",
+        "요즘 연락이 좀 뜸한데 어떻게 하면 좋을까?",
+        "서로 서운한 게 쌓이지 않으려면 어떻게 해야 할까?",
+        "여자친구가 삐지면 어떻게 해야 돼?",
+        "우리 궁합 잘 맞는 편이야?",
+        "화해하려면 뭐부터 해야 돼?",
+        "이 정도면 그만 만나는 게 맞는 걸까?",
+    ],
+)
+def test_canonical_advice_questions_skip_intent_classifier(message):
+    async def scenario():
+        supervisor = _supervisor(intent_agent=_NeverCalled())
+        result = await supervisor.run(uuid4(), "a", _request(message))
+        assert result.intent == "advice_request"
+        assert result.redirect
+
+    asyncio.run(scenario())
+
+
 def test_advice_mixed_with_other_topic_still_wins_per_boundary_rule():
     """chat_intent.md 경계 규칙: 조언 요청이 섞이면 advice_request 우선."""
     async def scenario():

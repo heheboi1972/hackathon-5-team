@@ -40,7 +40,7 @@ QUOTED_TERM = re.compile(
 PERSON_HINT = re.compile(r"(내가|제가|나는|너가|네가|쟤가|걔가|상대(방)?가)")
 # advice_request 사전 분기 (chat_intent.md "경계 규칙": 조언 요청이 섞이면 최우선)
 ADVICE_PATTERN = re.compile(
-    r"(어떻게\s*해야|어떡해야|나을까|괜찮은\s*관계일까|화해|헤어지)"
+    r"(어떻게\s*(해야|하면|할)|어떡해야|어떡하|뭐부터\s*해야|나을까|괜찮은\s*관계일까|화해|헤어지|이별|결별|그만\s*만나|궁합|잘\s*맞|안\s*맞)"
 )
 
 # 고정 안내 문구(ADVICE_FALLBACK_TEXT)는 chat_answer_agent.py로 옮김 — 그쪽이 mock/안전-폴백

@@ -8,6 +8,7 @@
 # 판단하지 않는다"는 이 서비스의 핵심 원칙이라 LLM 혼자에게 맡기지 않는다.
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 
@@ -24,6 +25,56 @@ ADVICE_FALLBACK_TEXT = (
     "이 챗봇은 대화 기록을 찾아주는 도구예요. 관계가 어떤지는 저도 판단하지 않아요. "
     "대신 요즘 대화가 어땠는지는 같이 볼 수 있어요."
 )
+
+# 반복되는 대표 조언 질문은 의미별 문구를 우선 사용해 응답 표현이 흔들리지 않게 한다.
+# 여기에 매치되지 않는 조언 질문은 기존처럼 LLM이 문맥에 맞춰 작성한다.
+_ADVICE_CANONICAL_RESPONSES: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(r"화해|관계.{0,5}풀|감정.{0,5}풀"),
+        '화해 방법을 직접 정해드리지는 않지만, 최근 갈등이 시작된 대화나 두 분의 대화 흐름을 함께 확인할 수 있어요. '
+        '"최근에 분위기가 달라진 시점을 알려줘"라고 물어보시면 관련 기록을 찾아드릴게요.',
+    ),
+    (
+        re.compile(r"그만\s*만나"),
+        '그 상황에 대해 고민하고 계시군요. 이 챗봇은 관계를 평가하거나 판단해드리지 않아요. '
+        '대신 최근 대화량, 답장 시간, 질문 비율 등 대화 패턴 변화를 확인할 수 있어요. '
+        '"최근 우리 대화 패턴이 어떻게 변했는지"라고 물어보시면 관련 기록을 보여드릴게요.',
+    ),
+    (
+        re.compile(r"헤어지|이별|결별"),
+        '관계를 계속할지는 판단해드리지 않아요. 대신 최근 대화량, 답장 시간, 질문 비율 등 대화 패턴이 어떻게 변했는지 확인할 수 있어요. '
+        '"최근 우리 대화 패턴이 어떻게 변했는지"라고 물어보시면 관련 지표를 보여드릴게요.',
+    ),
+    (
+        re.compile(r"(여자친구|여친).{0,12}삐지|삐지.{0,12}(여자친구|여친)"),
+        '여자친구가 삐졌다고 느끼셨군요. 이 챗봇은 관계에 대한 판단이나 조언을 제공하지 않아요. '
+        '대신 최근 대화에서 감정이 변한 시점이나 대화 패턴을 확인할 수 있어요. '
+        '"최근에 감정이 바뀐 대화가 언제였는지 알려줘"라고 물어보시면 관련 기록을 찾아드릴게요.',
+    ),
+    (
+        re.compile(r"서운.{0,15}(쌓|누적)|쌓.{0,15}서운"),
+        '서운함이 쌓이는 상황을 직접 해결해드리지는 않지만, 최근 대화에서 서운함이 언급된 시점과 그 전후 흐름을 확인할 수 있어요. '
+        '"서운함이 처음 나타난 대화를 알려줘"라고 물어보시면 관련 기록을 찾아드릴게요.',
+    ),
+    (
+        re.compile(r"연락.{0,15}(뜸|줄|적|없|드물)|연락\s*빈도"),
+        '연락이 줄었다고 느끼셨군요. 이 챗봇은 직접적인 조언을 드리지 않지만, 최근 연락 빈도와 답장 시간이 어떻게 변했는지 확인해드릴 수 있어요. '
+        '"최근 연락이 얼마나 줄었는지"라고 물어보시면 관련 지표를 보여드릴게요.',
+    ),
+    (
+        re.compile(r"궁합|잘\s*맞|안\s*맞"),
+        '두 분의 관계를 평가하거나 점수로 판단하지는 않아요. 대신 최근 대화량, 질문 비율, 답장 시간 등 대화 패턴 변화를 확인할 수 있어요. '
+        '"최근 우리 대화 패턴이 어떻게 변했는지"라고 물어보시면 관련 지표를 보여드릴게요.',
+    ),
+]
+
+
+def _canonical_advice_answer(message: str) -> str | None:
+    normalized = " ".join(message.split())
+    for pattern, answer in _ADVICE_CANONICAL_RESPONSES:
+        if pattern.search(normalized):
+            return answer
+    return None
 
 _ADVICE_BANNED_PATTERNS = load_banned_patterns()
 
@@ -122,7 +173,14 @@ class ChatAnswerAgent(AgentBase):
         candidates: list[dict[str, Any]] | None = None,
     ) -> ChatAnswerOutput:
         with self.span() as span:
-            if self.ai.provider_name == "mock":
+            canonical_answer = (
+                _canonical_advice_answer(str(payload.get("message", "")))
+                if intent == "advice_request"
+                else None
+            )
+            if canonical_answer is not None:
+                output = ChatAnswerOutput(answer=canonical_answer, citations=[])
+            elif self.ai.provider_name == "mock":
                 output = _mock_answer(intent, payload)
             else:
                 output = await self.generate_validated(
