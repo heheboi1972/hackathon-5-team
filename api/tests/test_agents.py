@@ -234,6 +234,64 @@ def test_invalid_agent_schema_retries_only_once():
     asyncio.run(scenario())
 
 
+def test_interpret_agent_recovers_banned_expression_without_failing_report():
+    class CorrectingAI:
+        provider_name = "watsonx"
+
+        def __init__(self, corrected: bool):
+            self.calls = 0
+            self.corrected = corrected
+
+        async def generate_json(self, *_args, **_kwargs):
+            self.calls += 1
+            if self.calls == 1 or not self.corrected:
+                observation = "A가 질문을 더 적게 했어요"
+                interpretations = ["바쁜 일정 때문일 수도", "상대방에게 물어볼 것이 적었을 수도"]
+            else:
+                observation = "우리 대화에서 묻는 순간이 조금 줄었어요"
+                interpretations = ["바쁜 시기였을 수도", "일상 공유가 자연스럽게 이어졌을 수도"]
+            return {
+                "highlights": [{
+                    "observation": observation,
+                    "interpretations": interpretations,
+                    "evidence": [],
+                    "sources": [],
+                }]
+            }
+
+    async def scenario():
+        payload = {
+            "couple_id": uuid4(),
+            "metric": "question_rate",
+            "direction": "down",
+            "magnitude": "slight",
+        }
+
+        corrected_ai = CorrectingAI(corrected=True)
+        corrected = await InterpretAgent(
+            corrected_ai, lambda *_args, **_kwargs: [], lambda *_args, **_kwargs: []
+        ).run(payload)
+        assert corrected_ai.calls == 2
+        assert corrected.highlights[0].observation == "우리 대화에서 묻는 순간이 조금 줄었어요"
+
+        fallback_ai = CorrectingAI(corrected=False)
+        fallback = await InterpretAgent(
+            fallback_ai, lambda *_args, **_kwargs: [], lambda *_args, **_kwargs: []
+        ).run(payload)
+        assert fallback_ai.calls == 2
+        texts = [fallback.highlights[0].observation, *fallback.highlights[0].interpretations]
+        patterns_path = Path(__file__).resolve().parents[1] / "app" / "prompts" / "banned_patterns.txt"
+        patterns = [
+            re.compile(line.strip())
+            for line in patterns_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        assert not any(pattern.search(text) for pattern in patterns for text in texts)
+        assert all("A가" not in text and "상대방" not in text and "때문" not in text for text in texts)
+
+    asyncio.run(scenario())
+
+
 def test_suggest_agent_uses_only_templates_and_one_sentence():
     async def scenario():
         knowledge = Knowledge(

@@ -116,6 +116,13 @@ _INTERPRETATIONS = {
     ],
 }
 
+_CORRECTION_INSTRUCTION = (
+    "분석 방향과 evidence/sources 객체는 그대로 유지하세요. 사용자에게 보여줄 문장만 "
+    "다시 작성하세요. 특정 인물 지목, 두 사람 비교, 숫자, 원인 단정, 가치 판단, "
+    "명령·당위, 관계 판정 표현을 쓰지 말고 여러 가능성을 열어 둔 중립적인 한국어 "
+    "JSON만 반환하세요."
+)
+
 
 def _mock_output(
     model: InterpretInput,
@@ -186,6 +193,15 @@ def _validate_grounding(
             raise AgentOutputError("search_knowledge 밖의 source가 있습니다")
 
 
+def _validate_output(
+    output: InterpretOutput,
+    evidence: list[EvidenceCandidate],
+    knowledge: list[KnowledgeCandidate],
+) -> None:
+    _validate_language(output)
+    _validate_grounding(output, evidence, knowledge)
+
+
 class InterpretAgent(AgentBase):
     def __init__(
         self,
@@ -230,8 +246,30 @@ class InterpretAgent(AgentBase):
                     mock_key="interpret",
                     response_format=_RESPONSE_FORMAT,
                 )
-            _validate_language(output)
-            _validate_grounding(output, evidence, knowledge)
+                try:
+                    _validate_output(output, evidence, knowledge)
+                except AgentOutputError:
+                    correction_payload = {
+                        **tool_payload,
+                        "previous_output": output.model_dump(mode="json"),
+                        "correction_instruction": _CORRECTION_INSTRUCTION,
+                    }
+                    try:
+                        output = await self.generate_validated(
+                            correction_payload,
+                            InterpretOutput,
+                            mock_key="interpret",
+                            response_format=_RESPONSE_FORMAT,
+                        )
+                        _validate_output(output, evidence, knowledge)
+                        span.set_attribute("expression_recovery", "llm_correction")
+                    except AgentOutputError:
+                        # 분석 방향과 검증된 근거는 보존하되, 표시 문장만 결정론적 안전
+                        # 문장으로 대체한다. 표현 하나 때문에 주 전체를 실패시키지 않는다.
+                        output = _mock_output(model, evidence, knowledge)
+                        _validate_output(output, evidence, knowledge)
+                        span.set_attribute("expression_recovery", "safe_fallback")
+            _validate_output(output, evidence, knowledge)
             span.set_attribute("evidence_count", len(evidence))
             span.set_attribute("source_count", len(knowledge))
         self.record_trace(trace, self.name, tool_payload, output)
