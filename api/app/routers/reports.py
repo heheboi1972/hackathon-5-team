@@ -1,4 +1,5 @@
 # 역할: FR-004 리포트 — GET /api/couples/{id}/reports/{week}, POST regenerate (참조: API_SPEC §4.2~4.3)
+import logging
 from datetime import date
 from uuid import UUID
 
@@ -6,9 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ..deps import current_member
 from ..models.api import RegenerateResponse, ReportResponse, Who
+from ..services.moment_snippets import hydrate_moment_snippets
 from ..services.projection import build_report
 
 router = APIRouter(prefix="/api/couples", tags=["reports"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/{couple_id}/reports/{week_start}", response_model=ReportResponse)
@@ -29,6 +32,20 @@ async def get_report(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "REPORT_NOT_FOUND", "message": "리포트 주차를 찾을 수 없습니다"},
         )
+    moments = stored.get("moments", [])
+    postgres = request.app.state.container.postgres
+    cipher = getattr(request.app.state.container, "cipher", None)
+    if moments and cipher is not None and hasattr(postgres, "get_messages_in_sessions"):
+        try:
+            session_ids = sorted({
+                int(item["session_id"])
+                for item in moments
+                if item.get("session_id") is not None
+            })
+            rows = await postgres.get_messages_in_sessions(couple_id, session_ids)
+            stored["moments"] = hydrate_moment_snippets(moments, rows, cipher.decrypt)
+        except Exception:
+            logger.warning("Could not hydrate report moment snippets", exc_info=True)
     return build_report(stored, me, week_start)
 
 

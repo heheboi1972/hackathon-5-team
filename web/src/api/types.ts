@@ -210,6 +210,7 @@ export interface Moment {
   value_min?: number | null;
   baseline_median_min?: number | null;
   text: string;
+  snippet?: string | null;
 }
 
 export interface ReportResponse {

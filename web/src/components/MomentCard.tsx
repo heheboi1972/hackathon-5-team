@@ -3,5 +3,9 @@
 import type { Moment } from "../api/types";
 
 export default function MomentCard({ moment }: { moment: Moment }) {
-  return <div className="rounded-lg border p-4 text-sm">{moment.text}</div>;
+  return (
+    <div className="rounded-lg border p-4 text-sm">
+      {moment.snippet ? <blockquote>“{moment.snippet}”</blockquote> : <p>{moment.text}</p>}
+    </div>
+  );
 }

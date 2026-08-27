@@ -267,6 +267,7 @@ class Moment(BaseModel):
     value_min: float | None = None
     baseline_median_min: float | None = None
     text: str
+    snippet: str | None = None
 
 
 class SafetyResult(BaseModel):
