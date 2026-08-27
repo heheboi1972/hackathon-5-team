@@ -1,4 +1,4 @@
-// 역할: 업로드 — 드롭 → 이름 매핑 → 진행률 (참조: FR-002, API_SPEC §3, TRD §6.2) — 시여 담당
+// 역할: 업로드 — 드롭 → 내 카카오톡 이름 선택 → 진행률 (참조: FR-002, API_SPEC §3, TRD §6.2) — 시여 담당
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -46,7 +46,7 @@ export default function Upload() {
   const [mappingOpen, setMappingOpen] = useState(Boolean(initialFile));
   const [mappingRequired, setMappingRequired] = useState(false);
   const [detectedSenders, setDetectedSenders] = useState<string[]>([]);
-  const [nameMap, setNameMap] = useState({ a: "", b: "" });
+  const [selectedSelfSender, setSelectedSelfSender] = useState("");
   const [result, setResult] = useState<UploadResponse | null>(null);
   const [job, setJob] = useState<JobResponse | null>(null);
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
@@ -110,6 +110,7 @@ export default function Upload() {
     setStage("mapping");
     setMappingRequired(false);
     setDetectedSenders([]);
+    setSelectedSelfSender("");
     setResult(null);
     setJob(null);
     setError(null);
@@ -131,24 +132,32 @@ export default function Upload() {
       return;
     }
 
-    const a = nameMap.a.trim();
-    const b = nameMap.b.trim();
-    if ((a && !b) || (!a && b)) {
-      setError("두 참여자의 이름을 모두 입력하거나, 둘 다 비워주세요.");
-      return;
-    }
-    if (a && b && a === b) {
-      setError("A와 B에는 서로 다른 참여자를 입력해주세요.");
-      return;
-    }
-    if (mappingRequired && (!a || !b)) {
-      setError("서버가 확인한 두 참여자를 A와 B에 각각 연결해주세요.");
-      return;
-    }
-
     const form = new FormData();
     form.append("file", file);
-    if (a && b) form.append("name_map", JSON.stringify({ a, b }));
+    if (mappingRequired) {
+      if (detectedSenders.length !== 2) {
+        setError("파일에서 두 참여자의 이름을 확인하지 못했어요.");
+        return;
+      }
+      if (!selectedSelfSender || !detectedSenders.includes(selectedSelfSender)) {
+        setError("두 이름 중 내가 사용한 이름을 선택해주세요.");
+        return;
+      }
+      if (!coupleData?.me) {
+        setError("로그인한 사용자의 커플 정보를 확인하지 못했어요.");
+        return;
+      }
+
+      const partnerSender = detectedSenders.find((sender) => sender !== selectedSelfSender);
+      if (!partnerSender) {
+        setError("상대방의 이름을 확인하지 못했어요.");
+        return;
+      }
+      const nameMap = coupleData.me === "a"
+        ? { a: selectedSelfSender, b: partnerSender }
+        : { a: partnerSender, b: selectedSelfSender };
+      form.append("name_map", JSON.stringify(nameMap));
+    }
 
     setMappingOpen(false);
     setStage("uploading");
@@ -170,13 +179,15 @@ export default function Upload() {
         setDetectedSenders(
           Array.isArray(senders) ? senders.filter((sender): sender is string => typeof sender === "string") : [],
         );
+        setSelectedSelfSender("");
         setMappingRequired(true);
         setStage("mapping");
         setMappingOpen(true);
+        setError(null);
       } else {
         setStage("error");
+        setError(getErrorMessage(requestError));
       }
-      setError(getErrorMessage(requestError));
     }
   };
 
@@ -186,7 +197,7 @@ export default function Upload() {
     setMappingOpen(false);
     setMappingRequired(false);
     setDetectedSenders([]);
-    setNameMap({ a: "", b: "" });
+    setSelectedSelfSender("");
     setResult(null);
     setJob(null);
     setTrackedJobId(null);
@@ -247,12 +258,12 @@ export default function Upload() {
           </div>
           {stage === "mapping" && (
             <div className="upload-file-card__mapping">
-              <p className="upload-file-card__mapping-title">이름 매핑을 확인해주세요</p>
+              <p className="upload-file-card__mapping-title">대화 참여자를 확인해주세요</p>
               <p className="upload-file-card__mapping-copy">
-                처음 올리는 파일이거나 참여자를 찾지 못한 경우에만 입력하면 돼요.
+                파일 속 두 사람을 확인한 뒤, 내가 사용한 카카오톡 이름을 선택해요.
               </p>
               <Button className="upload-file-card__mapping-button" onClick={() => setMappingOpen(true)}>
-                이름 매핑 및 업로드
+                참여자 확인 및 업로드
               </Button>
             </div>
           )}
@@ -333,40 +344,55 @@ export default function Upload() {
       <Modal
         open={mappingOpen}
         onClose={() => !isBusy && setMappingOpen(false)}
-        title="누가 누구인지 알려주세요"
+        title={mappingRequired ? "카카오톡에서 내가 누구인가요?" : "대화 참여자를 확인할게요"}
         className="upload-mapping-modal"
       >
         <form className="upload-mapping-form" onSubmit={onUpload}>
           <p className="upload-mapping-form__intro">
-            카카오톡 파일의 두 참여자를 A와 B에 연결해주세요. 이름을 모르면 비워두고 먼저 업로드할 수 있어요.
+            {mappingRequired
+              ? "파일에서 찾은 두 이름 중 내가 사용한 이름 하나만 선택해주세요. 상대방은 자동으로 연결돼요."
+              : "파일을 먼저 확인한 뒤, 대화에 표시된 두 이름을 보여드릴게요."}
           </p>
-          {detectedSenders.length > 0 && (
+          {mappingRequired && coupleData?.me && coupleData.members && (
             <div className="upload-mapping-form__detected">
-              파일에서 확인된 참여자: {detectedSenders.join(", ")}
+              현재 로그인한 계정: <strong>{coupleData.members[coupleData.me].display_name}</strong>
             </div>
           )}
-          <div className="upload-mapping-form__partners">
-          <label className="upload-partner-card upload-partner-card--a">
-            <span className="upload-partner-card__avatar" aria-hidden="true">A</span>
-            <span className="upload-partner-card__label">발화자 A</span>
-            <input
-              value={nameMap.a}
-              onChange={(event) => setNameMap((current) => ({ ...current, a: event.target.value }))}
-              className="upload-partner-card__input"
-              placeholder="카카오톡 이름"
-            />
-          </label>
-          <label className="upload-partner-card upload-partner-card--b">
-            <span className="upload-partner-card__avatar" aria-hidden="true">B</span>
-            <span className="upload-partner-card__label">발화자 B</span>
-            <input
-              value={nameMap.b}
-              onChange={(event) => setNameMap((current) => ({ ...current, b: event.target.value }))}
-              className="upload-partner-card__input"
-              placeholder="카카오톡 이름"
-            />
-          </label>
-          </div>
+          {mappingRequired && (
+            <fieldset className="upload-mapping-form__identity">
+              <legend>내 카카오톡 이름</legend>
+              <div className="upload-mapping-form__partners">
+                {detectedSenders.map((sender) => {
+                  const selected = selectedSelfSender === sender;
+                  return (
+                    <label
+                      key={sender}
+                      className={`upload-partner-card${selected ? " is-selected" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="self-sender"
+                        value={sender}
+                        checked={selected}
+                        onChange={() => {
+                          setSelectedSelfSender(sender);
+                          setError(null);
+                        }}
+                      />
+                      <span className="upload-partner-card__avatar" aria-hidden="true">
+                        {sender.slice(0, 1)}
+                      </span>
+                      <span className="upload-partner-card__copy">
+                        <strong>{sender}</strong>
+                        <small>{selected ? "이 이름이 나예요" : "선택하기"}</small>
+                      </span>
+                      {selected && <span className="upload-partner-card__selected">나</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
           {error && stage === "mapping" && (
             <p role="alert" className="upload-mapping-form__error">{error}</p>
           )}
@@ -375,7 +401,7 @@ export default function Upload() {
               닫기
             </Button>
             <Button type="submit" disabled={isBusy}>
-              업로드 시작
+              {mappingRequired ? "선택하고 업로드" : "참여자 확인"}
             </Button>
           </div>
         </form>

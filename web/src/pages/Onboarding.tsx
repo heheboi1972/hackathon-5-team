@@ -100,6 +100,12 @@ export default function Onboarding() {
     };
   }, [stage]);
 
+  useEffect(() => {
+    if (stage !== "active") return;
+    queryClient.removeQueries({ queryKey: ["couple-me"] });
+    navigate("/", { replace: true });
+  }, [navigate, queryClient, stage]);
+
   const updateForm = (field: keyof SignupRequest, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };

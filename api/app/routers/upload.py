@@ -68,7 +68,7 @@ def _resolve_name_map(
         except json.JSONDecodeError as exc:
             raise ValueError("name_map은 JSON 객체여야 합니다") from exc
         if not isinstance(value, dict) or set(value) != {"a", "b"}:
-            raise ValueError("name_map에는 a와 b가 모두 필요합니다")
+            raise ValueError("두 참여자의 이름 정보가 모두 필요합니다")
         result = {"a": str(value["a"]).strip(), "b": str(value["b"]).strip()}
         if (
             not all(result.values())
@@ -76,7 +76,7 @@ def _resolve_name_map(
             or set(result.values()) != senders
         ):
             raise ValueError(
-                "name_map의 값은 감지된 두 발화자와 정확히 일치해야 합니다"
+                "선택한 이름은 파일에서 감지된 두 참여자와 정확히 일치해야 합니다"
             )
         return result
     if stored and set(stored.values()) == senders:
@@ -259,7 +259,7 @@ async def upload(
         raise _error(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "NAME_MAPPING_REQUIRED",
-            "대화 참여자를 A/B에 연결해주세요",
+            "두 참여자 중 내가 사용한 이름을 선택해주세요",
             {"senders": sorted(senders)},
         ) from exc
     except ValueError as exc:

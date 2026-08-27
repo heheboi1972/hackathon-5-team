@@ -1,10 +1,11 @@
 // 역할: 돌아보기 — 구간 선택 → 지표 vs 기준선 → 메모 (참조: FR-005, API_SPEC §5)
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type UIEvent } from "react";
 import { ApiClientError, api, IS_LOCAL_MOCK } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
+import Modal from "../components/Modal";
 import { useCoupleMe } from "../hooks/useCoupleMe";
 import type {
   BaselineMetrics,
@@ -15,6 +16,9 @@ import type {
   ReviewResponse,
   ReviewSessionMessagesResponse,
 } from "../api/types";
+
+const SESSION_BATCH_SIZE = 15;
+const MESSAGE_PAGE_SIZE = 30;
 
 
 function toDateInputValue(date: Date): string {
@@ -243,41 +247,25 @@ function NoteList({ notes }: { notes: NoteResponse[] }) {
 
 function ReviewSessionCard({
   session,
-  coupleId,
+  onSelect,
 }: {
   session: ReviewResponse["sessions"][number];
-  coupleId: string;
+  onSelect: (session: ReviewResponse["sessions"][number]) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
   const canViewMessages = session.msg_count > 0;
-  const messageQuery = useInfiniteQuery({
-    queryKey: ["review-session-messages", coupleId, session.session_id],
-    enabled: isOpen && canViewMessages && Boolean(coupleId),
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) => api.get<ReviewSessionMessagesResponse>(
-      `/api/couples/${coupleId}/review/sessions/${session.session_id}/messages?offset=${Number(pageParam)}&limit=30`,
-    ),
-    getNextPageParam: (lastPage) => lastPage.next_offset ?? undefined,
-    staleTime: 30_000,
-    retry: 1,
-  });
-  const messages = messageQuery.data?.pages.flatMap((page) => page.messages) ?? [];
-  const total = messageQuery.data?.pages[0]?.total ?? session.msg_count;
-  const toggleLabel = !canViewMessages
-    ? "메시지 없음"
-    : messageQuery.isLoading
-      ? "불러오는 중"
-      : isOpen
-        ? "메시지 닫기"
-        : "메시지 보기";
 
   return (
     <article className="review-session-card">
-      <details
+      <div
         className="review-session-card__details"
-        onToggle={(event) => setIsOpen(event.currentTarget.open)}
       >
-        <summary className="review-session-card__summary">
+        <button
+          className="review-session-card__summary"
+          type="button"
+          disabled={!canViewMessages}
+          onClick={() => onSelect(session)}
+          aria-label={canViewMessages ? `${formatSessionDate(session.started_at)} 메시지 보기` : undefined}
+        >
           <div className="review-session-card__content">
             <div className="review-session-card__date" aria-hidden="true">
               <span>{new Intl.DateTimeFormat("ko-KR", { month: "short", timeZone: "Asia/Seoul" }).format(new Date(session.started_at))}</span>
@@ -301,74 +289,118 @@ function ReviewSessionCard({
               </span>
             </div>
             <div className={`review-session-card__toggle${canViewMessages ? "" : " review-session-card__toggle--disabled"}`}>
-              <span>{toggleLabel}</span>
+              <span>{canViewMessages ? "메시지 보기" : "메시지 없음"}</span>
               {canViewMessages && <i aria-hidden="true" />}
             </div>
           </div>
-        </summary>
-        {isOpen && canViewMessages && (
-          <section className="review-session-card__messages" aria-label="대화 메시지" aria-live="polite">
-            <div className="review-session-card__messages-heading">
-              <div>
-                <p className="review-session-card__messages-eyebrow">OUR CHAT</p>
-                <h4>그날 나눈 이야기</h4>
-              </div>
-              <span>{messages.length.toLocaleString()} / {total.toLocaleString()}개</span>
-            </div>
-
-            {messageQuery.isLoading && (
-              <div className="review-session-card__message-state">
-                <span className="review-session-card__loading-dot" aria-hidden="true" />
-                <p>암호화된 대화를 안전하게 불러오고 있어요.</p>
-              </div>
-            )}
-
-            {messageQuery.isError && (
-              <div className="review-session-card__message-state review-session-card__message-state--error">
-                <p>메시지를 불러오지 못했어요.</p>
-                <button type="button" onClick={() => messageQuery.refetch()}>다시 불러오기</button>
-              </div>
-            )}
-
-            {messageQuery.isSuccess && messages.length === 0 && (
-              <div className="review-session-card__message-state">
-                <p>표시할 메시지가 없어요.</p>
-              </div>
-            )}
-
-            {messages.length > 0 && (
-              <div className="review-session-card__message-list">
-                {messages.map((message) => (
-                  <article
-                    className={`review-session-card__message review-session-card__message--${message.mine ? "mine" : "partner"}`}
-                    key={message.message_id}
-                  >
-                    <span className="review-session-card__speaker" aria-hidden="true">
-                      {message.mine ? "나" : "상대"}
-                    </span>
-                    <div>
-                      <p>{message.text}</p>
-                      <time dateTime={message.at}>{formatDateTime(message.at)}</time>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-
-            {messageQuery.hasNextPage && (
-              <button
-                className="review-session-card__load-more"
-                type="button"
-                disabled={messageQuery.isFetchingNextPage}
-                onClick={() => messageQuery.fetchNextPage()}
-              >
-                {messageQuery.isFetchingNextPage ? "더 불러오는 중…" : "메시지 더 보기"}
-              </button>
-            )}
-          </section>
-        )}
-      </details>
+        </button>
+      </div>
     </article>
+  );
+}
+
+function ReviewConversationModal({
+  session,
+  coupleId,
+  onClose,
+}: {
+  session: ReviewResponse["sessions"][number] | null;
+  coupleId: string;
+  onClose: () => void;
+}) {
+  const sessionId = session?.session_id;
+  const messageQuery = useInfiniteQuery({
+    queryKey: ["review-session-messages", coupleId, sessionId],
+    enabled: Boolean(coupleId && sessionId),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      if (!sessionId) throw new Error("대화 세션을 확인할 수 없습니다.");
+      return api.get<ReviewSessionMessagesResponse>(
+        `/api/couples/${coupleId}/review/sessions/${sessionId}/messages?offset=${Number(pageParam)}&limit=${MESSAGE_PAGE_SIZE}`,
+      );
+    },
+    getNextPageParam: (lastPage) => lastPage.next_offset ?? undefined,
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const messages = messageQuery.data?.pages.flatMap((page) => page.messages) ?? [];
+  const total = messageQuery.data?.pages[0]?.total ?? session?.msg_count ?? 0;
+
+  return (
+    <Modal
+      open={Boolean(session)}
+      onClose={onClose}
+      title={session ? `${formatSessionDate(session.started_at)}의 대화` : undefined}
+      className="review-conversation-modal"
+    >
+      <section className="review-conversation-modal__body" aria-label="대화 메시지" aria-live="polite">
+        <div className="review-session-card__messages-heading">
+          <div>
+            <p className="review-session-card__messages-eyebrow">OUR CHAT</p>
+            <h4>그날 나눈 이야기</h4>
+            {session && (
+              <time dateTime={session.started_at}>
+                {formatSessionTime(session.started_at)} — {formatSessionTime(session.ended_at)}
+              </time>
+            )}
+          </div>
+          <span>{messages.length.toLocaleString()} / {total.toLocaleString()}개</span>
+        </div>
+
+        {messageQuery.isLoading && (
+          <div className="review-session-card__message-state">
+            <span className="review-session-card__loading-dot" aria-hidden="true" />
+            <p>암호화된 대화를 안전하게 불러오고 있어요.</p>
+          </div>
+        )}
+
+        {messageQuery.isError && (
+          <div className="review-session-card__message-state review-session-card__message-state--error">
+            <p>메시지를 불러오지 못했어요.</p>
+            <button type="button" onClick={() => messageQuery.refetch()}>다시 불러오기</button>
+          </div>
+        )}
+
+        {messageQuery.isSuccess && messages.length === 0 && (
+          <div className="review-session-card__message-state">
+            <p>표시할 메시지가 없어요.</p>
+          </div>
+        )}
+
+        {messages.length > 0 && (
+          <div className="review-session-card__message-list">
+            {messages.map((message) => (
+              <article
+                className={`review-session-card__message review-session-card__message--${message.mine ? "mine" : "partner"}`}
+                key={message.message_id}
+              >
+                <span
+                  className="review-session-card__speaker"
+                  aria-label={message.mine ? "나" : "연인"}
+                >
+                  {message.mine ? "나" : <span aria-hidden="true">♥</span>}
+                </span>
+                <div>
+                  <p>{message.text}</p>
+                  <time dateTime={message.at}>{formatDateTime(message.at)}</time>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {messageQuery.hasNextPage && (
+          <button
+            className="review-session-card__load-more"
+            type="button"
+            disabled={messageQuery.isFetchingNextPage}
+            onClick={() => messageQuery.fetchNextPage()}
+          >
+            {messageQuery.isFetchingNextPage ? "더 불러오는 중…" : "메시지 30개 더 보기"}
+          </button>
+        )}
+      </section>
+    </Modal>
   );
 }
 
@@ -380,9 +412,16 @@ export default function Review() {
   const [end, setEnd] = useState(initialRange.end);
   const [noteBody, setNoteBody] = useState("");
   const [noteError, setNoteError] = useState<string | null>(null);
+  const [visibleSessionCount, setVisibleSessionCount] = useState(SESSION_BATCH_SIZE);
+  const [selectedSession, setSelectedSession] = useState<ReviewResponse["sessions"][number] | null>(null);
   const queryClient = useQueryClient();
   const rangeError = getRangeError(start, end);
   const queryKey = ["review", coupleId, start, end];
+
+  useEffect(() => {
+    setVisibleSessionCount(SESSION_BATCH_SIZE);
+    setSelectedSession(null);
+  }, [coupleId, end, start]);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey,
@@ -426,6 +465,19 @@ export default function Review() {
       range_end: toIsoEnd(end),
       body,
     });
+  };
+
+  const recentSessions = data
+    ? [...data.sessions].sort((left, right) => Date.parse(right.started_at) - Date.parse(left.started_at))
+    : [];
+  const visibleSessions = recentSessions.slice(0, visibleSessionCount);
+
+  const loadMoreSessionsOnScroll = (event: UIEvent<HTMLDivElement>) => {
+    const list = event.currentTarget;
+    const isNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
+    if (!isNearBottom || visibleSessionCount >= recentSessions.length) return;
+
+    setVisibleSessionCount((current) => Math.min(current + SESSION_BATCH_SIZE, recentSessions.length));
   };
 
   return (
@@ -496,10 +548,23 @@ export default function Review() {
           {data.sessions.length > 0 && (
             <section className="review-section review-sessions-section" aria-labelledby="sessions-heading">
               <div className="review-section-heading"><div><span className="review-section-eyebrow">OUR CONVERSATIONS</span><h2 id="sessions-heading">우리의 대화 기록</h2></div><span className="review-section-count">{data.sessions.length}개</span></div>
-              <div className="review-session-list">
-                {data.sessions.map((session) => (
-                  <ReviewSessionCard key={session.session_id} session={session} coupleId={coupleId ?? ""} />
-                ))}
+              <div className="review-session-scroll-shell">
+                <div
+                  className={`review-session-list${recentSessions.length > 3 ? " review-session-list--scrollable" : ""}`}
+                  onScroll={loadMoreSessionsOnScroll}
+                  tabIndex={recentSessions.length > 3 ? 0 : undefined}
+                  aria-label={recentSessions.length > 3
+                    ? "최근 대화 기록. 목록 안에서 스크롤하면 이전 대화를 볼 수 있습니다."
+                    : "최근 대화 기록"
+                  }
+                >
+                  {visibleSessions.map((session) => (
+                    <ReviewSessionCard key={session.session_id} session={session} onSelect={setSelectedSession} />
+                  ))}
+                </div>
+                {recentSessions.length > 3 && (
+                  <span className="review-session-scroll-hint" aria-hidden="true">스크롤해서 이전 대화 보기 ↓</span>
+                )}
               </div>
             </section>
           )}
@@ -519,6 +584,12 @@ export default function Review() {
               </form>
             </Card>
           </section>
+
+          <ReviewConversationModal
+            session={selectedSession}
+            coupleId={coupleId ?? ""}
+            onClose={() => setSelectedSession(null)}
+          />
         </>
       )}
     </main>
