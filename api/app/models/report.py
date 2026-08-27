@@ -109,7 +109,7 @@ class InterpretedHighlight(StrictModel):
 
 
 class InterpretOutput(StrictModel):
-    highlights: list[InterpretedHighlight] = Field(min_length=1)
+    highlights: list[InterpretedHighlight] = Field(min_length=1, max_length=1)
 
 
 class SuggestInput(StrictModel):

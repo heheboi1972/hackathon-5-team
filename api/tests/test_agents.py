@@ -130,6 +130,32 @@ def test_select_agent_filters_caps_balances_and_validates_schema():
         assert SelectOutput.model_validate(dumped) == output
         assert not _contains_private_key(dumped)
 
+        duplicate_outliers = await agent.run(
+            {
+                "outliers": [
+                    {
+                        "metric": "reply_gap_median_min",
+                        "direction": "up",
+                        "magnitude": "clear",
+                        "outlier_ref": f"outlier:{index}",
+                    }
+                    for index in range(3)
+                ]
+                + [
+                    {
+                        "metric": "resume_delay_median_min",
+                        "direction": "up",
+                        "magnitude": "clear",
+                        "outlier_ref": "outlier:3",
+                    }
+                ]
+            }
+        )
+        assert [item.metric for item in duplicate_outliers.candidates] == [
+            "reply_gap_median_min",
+            "resume_delay_median_min",
+        ]
+
     asyncio.run(scenario())
 
 
