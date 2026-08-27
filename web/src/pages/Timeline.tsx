@@ -13,6 +13,7 @@ import type { TimelineResponse } from "../api/types";
 function EnvelopeIllustration() {
   return (
     <div className="timeline-home-envelope-art" aria-hidden="true">
+      <img className="timeline-home-generated-illustration" src="/home-couple-illustration-transparent.png" alt="" />
       <span className="timeline-home-envelope-art__halo" />
       <span className="timeline-home-envelope-art__heart timeline-home-envelope-art__heart--one">♥</span>
       <span className="timeline-home-envelope-art__heart timeline-home-envelope-art__heart--two">♥</span>
@@ -42,23 +43,25 @@ function EnvelopeIllustration() {
       </svg>
       <svg className="timeline-home-characters" viewBox="0 0 250 180" aria-hidden="true">
         <path d="M13 143c28-7 48-8 66-2M171 141c25-7 47-7 68 0" fill="none" stroke="#c6ace8" strokeDasharray="2 5" strokeLinecap="round" strokeWidth="2" opacity=".7" />
-        <g className="timeline-home-character timeline-home-character--left">
+        <g className="timeline-home-character timeline-home-character--left" transform="translate(68 143) scale(1.15 1.3) translate(-31 -143)">
           <ellipse cx="28" cy="143" rx="18" ry="3" fill="#d98b9f" opacity=".18" />
           <path d="M12 137c5-12 8-21 16-26 8 5 14 14 18 26Z" fill="#e889a4" stroke="#a95372" strokeLinejoin="round" strokeWidth="2" />
           <path d="M17 129h27l-5 8H13Z" fill="#f7c4cf" opacity=".95" />
           <path d="M20 113c-7 2-11 8-14 14M39 113c6 3 10 8 12 14" fill="none" stroke="#a95372" strokeLinecap="round" strokeWidth="2" />
           <path d="M20 108c4-5 15-5 20 0l-2 12H22Z" fill="#fff2f4" stroke="#d47a91" strokeWidth="1.5" />
+          <path d="M23 114h16M25 117h12M20 130c6-2 13-2 21 0" fill="none" stroke="#d47a91" strokeLinecap="round" strokeWidth="1.1" opacity=".8" />
           <circle cx="31" cy="99" r="8" fill="#ffd3be" stroke="#8b6370" strokeWidth="1.5" />
           <path d="M22 99c0-9 5-13 11-12 6 0 10 5 8 12l-4-4-3 4-4-4-5 5Z" fill="#30232d" />
           <path d="M39 91c5 1 7 4 7 8" fill="none" stroke="#30232d" strokeLinecap="round" strokeWidth="2.5" />
           <circle cx="28" cy="103" r="1" fill="#4f3944" /><circle cx="34" cy="103" r="1" fill="#4f3944" />
           <path d="M28 108c2 2 4 2 6 0" fill="none" stroke="#d77b8d" strokeLinecap="round" strokeWidth="1.2" />
         </g>
-        <g className="timeline-home-character timeline-home-character--right">
+        <g className="timeline-home-character timeline-home-character--right" transform="translate(182 143) scale(1.15 1.3) translate(-222 -143)">
           <ellipse cx="222" cy="143" rx="18" ry="3" fill="#7195b6" opacity=".2" />
           <path d="M208 137c1-16 6-27 14-28 9 2 15 13 16 28Z" fill="#5d92a7" stroke="#3e697d" strokeLinejoin="round" strokeWidth="2" />
           <path d="M213 115h18l-4 23h-11Z" fill="#d9edf0" opacity=".95" />
           <path d="M215 115h14l-7 10Z" fill="#f6d4a4" opacity=".9" />
+          <path d="M215 125h14M214 130h16M216 135h12" fill="none" stroke="#3e697d" strokeLinecap="round" strokeWidth="1.1" opacity=".8" />
           <path d="M210 120c-5 3-7 8-9 14M234 120c5 3 7 8 9 14" fill="none" stroke="#3e697d" strokeLinecap="round" strokeWidth="2" />
           <circle cx="222" cy="99" r="8" fill="#ffd3be" stroke="#8b6370" strokeWidth="1.5" />
           <path d="M211 96c2-9 7-13 13-12 8 0 12 5 12 12h-5l-3-4-4 4-5-4-4 4Z" fill="#23344c" />

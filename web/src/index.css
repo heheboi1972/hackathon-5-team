@@ -4555,6 +4555,27 @@
     height: 11.75rem;
   }
 
+  .timeline-home-generated-illustration {
+    position: absolute;
+    right: .3rem;
+    bottom: -2.25rem;
+    width: 16rem;
+    height: 16rem;
+    z-index: 1;
+    object-fit: contain;
+    object-position: center bottom;
+  }
+
+  .timeline-home-envelope,
+  .timeline-home-characters,
+  .timeline-home-envelope-art__halo,
+  .timeline-home-envelope-art__heart,
+  .timeline-home-envelope-art__sparkle,
+  .timeline-home-envelope-art__bubble { display: none; }
+
+  .timeline-home-envelope-art::before,
+  .timeline-home-envelope-art::after { display: none; }
+
   .timeline-home-envelope-art::before,
   .timeline-home-envelope-art::after {
     position: absolute;
@@ -4631,4 +4652,12 @@
   }
 
   .timeline-home-envelope-art__bubble { left: .6rem; }
+
+  .timeline-home-generated-illustration {
+    right: 50%;
+    bottom: -2.5rem;
+    width: 17rem;
+    height: 17rem;
+    transform: translateX(50%);
+  }
 }
